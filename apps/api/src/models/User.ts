@@ -15,6 +15,7 @@ export interface IUser extends Document {
   linkedinUrl?: string;
   portfolioUrl?: string;
   status: UserStatus;
+  tokenVersion: number;
   createdAt: Date;
   updatedAt: Date;
   verifyPassword(candidatePassword: string): Promise<boolean>;
@@ -87,6 +88,11 @@ const UserSchema = new Schema<IUser, IUserModel>(
       enum: ["ACTIVE", "SUSPENDED"],
       default: "ACTIVE",
       index: true,
+    },
+    tokenVersion: {
+      type: Number,
+      default: 0,
+      required: true,
     },
   },
   {

@@ -20,7 +20,7 @@ describe("Authentication Integration Tests", () => {
   });
 
   describe("POST /api/v1/auth/register", () => {
-    it("successfully registers a new user with cookie and returns user profile", async () => {
+    it("successfully registers a new user with HTTP-only cookie and never exposes JWT in JSON response", async () => {
       const res = await request(app)
         .post("/api/v1/auth/register")
         .send({
@@ -37,7 +37,9 @@ describe("Authentication Integration Tests", () => {
       expect(res.body.data.user.email).toBe("alex.dev@test-auth-suite.com");
       expect(res.body.data.user.displayName).toBe("Alex Dev");
       expect(res.body.data.user.passwordHash).toBeUndefined();
-      expect(res.body.data.token).toBeDefined();
+
+      // SECURITY AUDIT: JWT token must NEVER be returned in response JSON
+      expect(res.body.data.token).toBeUndefined();
 
       // Verify Set-Cookie header
       const cookies = res.headers["set-cookie"];
@@ -101,7 +103,7 @@ describe("Authentication Integration Tests", () => {
         });
     });
 
-    it("successfully logs in with valid credentials and sets session cookie", async () => {
+    it("successfully logs in with valid credentials, sets HTTP-only cookie and never exposes token in JSON", async () => {
       const res = await request(app).post("/api/v1/auth/login").send({
         email: "LOGIN.USER@test-auth-suite.com", // testing normalization
         password: "CorrectPassword123!",
@@ -111,11 +113,14 @@ describe("Authentication Integration Tests", () => {
       expect(res.body.success).toBe(true);
       expect(res.body.data.user.email).toBe("login.user@test-auth-suite.com");
       expect(res.body.data.user.passwordHash).toBeUndefined();
-      expect(res.body.data.token).toBeDefined();
+
+      // SECURITY AUDIT: JWT token must NEVER be exposed in response body
+      expect(res.body.data.token).toBeUndefined();
 
       const cookies = res.headers["set-cookie"];
       expect(cookies[0]).toMatch(/^token=/);
       expect(cookies[0]).toMatch(/HttpOnly/i);
+      expect(cookies[0]).toMatch(/SameSite=Lax/i);
     });
 
     it("rejects login with incorrect password with 401 and generic error message", async () => {
@@ -145,7 +150,7 @@ describe("Authentication Integration Tests", () => {
 
   describe("GET /api/v1/auth/me", () => {
     let authCookie: string;
-    let authToken: string;
+    let bearerToken: string;
 
     beforeEach(async () => {
       const regRes = await request(app)
@@ -157,8 +162,9 @@ describe("Authentication Integration Tests", () => {
           skills: ["Docker", "Kubernetes"],
         });
 
-      authToken = regRes.body.data.token;
       authCookie = regRes.headers["set-cookie"][0].split(";")[0];
+      const match = authCookie.match(/token=([^;]+)/);
+      bearerToken = match ? match[1] : "";
     });
 
     it("returns authenticated user profile when cookie is supplied", async () => {
@@ -173,7 +179,7 @@ describe("Authentication Integration Tests", () => {
     it("returns authenticated user profile when Bearer token is supplied", async () => {
       const res = await request(app)
         .get("/api/v1/auth/me")
-        .set("Authorization", `Bearer ${authToken}`);
+        .set("Authorization", `Bearer ${bearerToken}`);
 
       expect(res.status).toBe(200);
       expect(res.body.success).toBe(true);
@@ -199,22 +205,116 @@ describe("Authentication Integration Tests", () => {
     });
   });
 
-  describe("POST /api/v1/auth/logout", () => {
-    it("clears authentication cookie", async () => {
-      const res = await request(app).post("/api/v1/auth/logout");
+  describe("Actual Logout & Session Revocation", () => {
+    it("genuinely revokes session: accessing protected endpoint with previously issued credential fails after logout", async () => {
+      // 1. User registers & logs in
+      const regRes = await request(app)
+        .post("/api/v1/auth/register")
+        .send({
+          email: "revocation.test@test-auth-suite.com",
+          password: "Password123!",
+          displayName: "Revocation User",
+          skills: ["TypeScript"],
+        });
+
+      const sessionCookie = regRes.headers["set-cookie"][0].split(";")[0];
+
+      // 2. Verified active access with session cookie
+      const preLogoutRes = await request(app).get("/api/v1/auth/me").set("Cookie", [sessionCookie]);
+      expect(preLogoutRes.status).toBe(200);
+      expect(preLogoutRes.body.data.user.email).toBe("revocation.test@test-auth-suite.com");
+
+      // 3. User logs out
+      const logoutRes = await request(app)
+        .post("/api/v1/auth/logout")
+        .set("Cookie", [sessionCookie])
+        .set("Origin", "http://localhost:5173");
+
+      expect(logoutRes.status).toBe(200);
+      expect(logoutRes.body.success).toBe(true);
+
+      // Verify cookie cleared
+      const clearedCookies = logoutRes.headers["set-cookie"];
+      expect(clearedCookies[0]).toMatch(/token=;/);
+
+      // 4. CRITICAL SECURITY TEST: Reusing previously issued credential fails
+      const postLogoutRes = await request(app)
+        .get("/api/v1/auth/me")
+        .set("Cookie", [sessionCookie]);
+
+      expect(postLogoutRes.status).toBe(401);
+      expect(postLogoutRes.body.success).toBe(false);
+      expect(postLogoutRes.body.error.code).toBe("UNAUTHORIZED");
+      expect(postLogoutRes.body.error.message).toMatch(/revoked/i);
+
+      // 5. User must re-authenticate to gain access
+      const reLoginRes = await request(app).post("/api/v1/auth/login").send({
+        email: "revocation.test@test-auth-suite.com",
+        password: "Password123!",
+      });
+
+      expect(reLoginRes.status).toBe(200);
+      const newSessionCookie = reLoginRes.headers["set-cookie"][0].split(";")[0];
+
+      const newMeRes = await request(app).get("/api/v1/auth/me").set("Cookie", [newSessionCookie]);
+
+      expect(newMeRes.status).toBe(200);
+      expect(newMeRes.body.data.user.email).toBe("revocation.test@test-auth-suite.com");
+    });
+  });
+
+  describe("CSRF Protection Middleware", () => {
+    let testCookie: string;
+
+    beforeEach(async () => {
+      const regRes = await request(app)
+        .post("/api/v1/auth/register")
+        .send({
+          email: "csrf.test@test-auth-suite.com",
+          password: "Password123!",
+          displayName: "CSRF User",
+          skills: ["Security"],
+        });
+
+      testCookie = regRes.headers["set-cookie"][0].split(";")[0];
+    });
+
+    it("rejects state-changing requests with cookie from unauthorized cross-origin (403 Forbidden)", async () => {
+      const res = await request(app)
+        .post("/api/v1/auth/logout")
+        .set("Cookie", [testCookie])
+        .set("Origin", "http://malicious-attacker.com");
+
+      expect(res.status).toBe(403);
+      expect(res.body.success).toBe(false);
+      expect(res.body.error.code).toBe("FORBIDDEN");
+      expect(res.body.error.message).toMatch(/CSRF/i);
+    });
+
+    it("accepts state-changing requests with cookie from authorized origin (200 OK)", async () => {
+      const res = await request(app)
+        .post("/api/v1/auth/logout")
+        .set("Cookie", [testCookie])
+        .set("Origin", "http://localhost:5173");
 
       expect(res.status).toBe(200);
       expect(res.body.success).toBe(true);
-      expect(res.body.data.message).toBe("Logged out successfully");
+    });
 
-      const cookies = res.headers["set-cookie"];
-      expect(cookies[0]).toMatch(/token=;/);
+    it("allows safe GET requests with cookie even from external referer (safe methods bypass)", async () => {
+      const res = await request(app)
+        .get("/api/v1/auth/me")
+        .set("Cookie", [testCookie])
+        .set("Origin", "http://external-site.com");
+
+      expect(res.status).toBe(200);
+      expect(res.body.success).toBe(true);
     });
   });
 
   describe("Authentication Rate Limiting", () => {
     it("returns 429 when rate limit threshold is exceeded", async () => {
-      // Send 10 requests to trigger rate limit (max 10)
+      // Send 10 requests to reach rate limit threshold
       for (let i = 0; i < 10; i++) {
         await request(app)
           .post("/api/v1/auth/login")

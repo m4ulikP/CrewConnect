@@ -9,6 +9,7 @@ export interface AuthTokenPayload {
   id: string;
   email: string;
   displayName: string;
+  tokenVersion: number;
 }
 
 export class AuthService {
@@ -20,6 +21,7 @@ export class AuthService {
       id: user._id.toString(),
       email: user.email,
       displayName: user.displayName,
+      tokenVersion: user.tokenVersion ?? 0,
     };
 
     return jwt.sign(payload, env.JWT_SECRET, {
@@ -66,6 +68,15 @@ export class AuthService {
       sameSite: "lax",
       path: "/",
     });
+  }
+
+  /**
+   * Invalidates active sessions by atomically incrementing the user's tokenVersion
+   * and clearing the HTTP-only authentication cookie
+   */
+  static async revokeSession(userId: string, res: Response): Promise<void> {
+    await User.findByIdAndUpdate(userId, { $inc: { tokenVersion: 1 } });
+    this.clearAuthCookie(res);
   }
 
   /**

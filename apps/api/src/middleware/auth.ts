@@ -29,6 +29,15 @@ export async function requireAuth(req: Request, _res: Response, next: NextFuncti
       throw new AppError(ERROR_CODES.FORBIDDEN, "Account has been suspended", 403);
     }
 
+    // Revocation check: Token tokenVersion must match current DB tokenVersion
+    if (payload.tokenVersion !== user.tokenVersion) {
+      throw new AppError(
+        ERROR_CODES.UNAUTHORIZED,
+        "Session has been revoked. Please sign in again.",
+        401
+      );
+    }
+
     req.user = user;
     next();
   } catch (error) {
@@ -53,7 +62,7 @@ export async function optionalAuth(
     if (token) {
       const payload = AuthService.verifyToken(token);
       const user = await User.findById(payload.id);
-      if (user && user.status !== "SUSPENDED") {
+      if (user && user.status !== "SUSPENDED" && payload.tokenVersion === user.tokenVersion) {
         req.user = user;
       }
     }

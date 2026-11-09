@@ -10,6 +10,7 @@ export const authRouter = Router();
 /**
  * POST /api/v1/auth/register
  * Register a new user account with Argon2id password hashing
+ * Sets HTTP-only session cookie exclusively; does not expose token in body
  */
 authRouter.post(
   "/register",
@@ -20,11 +21,10 @@ authRouter.post(
       const { user, token } = await AuthService.register(req.body);
       AuthService.setAuthCookie(res, token);
 
-      const response: ApiResponse<{ user: unknown; token: string }> = {
+      const response: ApiResponse<{ user: unknown }> = {
         success: true,
         data: {
           user: user.toJSON(),
-          token,
         },
       };
 
@@ -37,18 +37,17 @@ authRouter.post(
 
 /**
  * POST /api/v1/auth/login
- * Authenticate credentials and issue JWT in HTTP-only cookie and body
+ * Authenticate credentials and issue JWT exclusively via HTTP-only cookie
  */
 authRouter.post("/login", authRateLimiter, validateBody(LoginSchema), async (req, res, next) => {
   try {
     const { user, token } = await AuthService.login(req.body);
     AuthService.setAuthCookie(res, token);
 
-    const response: ApiResponse<{ user: unknown; token: string }> = {
+    const response: ApiResponse<{ user: unknown }> = {
       success: true,
       data: {
         user: user.toJSON(),
-        token,
       },
     };
 
@@ -79,11 +78,28 @@ authRouter.get("/me", requireAuth, async (req, res, next) => {
 
 /**
  * POST /api/v1/auth/logout
- * Invalidate session and clear HTTP-only cookie
+ * Invalidate session by incrementing user tokenVersion and clearing HTTP-only cookie
  */
-authRouter.post("/logout", async (_req, res, next) => {
+authRouter.post("/logout", async (req, res, next) => {
   try {
-    AuthService.clearAuthCookie(res);
+    const cookieToken = req.cookies?.token;
+    const authHeader = req.headers.authorization;
+    const bearerToken = authHeader?.startsWith("Bearer ")
+      ? authHeader.substring(7).trim()
+      : undefined;
+
+    const token = cookieToken || bearerToken;
+
+    if (token) {
+      try {
+        const payload = AuthService.verifyToken(token);
+        await AuthService.revokeSession(payload.id, res);
+      } catch {
+        AuthService.clearAuthCookie(res);
+      }
+    } else {
+      AuthService.clearAuthCookie(res);
+    }
 
     const response: ApiResponse<{ message: string }> = {
       success: true,

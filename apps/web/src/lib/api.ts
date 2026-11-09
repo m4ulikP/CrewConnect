@@ -63,15 +63,15 @@ export async function fetchHealth(): Promise<{
   return res.json();
 }
 
-export async function apiRegister(data: RegisterInput): Promise<{ user: UserDTO; token: string }> {
-  return apiRequest<{ user: UserDTO; token: string }>("/auth/register", {
+export async function apiRegister(data: RegisterInput): Promise<{ user: UserDTO }> {
+  return apiRequest<{ user: UserDTO }>("/auth/register", {
     method: "POST",
     body: JSON.stringify(data),
   });
 }
 
-export async function apiLogin(data: LoginInput): Promise<{ user: UserDTO; token: string }> {
-  return apiRequest<{ user: UserDTO; token: string }>("/auth/login", {
+export async function apiLogin(data: LoginInput): Promise<{ user: UserDTO }> {
+  return apiRequest<{ user: UserDTO }>("/auth/login", {
     method: "POST",
     body: JSON.stringify(data),
   });
