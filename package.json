@@ -1,0 +1,31 @@
+{
+  "name": "crewconnect-monorepo",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Production-grade hackathon team formation platform solving concurrency and race conditions (Hack4Hack 2026 PS1)",
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "dev": "npm run dev --workspaces --if-present",
+    "build": "npm run build --workspaces --if-present",
+    "test": "npm run test --workspaces --if-present",
+    "lint": "npm run lint --workspaces --if-present",
+    "format": "prettier --check \"**/*.{ts,tsx,js,json,md}\"",
+    "format:fix": "prettier --write \"**/*.{ts,tsx,js,json,md}\""
+  },
+  "devDependencies": {
+    "prettier": "^3.2.5"
+  },
+  "engines": {
+    "node": ">=20.0.0",
+    "npm": ">=10.0.0"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/hack4hack/crewconnect"
+  },
+  "author": "CrewConnect Engineering Team",
+  "license": "MIT"
+}
