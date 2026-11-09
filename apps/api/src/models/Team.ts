@@ -83,7 +83,21 @@ const TeamSchema = new Schema<ITeam>(
       transform(_doc, ret: Record<string, unknown>) {
         ret.id = ret._id ? String(ret._id) : undefined;
         if (ret.hackathonId) ret.hackathonId = String(ret.hackathonId);
-        if (ret.leaderId) ret.leaderId = String(ret.leaderId);
+        if (ret.leaderId) {
+          if (
+            typeof ret.leaderId === "object" &&
+            ret.leaderId !== null &&
+            "displayName" in ret.leaderId
+          ) {
+            const l = ret.leaderId as Record<string, unknown>;
+            if (l._id) {
+              l.id = String(l._id);
+              delete l._id;
+            }
+          } else {
+            ret.leaderId = String(ret.leaderId);
+          }
+        }
         delete ret._id;
         delete ret.__v;
         return ret;

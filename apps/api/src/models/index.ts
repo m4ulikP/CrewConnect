@@ -1,13 +1,30 @@
-import { User } from "./User.js";
-import { Hackathon } from "./Hackathon.js";
-import { Team } from "./Team.js";
-import { Membership } from "./Membership.js";
-import { JoinRequest } from "./JoinRequest.js";
-import { Invitation } from "./Invitation.js";
-import { AuditLog } from "./AuditLog.js";
-import { IdempotencyRecord } from "./IdempotencyRecord.js";
+import { User, type IUser } from "./User.js";
+import { Hackathon, type IHackathon } from "./Hackathon.js";
+import { Team, type ITeam } from "./Team.js";
+import { Membership, type IMembership } from "./Membership.js";
+import { JoinRequest, type IJoinRequest } from "./JoinRequest.js";
+import { Invitation, type IInvitation } from "./Invitation.js";
+import { AuditLog, type IAuditLog } from "./AuditLog.js";
+import { IdempotencyRecord, type IIdempotencyRecord } from "./IdempotencyRecord.js";
 
-export { User, Hackathon, Team, Membership, JoinRequest, Invitation, AuditLog, IdempotencyRecord };
+export {
+  User,
+  Hackathon,
+  Team,
+  Membership,
+  JoinRequest,
+  Invitation,
+  AuditLog,
+  IdempotencyRecord,
+  type IUser,
+  type IHackathon,
+  type ITeam,
+  type IMembership,
+  type IJoinRequest,
+  type IInvitation,
+  type IAuditLog,
+  type IIdempotencyRecord,
+};
 
 export async function syncAllIndexes(): Promise<Record<string, string[]>> {
   const models = [

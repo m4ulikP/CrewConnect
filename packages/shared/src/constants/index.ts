@@ -24,6 +24,9 @@ export type IdempotencyStatus = (typeof IDEMPOTENCY_STATUS)[number];
 
 export const AUDIT_ACTIONS = [
   "TEAM_CREATED",
+  "TEAM_UPDATED",
+  "TEAM_OPENED",
+  "TEAM_CLOSED",
   "TEAM_DISBANDED",
   "MEMBER_JOINED",
   "MEMBER_LEFT",

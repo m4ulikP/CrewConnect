@@ -60,7 +60,21 @@ const MembershipSchema = new Schema<IMembership>(
         ret.id = ret._id ? String(ret._id) : undefined;
         if (ret.hackathonId) ret.hackathonId = String(ret.hackathonId);
         if (ret.teamId) ret.teamId = String(ret.teamId);
-        if (ret.userId) ret.userId = String(ret.userId);
+        if (ret.userId) {
+          if (
+            typeof ret.userId === "object" &&
+            ret.userId !== null &&
+            "displayName" in ret.userId
+          ) {
+            const u = ret.userId as Record<string, unknown>;
+            if (u._id) {
+              u.id = String(u._id);
+              delete u._id;
+            }
+          } else {
+            ret.userId = String(ret.userId);
+          }
+        }
         delete ret._id;
         delete ret.__v;
         return ret;

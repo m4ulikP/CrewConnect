@@ -81,6 +81,12 @@ export interface TeamDTO {
   isOpen: boolean;
   status: TeamStatus;
   leaderId: string;
+  leader?: {
+    id: string;
+    displayName: string;
+    email?: string;
+    skills?: string[];
+  };
   createdAt: string;
   updatedAt: string;
 }
@@ -94,6 +100,24 @@ export interface MembershipDTO {
   status: MembershipStatus;
   joinedAt: string;
   leftAt?: string;
+}
+
+export interface TeamMemberDTO {
+  id: string;
+  teamId: string;
+  userId: string;
+  role: TeamRole;
+  status: MembershipStatus;
+  joinedAt: string;
+  user: {
+    id: string;
+    displayName: string;
+    email?: string;
+    skills: string[];
+    bio?: string;
+    githubUrl?: string;
+    experienceLevel?: string;
+  };
 }
 
 export interface JoinRequestDTO {

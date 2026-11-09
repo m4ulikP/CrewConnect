@@ -8,6 +8,7 @@ import { ErrorBoundary } from "./components/ErrorBoundary";
 import { ProtectedRoute } from "./components/ProtectedRoute";
 import { Home } from "./pages/Home";
 import { TeamsPreview } from "./pages/TeamsPreview";
+import { TeamDetails } from "./pages/TeamDetails";
 import { Login } from "./pages/Login";
 import { Register } from "./pages/Register";
 import { Profile } from "./pages/Profile";
@@ -34,6 +35,7 @@ export const App: React.FC = () => {
                   <Route path="/" element={<Home />} />
                   <Route path="/teams" element={<TeamsPreview />} />
                   <Route path="/teams-preview" element={<TeamsPreview />} />
+                  <Route path="/teams/:teamId" element={<TeamDetails />} />
                   <Route path="/login" element={<Login />} />
                   <Route path="/register" element={<Register />} />
                   <Route

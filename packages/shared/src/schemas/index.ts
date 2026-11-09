@@ -29,14 +29,16 @@ export const CreateTeamSchema = z.object({
   tagline: z.string().max(100).optional(),
   description: z.string().max(1000).optional(),
   skillsNeeded: z.array(z.string().trim()).max(20).default([]),
+  maxCapacity: z.number().int().min(1).max(10).optional(),
 });
 export type CreateTeamInput = z.infer<typeof CreateTeamSchema>;
 
 export const UpdateTeamSchema = z.object({
-  name: z.string().min(2).max(50).trim().optional(),
+  name: z.string().min(2, "Team name must be at least 2 characters").max(50).trim().optional(),
   tagline: z.string().max(100).optional(),
   description: z.string().max(1000).optional(),
   skillsNeeded: z.array(z.string().trim()).max(20).optional(),
+  maxCapacity: z.number().int().min(1).max(10).optional(),
   isOpen: z.boolean().optional(),
 });
 export type UpdateTeamInput = z.infer<typeof UpdateTeamSchema>;
