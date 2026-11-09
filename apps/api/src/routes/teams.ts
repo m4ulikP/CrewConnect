@@ -1,4 +1,5 @@
 import { Router, type Request, type Response, type NextFunction } from "express";
+import { Types } from "mongoose";
 import { TeamService } from "../services/team.service.js";
 import { AuditLog, Membership } from "../models/index.js";
 import { requireAuth } from "../middleware/auth.js";
@@ -59,6 +60,9 @@ teamsRouter.patch(
   async (req: Request, res: Response, next: NextFunction): Promise<void> => {
     try {
       const teamId = req.params.id;
+      if (!Types.ObjectId.isValid(teamId)) {
+        throw AppError.validation("Invalid team ID format");
+      }
       const userId = req.user!.id;
       const input = req.body as UpdateTeamInput;
 
@@ -84,6 +88,9 @@ teamsRouter.post(
   async (req: Request, res: Response, next: NextFunction): Promise<void> => {
     try {
       const teamId = req.params.id;
+      if (!Types.ObjectId.isValid(teamId)) {
+        throw AppError.validation("Invalid team ID format");
+      }
       const userId = req.user!.id;
 
       const updated = await TeamService.setTeamOpenStatus(teamId, userId, true);
@@ -108,6 +115,9 @@ teamsRouter.post(
   async (req: Request, res: Response, next: NextFunction): Promise<void> => {
     try {
       const teamId = req.params.id;
+      if (!Types.ObjectId.isValid(teamId)) {
+        throw AppError.validation("Invalid team ID format");
+      }
       const userId = req.user!.id;
 
       const updated = await TeamService.setTeamOpenStatus(teamId, userId, false);
@@ -159,6 +169,9 @@ teamsRouter.post(
   async (req: Request, res: Response, next: NextFunction): Promise<void> => {
     try {
       const teamId = req.params.id;
+      if (!Types.ObjectId.isValid(teamId)) {
+        throw AppError.validation("Invalid team ID format");
+      }
       const userId = req.user!.id;
 
       const result = await TeamService.leaveTeam(teamId, userId);
@@ -232,6 +245,9 @@ teamsRouter.get(
   async (req: Request, res: Response, next: NextFunction): Promise<void> => {
     try {
       const teamId = req.params.id;
+      if (!Types.ObjectId.isValid(teamId)) {
+        throw AppError.validation("Invalid team ID format");
+      }
       const userId = req.user!.id;
 
       // Verify user is or was an active member of this team or has permissions

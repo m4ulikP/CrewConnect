@@ -717,4 +717,317 @@ describe("Team Lifecycle & Management Integration Tests", () => {
       expect(res.body.success).toBe(false);
     });
   });
+
+  // -------------------------------------------------------------
+  // 9. Genuine Concurrency & State Invariant Verification
+  // -------------------------------------------------------------
+  describe("Genuine Concurrency & Invariant Verification Tests", () => {
+    async function createExtraUser(prefix: string) {
+      const res = await request(app)
+        .post("/api/v1/auth/register")
+        .send({
+          email: `${prefix}-${Date.now()}-${Math.random().toString(36).substring(7)}@test-teams-suite.com`,
+          password: "SecurePassword123!",
+          displayName: `User ${prefix}`,
+          skills: ["TypeScript"],
+        });
+      return {
+        user: res.body.data.user as UserDTO,
+        cookie: res.headers["set-cookie"][0] as string,
+      };
+    }
+
+    it("handles concurrent leadership transfers: exactly one succeeds, final state has exactly one leader and consistent leaderId", async () => {
+      const teamRes = await request(app)
+        .post(`/api/v1/hackathons/${testHackathonId}/teams`)
+        .set("Cookie", leaderCookie)
+        .set("Origin", TEST_ORIGIN)
+        .send({ name: "Concurrent Transfer Team", maxCapacity: 5 });
+      const teamId = teamRes.body.data.team.id;
+
+      const extraMember = await createExtraUser("candidate");
+      await Membership.create([
+        {
+          hackathonId: new Types.ObjectId(testHackathonId),
+          teamId: new Types.ObjectId(teamId),
+          userId: new Types.ObjectId(memberUser.id),
+          role: "MEMBER",
+          status: "ACTIVE",
+          joinedAt: new Date(),
+        },
+        {
+          hackathonId: new Types.ObjectId(testHackathonId),
+          teamId: new Types.ObjectId(teamId),
+          userId: new Types.ObjectId(extraMember.user.id),
+          role: "MEMBER",
+          status: "ACTIVE",
+          joinedAt: new Date(),
+        },
+      ]);
+      await Team.findByIdAndUpdate(teamId, { memberCount: 3 });
+
+      const transferToMember = request(app)
+        .post(`/api/v1/teams/${teamId}/transfer-leadership`)
+        .set("Cookie", leaderCookie)
+        .set("Origin", TEST_ORIGIN)
+        .send({ newLeaderId: memberUser.id });
+
+      const transferToExtra = request(app)
+        .post(`/api/v1/teams/${teamId}/transfer-leadership`)
+        .set("Cookie", leaderCookie)
+        .set("Origin", TEST_ORIGIN)
+        .send({ newLeaderId: extraMember.user.id });
+
+      const [res1, res2] = await Promise.all([transferToMember, transferToExtra]);
+
+      const statuses = [res1.status, res2.status].sort();
+      expect(statuses[0]).toBe(200);
+      expect([400, 403, 409]).toContain(statuses[1]);
+
+      const team = await Team.findById(teamId);
+      expect(team).not.toBeNull();
+
+      const activeLeaders = await Membership.find({ teamId, role: "LEADER", status: "ACTIVE" });
+      expect(activeLeaders).toHaveLength(1);
+      expect(team?.leaderId.toString()).toBe(activeLeaders[0].userId.toString());
+
+      const activeMembers = await Membership.find({ teamId, status: "ACTIVE" });
+      expect(activeMembers).toHaveLength(3);
+
+      const oldLeaderMem = await Membership.findOne({ teamId, userId: leaderUser.id });
+      expect(oldLeaderMem?.role).toBe("MEMBER");
+      expect(oldLeaderMem?.status).toBe("ACTIVE");
+    });
+
+    it("handles concurrent departures for different members without lost updates: memberCount equals active memberships", async () => {
+      const teamRes = await request(app)
+        .post(`/api/v1/hackathons/${testHackathonId}/teams`)
+        .set("Cookie", leaderCookie)
+        .set("Origin", TEST_ORIGIN)
+        .send({ name: "Concurrent Departures Team", maxCapacity: 5 });
+      const teamId = teamRes.body.data.team.id;
+
+      const extraMember = await createExtraUser("departing");
+      await Membership.create([
+        {
+          hackathonId: new Types.ObjectId(testHackathonId),
+          teamId: new Types.ObjectId(teamId),
+          userId: new Types.ObjectId(memberUser.id),
+          role: "MEMBER",
+          status: "ACTIVE",
+          joinedAt: new Date(),
+        },
+        {
+          hackathonId: new Types.ObjectId(testHackathonId),
+          teamId: new Types.ObjectId(teamId),
+          userId: new Types.ObjectId(extraMember.user.id),
+          role: "MEMBER",
+          status: "ACTIVE",
+          joinedAt: new Date(),
+        },
+      ]);
+      await Team.findByIdAndUpdate(teamId, { memberCount: 3 });
+
+      const leaveMember1 = request(app)
+        .post(`/api/v1/teams/${teamId}/leave`)
+        .set("Cookie", memberCookie)
+        .set("Origin", TEST_ORIGIN);
+
+      const leaveMember2 = request(app)
+        .post(`/api/v1/teams/${teamId}/leave`)
+        .set("Cookie", extraMember.cookie)
+        .set("Origin", TEST_ORIGIN);
+
+      const [res1, res2] = await Promise.all([leaveMember1, leaveMember2]);
+
+      expect(res1.status).toBe(200);
+      expect(res2.status).toBe(200);
+
+      const team = await Team.findById(teamId);
+      const activeMembers = await Membership.find({ teamId, status: "ACTIVE" });
+
+      expect(activeMembers).toHaveLength(1);
+      expect(activeMembers[0].userId.toString()).toBe(leaderUser.id);
+      expect(team?.memberCount).toBe(1);
+      expect(team?.memberCount).toBe(activeMembers.length);
+
+      const mem1 = await Membership.findOne({ teamId, userId: memberUser.id });
+      const mem2 = await Membership.findOne({ teamId, userId: extraMember.user.id });
+      expect(mem1?.status).toBe("LEFT");
+      expect(mem2?.status).toBe("LEFT");
+    });
+
+    it("handles concurrent leave and removal for the same member: membership transitions once and count decrements once", async () => {
+      const teamRes = await request(app)
+        .post(`/api/v1/hackathons/${testHackathonId}/teams`)
+        .set("Cookie", leaderCookie)
+        .set("Origin", TEST_ORIGIN)
+        .send({ name: "Concurrent Race Team", maxCapacity: 4 });
+      const teamId = teamRes.body.data.team.id;
+
+      await Membership.create({
+        hackathonId: new Types.ObjectId(testHackathonId),
+        teamId: new Types.ObjectId(teamId),
+        userId: new Types.ObjectId(memberUser.id),
+        role: "MEMBER",
+        status: "ACTIVE",
+        joinedAt: new Date(),
+      });
+      await Team.findByIdAndUpdate(teamId, { memberCount: 2 });
+
+      const memberLeaves = request(app)
+        .post(`/api/v1/teams/${teamId}/leave`)
+        .set("Cookie", memberCookie)
+        .set("Origin", TEST_ORIGIN);
+
+      const leaderRemoves = request(app)
+        .delete(`/api/v1/teams/${teamId}/members/${memberUser.id}`)
+        .set("Cookie", leaderCookie)
+        .set("Origin", TEST_ORIGIN);
+
+      const [resLeave, resRemove] = await Promise.all([memberLeaves, leaderRemoves]);
+
+      const statuses = [resLeave.status, resRemove.status].sort();
+      expect(statuses[0]).toBe(200);
+      expect([400, 404, 409]).toContain(statuses[1]);
+
+      const team = await Team.findById(teamId);
+      const activeMembers = await Membership.find({ teamId, status: "ACTIVE" });
+
+      expect(activeMembers).toHaveLength(1);
+      expect(team?.memberCount).toBe(1);
+      expect(team?.memberCount).toBe(activeMembers.length);
+
+      const targetMem = await Membership.findOne({ teamId, userId: memberUser.id });
+      expect(["LEFT", "REMOVED"]).toContain(targetMem?.status);
+    });
+
+    it("handles concurrent disband and mutation: no invalid or corrupted final state", async () => {
+      const teamRes = await request(app)
+        .post(`/api/v1/hackathons/${testHackathonId}/teams`)
+        .set("Cookie", leaderCookie)
+        .set("Origin", TEST_ORIGIN)
+        .send({ name: "Disband Race Team", maxCapacity: 5 });
+      const teamId = teamRes.body.data.team.id;
+
+      await Membership.create({
+        hackathonId: new Types.ObjectId(testHackathonId),
+        teamId: new Types.ObjectId(teamId),
+        userId: new Types.ObjectId(memberUser.id),
+        role: "MEMBER",
+        status: "ACTIVE",
+        joinedAt: new Date(),
+      });
+      await Team.findByIdAndUpdate(teamId, { memberCount: 2 });
+
+      const disbandReq = request(app)
+        .post(`/api/v1/teams/${teamId}/disband`)
+        .set("Cookie", leaderCookie)
+        .set("Origin", TEST_ORIGIN);
+
+      const updateReq = request(app)
+        .patch(`/api/v1/teams/${teamId}`)
+        .set("Cookie", leaderCookie)
+        .set("Origin", TEST_ORIGIN)
+        .send({ tagline: "Updated Concurrent Tagline" });
+
+      const [disbandRes, updateRes] = await Promise.all([disbandReq, updateReq]);
+
+      const team = await Team.findById(teamId);
+      if (disbandRes.status === 200) {
+        expect(team?.status).toBe("DISBANDED");
+        expect(team?.isOpen).toBe(false);
+        expect(team?.memberCount).toBe(0);
+
+        const activeMembers = await Membership.find({ teamId, status: "ACTIVE" });
+        expect(activeMembers).toHaveLength(0);
+      } else {
+        expect(updateRes.status).toBe(200);
+      }
+    });
+
+    it("enforces capacity updates against hackathon boundaries and active member count", async () => {
+      const boundedHackathon = await Hackathon.create({
+        slug: `bounded-hackathon-${Date.now()}`,
+        title: "Bounded Hackathon",
+        description: "Strict limits",
+        minTeamSize: 2,
+        maxTeamSize: 4,
+        status: "ACTIVE",
+        startDate: new Date(),
+        endDate: new Date(Date.now() + 86400000),
+      });
+
+      const creator = await createExtraUser("bounded-creator");
+
+      const teamRes = await request(app)
+        .post(`/api/v1/hackathons/${boundedHackathon._id}/teams`)
+        .set("Cookie", creator.cookie)
+        .set("Origin", TEST_ORIGIN)
+        .send({ name: "Bounded Team", maxCapacity: 3 });
+      const teamId = teamRes.body.data.team.id;
+
+      const m1 = await createExtraUser("bmem1");
+      const m2 = await createExtraUser("bmem2");
+      await Membership.create([
+        {
+          hackathonId: boundedHackathon._id,
+          teamId: new Types.ObjectId(teamId),
+          userId: new Types.ObjectId(m1.user.id),
+          role: "MEMBER",
+          status: "ACTIVE",
+          joinedAt: new Date(),
+        },
+        {
+          hackathonId: boundedHackathon._id,
+          teamId: new Types.ObjectId(teamId),
+          userId: new Types.ObjectId(m2.user.id),
+          role: "MEMBER",
+          status: "ACTIVE",
+          joinedAt: new Date(),
+        },
+      ]);
+      await Team.findByIdAndUpdate(teamId, { memberCount: 3 });
+
+      // 1. Try capacity = 5 (> hackathon max 4) -> 400
+      const overMax = await request(app)
+        .patch(`/api/v1/teams/${teamId}`)
+        .set("Cookie", creator.cookie)
+        .set("Origin", TEST_ORIGIN)
+        .send({ maxCapacity: 5 });
+      expect(overMax.status).toBe(400);
+      expect(overMax.body.error.code).toBe("TEAM_CAPACITY_INVALID");
+
+      // 2. Try capacity = 1 (< hackathon min 2) -> 400
+      const underMin = await request(app)
+        .patch(`/api/v1/teams/${teamId}`)
+        .set("Cookie", creator.cookie)
+        .set("Origin", TEST_ORIGIN)
+        .send({ maxCapacity: 1 });
+      expect(underMin.status).toBe(400);
+      expect(underMin.body.error.code).toBe("TEAM_CAPACITY_INVALID");
+
+      // 3. Try capacity = 2 (< active memberCount 3) -> 400
+      const underMembers = await request(app)
+        .patch(`/api/v1/teams/${teamId}`)
+        .set("Cookie", creator.cookie)
+        .set("Origin", TEST_ORIGIN)
+        .send({ maxCapacity: 2 });
+      expect(underMembers.status).toBe(400);
+      expect(underMembers.body.error.code).toBe("TEAM_CAPACITY_INVALID");
+
+      // 4. Valid update to 4 (>= current 3 and <= max 4) -> 200 OK
+      const validUpdate = await request(app)
+        .patch(`/api/v1/teams/${teamId}`)
+        .set("Cookie", creator.cookie)
+        .set("Origin", TEST_ORIGIN)
+        .send({ maxCapacity: 4 });
+      expect(validUpdate.status).toBe(200);
+      expect(validUpdate.body.data.maxCapacity).toBe(4);
+
+      const dbTeam = await Team.findById(teamId);
+      expect(dbTeam?.maxCapacity).toBe(4);
+      expect(dbTeam?.memberCount).toBe(3);
+    });
+  });
 });

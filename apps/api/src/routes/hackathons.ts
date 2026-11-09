@@ -1,4 +1,5 @@
 import { Router, type Request, type Response, type NextFunction } from "express";
+import { Types } from "mongoose";
 import { Hackathon } from "../models/index.js";
 import { TeamService } from "../services/team.service.js";
 import { requireAuth } from "../middleware/auth.js";
@@ -35,7 +36,11 @@ hackathonsRouter.get(
   "/:id",
   async (req: Request, res: Response, next: NextFunction): Promise<void> => {
     try {
-      const hackathon = await Hackathon.findById(req.params.id);
+      const { id } = req.params;
+      if (!Types.ObjectId.isValid(id)) {
+        throw AppError.validation("Invalid hackathon ID format");
+      }
+      const hackathon = await Hackathon.findById(id);
       if (!hackathon) {
         throw AppError.notFound("Hackathon not found");
       }

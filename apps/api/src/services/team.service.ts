@@ -1,4 +1,4 @@
-import mongoose, { Types } from "mongoose";
+import { Types } from "mongoose";
 import {
   Team,
   Membership,
@@ -9,6 +9,7 @@ import {
 } from "../models/index.js";
 import { AppError } from "../errors/AppError.js";
 import { ERROR_CODES, type CreateTeamInput, type UpdateTeamInput } from "@crewconnect/shared";
+import { withTransactionRetry } from "../db/transaction.js";
 
 export interface TeamWithLeader {
   id: string;
@@ -94,11 +95,8 @@ export class TeamService {
       );
     }
 
-    // Unified ACID Transaction
-    const session = await mongoose.startSession();
-    try {
-      session.startTransaction();
-
+    // Unified ACID Transaction with retry
+    return await withTransactionRetry(async (session) => {
       // 1. Create Team document
       const [newTeam] = await Team.create(
         [
@@ -151,12 +149,8 @@ export class TeamService {
         { session }
       );
 
-      await session.commitTransaction();
       return { team: newTeam, membership: leaderMembership };
-    } catch (error: unknown) {
-      if (session.inTransaction()) {
-        await session.abortTransaction();
-      }
+    }).catch((error: unknown) => {
       const mongoErr = error as {
         code?: number;
         keyPattern?: Record<string, number>;
@@ -177,9 +171,7 @@ export class TeamService {
         }
       }
       throw error;
-    } finally {
-      await session.endSession();
-    }
+    });
   }
 
   /**
@@ -342,16 +334,20 @@ export class TeamService {
     // Max capacity update validation
     if (input.maxCapacity !== undefined) {
       const hackathon = await Hackathon.findById(team.hackathonId);
-      if (hackathon) {
-        if (
-          input.maxCapacity < hackathon.minTeamSize ||
-          input.maxCapacity > hackathon.maxTeamSize
-        ) {
-          throw AppError.badRequest(
-            `Max capacity must be between ${hackathon.minTeamSize} and ${hackathon.maxTeamSize}`,
-            ERROR_CODES.TEAM_CAPACITY_INVALID
-          );
-        }
+      if (!hackathon) {
+        throw AppError.notFound("Hackathon not found", ERROR_CODES.HACKATHON_NOT_FOUND);
+      }
+      if (hackathon.status === "COMPLETED") {
+        throw AppError.badRequest(
+          "Hackathon has completed and team cannot be updated",
+          ERROR_CODES.HACKATHON_NOT_ACTIVE
+        );
+      }
+      if (input.maxCapacity < hackathon.minTeamSize || input.maxCapacity > hackathon.maxTeamSize) {
+        throw AppError.badRequest(
+          `Max capacity must be between ${hackathon.minTeamSize} and ${hackathon.maxTeamSize}`,
+          ERROR_CODES.TEAM_CAPACITY_INVALID
+        );
       }
 
       if (input.maxCapacity < team.memberCount) {
@@ -375,13 +371,19 @@ export class TeamService {
       updateFields.isOpen = input.isOpen;
     }
 
-    // Execute update and audit log in a single transaction
-    const session = await mongoose.startSession();
-    try {
-      session.startTransaction();
+    // Execute update and audit log in a single transaction with retry
+    return await withTransactionRetry(async (session) => {
+      const updateFilter: Record<string, unknown> = {
+        _id: teamId,
+        leaderId: new Types.ObjectId(userId),
+        status: "ACTIVE",
+      };
+      if (input.maxCapacity !== undefined) {
+        updateFilter.memberCount = { $lte: input.maxCapacity };
+      }
 
       const updatedTeam = await Team.findOneAndUpdate(
-        { _id: teamId, leaderId: new Types.ObjectId(userId), status: "ACTIVE" },
+        updateFilter,
         { $set: updateFields },
         { session, new: true }
       );
@@ -407,14 +409,8 @@ export class TeamService {
         { session }
       );
 
-      await session.commitTransaction();
       return updatedTeam;
-    } catch (error) {
-      if (session.inTransaction()) await session.abortTransaction();
-      throw error;
-    } finally {
-      await session.endSession();
-    }
+    });
   }
 
   /**
@@ -461,12 +457,18 @@ export class TeamService {
       }
     }
 
-    const session = await mongoose.startSession();
-    try {
-      session.startTransaction();
+    return await withTransactionRetry(async (session) => {
+      const openFilter: Record<string, unknown> = {
+        _id: teamId,
+        leaderId: new Types.ObjectId(userId),
+        status: "ACTIVE",
+      };
+      if (isOpen) {
+        openFilter.$expr = { $lt: ["$memberCount", "$maxCapacity"] };
+      }
 
       const updatedTeam = await Team.findOneAndUpdate(
-        { _id: teamId, leaderId: new Types.ObjectId(userId), status: "ACTIVE" },
+        openFilter,
         { $set: { isOpen } },
         { session, new: true }
       );
@@ -474,7 +476,7 @@ export class TeamService {
       if (!updatedTeam) {
         throw AppError.conflict(
           ERROR_CODES.CONCURRENCY_CONFLICT,
-          "Failed to update team visibility"
+          "Failed to update team visibility: team is not active, user is not leader, or team is full"
         );
       }
 
@@ -492,14 +494,8 @@ export class TeamService {
         { session }
       );
 
-      await session.commitTransaction();
       return updatedTeam;
-    } catch (error) {
-      if (session.inTransaction()) await session.abortTransaction();
-      throw error;
-    } finally {
-      await session.endSession();
-    }
+    });
   }
 
   /**
@@ -556,10 +552,7 @@ export class TeamService {
       );
     }
 
-    const session = await mongoose.startSession();
-    try {
-      session.startTransaction();
-
+    return await withTransactionRetry(async (session) => {
       // 1. Demote current leader to MEMBER
       const demoted = await Membership.findOneAndUpdate(
         {
@@ -632,14 +625,8 @@ export class TeamService {
         { session }
       );
 
-      await session.commitTransaction();
       return updatedTeam;
-    } catch (error) {
-      if (session.inTransaction()) await session.abortTransaction();
-      throw error;
-    } finally {
-      await session.endSession();
-    }
+    });
   }
 
   /**
@@ -683,26 +670,31 @@ export class TeamService {
       }
 
       // Sole remaining member leaves -> Disband team atomically
-      const session = await mongoose.startSession();
-      try {
-        session.startTransaction();
-
-        await Membership.findOneAndUpdate(
+      return await withTransactionRetry(async (session) => {
+        const updatedMembership = await Membership.findOneAndUpdate(
           { _id: membership._id, status: "ACTIVE" },
           { status: "LEFT", leftAt: new Date() },
           { session }
         );
+        if (!updatedMembership) {
+          throw AppError.conflict(ERROR_CODES.CONCURRENCY_CONFLICT, "Membership state conflict");
+        }
 
         const disbandedTeam = await Team.findOneAndUpdate(
-          { _id: teamId, status: "ACTIVE" },
+          {
+            _id: teamId,
+            status: "ACTIVE",
+            leaderId: new Types.ObjectId(userId),
+            memberCount: { $lte: 1 },
+          },
           { status: "DISBANDED", isOpen: false, memberCount: 0 },
           { session, new: true }
         );
 
         if (!disbandedTeam) {
-          throw AppError.conflict(
-            ERROR_CODES.CONCURRENCY_CONFLICT,
-            "Failed to disband team on last member exit"
+          throw AppError.badRequest(
+            "Leader cannot leave a multi-member team without transferring leadership first or disbanding",
+            ERROR_CODES.LEADER_CANNOT_LEAVE
           );
         }
 
@@ -728,21 +720,12 @@ export class TeamService {
           { session, ordered: true }
         );
 
-        await session.commitTransaction();
         return { disbanded: true, team: disbandedTeam };
-      } catch (error) {
-        if (session.inTransaction()) await session.abortTransaction();
-        throw error;
-      } finally {
-        await session.endSession();
-      }
+      });
     }
 
     // Regular non-leader member departure
-    const session = await mongoose.startSession();
-    try {
-      session.startTransaction();
-
+    return await withTransactionRetry(async (session) => {
       const updatedMembership = await Membership.findOneAndUpdate(
         { _id: membership._id, status: "ACTIVE" },
         { status: "LEFT", leftAt: new Date() },
@@ -781,14 +764,8 @@ export class TeamService {
         { session }
       );
 
-      await session.commitTransaction();
       return { disbanded: false, team: updatedTeam };
-    } catch (error) {
-      if (session.inTransaction()) await session.abortTransaction();
-      throw error;
-    } finally {
-      await session.endSession();
-    }
+    });
   }
 
   /**
@@ -848,10 +825,7 @@ export class TeamService {
       throw AppError.badRequest("Cannot remove the team leader", ERROR_CODES.CANNOT_REMOVE_SELF);
     }
 
-    const session = await mongoose.startSession();
-    try {
-      session.startTransaction();
-
+    return await withTransactionRetry(async (session) => {
       // 1. Mark target membership as REMOVED
       const removedMembership = await Membership.findOneAndUpdate(
         {
@@ -871,14 +845,19 @@ export class TeamService {
 
       // 2. Decrement memberCount
       const updatedTeam = await Team.findOneAndUpdate(
-        { _id: teamId, status: "ACTIVE", memberCount: { $gt: 0 } },
+        {
+          _id: teamId,
+          status: "ACTIVE",
+          leaderId: new Types.ObjectId(callerUserId),
+          memberCount: { $gt: 0 },
+        },
         { $inc: { memberCount: -1 } },
         { session, new: true }
       );
       if (!updatedTeam) {
         throw AppError.conflict(
           ERROR_CODES.CONCURRENCY_CONFLICT,
-          "Failed to decrement member count"
+          "Failed to decrement member count: caller is no longer leader or team is no longer active"
         );
       }
 
@@ -901,14 +880,8 @@ export class TeamService {
         { session }
       );
 
-      await session.commitTransaction();
       return updatedTeam;
-    } catch (error) {
-      if (session.inTransaction()) await session.abortTransaction();
-      throw error;
-    } finally {
-      await session.endSession();
-    }
+    });
   }
 
   /**
@@ -935,10 +908,7 @@ export class TeamService {
       );
     }
 
-    const session = await mongoose.startSession();
-    try {
-      session.startTransaction();
-
+    return await withTransactionRetry(async (session) => {
       // 1. Mark team DISBANDED conditionally
       const disbandedTeam = await Team.findOneAndUpdate(
         {
@@ -983,14 +953,8 @@ export class TeamService {
         { session }
       );
 
-      await session.commitTransaction();
       return disbandedTeam;
-    } catch (error) {
-      if (session.inTransaction()) await session.abortTransaction();
-      throw error;
-    } finally {
-      await session.endSession();
-    }
+    });
   }
 
   /**

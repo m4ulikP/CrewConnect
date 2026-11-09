@@ -43,6 +43,32 @@ export function errorHandler(err: unknown, req: Request, res: Response, _next: N
     return;
   }
 
+  // MongoDB TransientTransactionError or WriteConflict
+  const mongoErr = err as {
+    code?: number;
+    errorLabels?: string[];
+    hasErrorLabel?: (l: string) => boolean;
+    message?: string;
+  };
+  if (
+    mongoErr?.code === 112 ||
+    mongoErr?.errorLabels?.includes?.("TransientTransactionError") ||
+    mongoErr?.hasErrorLabel?.("TransientTransactionError") ||
+    (typeof mongoErr?.message === "string" && mongoErr.message.includes("Write conflict"))
+  ) {
+    const response: ApiErrorResponse = {
+      success: false,
+      error: {
+        code: ERROR_CODES.CONCURRENCY_CONFLICT,
+        message: "Operation failed due to concurrent write contention. Please retry.",
+        timestamp,
+        requestId,
+      },
+    };
+    res.status(409).json(response);
+    return;
+  }
+
   // Unexpected internal server error
   console.error("Unhandled API Error:", err);
   const response: ApiErrorResponse = {
