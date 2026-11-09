@@ -2,19 +2,20 @@
 
 **Document:** System Architecture  
 **Author:** Senior Software Architect  
-**Status:** Approved for Implementation  
-**Version:** 1.0.0  
+**Status:** Finalized & Approved  
+**Version:** 1.1.0  
 
 ---
 
-## 1. Architectural Style & Philosophy
+## 1. Architectural Style & Core Technology Decisions
 
-CrewConnect is intentionally engineered as a **Modular Monolith** deployed inside a type-safe TypeScript monorepo. 
+CrewConnect is engineered as a **Modular Monolith** deployed inside a type-safe TypeScript monorepo.
 
-### Why a Modular Monolith over Microservices?
-1. **Transaction Atomicity**: The central challenge is race-proof concurrency across multiple entities (teams, memberships, invitations, idempotency records). A modular monolith accessing a MongoDB replica set can leverage local ACID multi-document transactions with single-digit millisecond latency. Distributed transactions (2PC / Sagas) across microservices would introduce substantial latency, network partition failure modes, and eventual consistency delays that jeopardize the hard concurrency invariants of PS1.
-2. **Zero Serialization & Network Overhead**: In-process domain communication between modules (e.g., membership service notifying audit service and real-time service) eliminates unnecessary serialization, inter-service HTTP hops, and distributed tracing complexity.
-3. **Strict Domain Boundaries**: Each domain module (`auth`, `teams`, `memberships`, `invitations`, `recommendations`) is strictly isolated with clear public interfaces, domain services, and repository layers. If horizontal scaling requires extracting specific high-load read paths in the future (e.g., Team Discovery or Recommendation engine), modular monolith boundaries allow clean refactoring without architectural rewrites.
+### Approved Core Technology Decisions
+- **Package Manager:** **npm** (version >= 10.0.0). Retains the npm workspace configuration and unified `package-lock.json`. No migrations to pnpm.
+- **Data Access Layer:** **Mongoose** (version 8.x+) as the sole, consistent data-access layer. All transactions and atomic updates use session-aware Mongoose operations (`.session(session)`). The native MongoDB driver is avoided unless a specific, documented limitation arises.
+- **Password Hashing:** **Argon2id** using secure production parameters (memory cost: 64 MB, time cost: 3 iterations, parallelism: 1 thread, 16-byte random salt).
+- **Core Frameworks:** React 18+ with Vite & Tailwind CSS on the frontend; Node.js v20+ with Express & TypeScript on the backend; MongoDB Replica Set (`rs0`) for persistence; Socket.IO for real-time bi-directional messaging.
 
 ---
 
@@ -37,16 +38,16 @@ flowchart TD
     subgraph AppServer["Modular Monolith Backend (apps/api)"]
         Router["Express API Router (/api/v1)"]
         AuthMW["JWT Authentication & RBAC Middleware"]
-        IdempMW["Idempotency Filter (UUIDv4)"]
+        IdempMW["Idempotency Filter (Scoped & Hashed UUIDv4)"]
         ValidationMW["Zod Schema Validation Middleware"]
 
-        subgraph CoreModules["Domain Modules"]
-            AuthMod["Auth Module"]
+        subgraph CoreModules["Domain Modules (Mongoose Models)"]
+            AuthMod["Auth Module (Argon2id)"]
             UserMod["User Module"]
             HackMod["Hackathon Module"]
             TeamMod["Team Module"]
-            MemMod["Membership Module (Race Engine)"]
-            InvMod["Invitation Module"]
+            MemMod["Membership Module (Unified Transaction Engine)"]
+            InvMod["Invitation Module (SHA-256 Hashing)"]
             RecMod["Recommendation Module"]
             AuditMod["Audit Logging Module"]
         end
@@ -56,8 +57,7 @@ flowchart TD
         ErrorHandler["Centralized Error Handler (AppError)"]
     end
 
-    subgraph DataLayer["Persistence Layer (MongoDB 7.0+ Replica Set)"]
-        MongoRS["Replica Set (rs0)"]
+    subgraph DataLayer["Persistence Layer (MongoDB 7.0+ Replica Set rs0)"]
         UsersCol[("users")]
         TeamsCol[("teams")]
         MembCol[("memberships")]
@@ -78,24 +78,19 @@ flowchart TD
     IdempMW --> ValidationMW
     ValidationMW --> CoreModules
 
-    MemMod -->|"Atomic Conditional Updates & Transactions"| MongoRS
-    TeamMod -->|"Indexed Queries & Projections"| MongoRS
-    InvMod -->|"Hashed Token Lookup"| MongoRS
-    AuditMod -->|"Append-Only Writes"| MongoRS
-    IdempMod["Idempotency Storage"] --> MongoRS
+    MemMod -->|"Session-Aware Mongoose Operations (ACID Transaction)"| TeamsCol
+    MemMod --> MembCol
+    MemMod --> AuditCol
+    MemMod --> IdempCol
+
+    TeamMod --> TeamsCol
+    AuthMod --> UsersCol
+    InvMod --> InvCol
 
     CoreModules --> EventBus
     EventBus --> WSServer
     EventBus --> AuditMod
     WSServer -->|"Push Seat Updates & Notifications"| WSClient
-
-    MongoRS --- UsersCol
-    MongoRS --- TeamsCol
-    MongoRS --- MembCol
-    MongoRS --- InvCol
-    MongoRS --- ReqCol
-    MongoRS --- AuditCol
-    MongoRS --- IdempCol
 ```
 
 ---
@@ -110,10 +105,9 @@ flowchart TD
    - Real-time status display of registered hackathons, current team membership, active invites, and incoming requests.
 3. **Team Discovery Board**:
    - High-performance, paginated listing with instant search, debounce filtering, and real-time seat availability tags.
-   - Dynamic badges displaying remaining seats (`X / Y seats filled`).
 4. **Team Management View**:
    - Roster table with member role chips (`LEADER`, `MEMBER`).
-   - Leader-specific management actions: Transfer Leadership, Remove Member, Toggle Open/Closed, Generate Secret Invite Code.
+   - Leader-specific actions: Transfer Leadership, Remove Member, Disband Team, Generate Secret Invite Code.
 5. **Join Requests & Invitations**:
    - Actionable modals for non-team users to apply to open teams.
    - Inbox view for leaders to review and approve/reject pending join requests with optimistic UI feedback.
@@ -122,22 +116,21 @@ flowchart TD
 
 ### B. Backend Modular Monolith (`apps/api`)
 1. **Authentication Module (`src/modules/auth`)**:
-   - Salted password hashing using Argon2id / bcrypt.
-   - Generation and verification of short-lived JWT access tokens and secure refresh tokens.
+   - Password hashing exclusively using Argon2id with cryptographically secure random salt.
+   - Generation and verification of JWT access tokens in `httpOnly`, `SameSite=Lax` cookies.
 2. **User Profile Module (`src/modules/users`)**:
    - User profile CRUD, skills indexing, and hackathon registration status.
 3. **Hackathon Module (`src/modules/hackathons`)**:
    - Hackathon lifecycle parameters, start/end dates, team size limits (`minTeamSize: 1`, `maxTeamSize: 5`).
 4. **Team Module (`src/modules/teams`)**:
-   - Team creation, profile updates, team disbandment, and discovery query indexing.
-5. **Membership Module (`src/modules/memberships`) — The Concurrency Core**:
-   - Orchestrates the atomic conditional reservation and multi-document transaction for race-proof joining.
+   - Team creation, profile updates, disbandment, and discovery query indexing.
+5. **Membership Module (`src/modules/memberships`) — The Unified Transaction Core**:
+   - Orchestrates the atomic conditional reservation, capacity increment, membership insertion, audit logging, and idempotency persistence inside a **single session-aware Mongoose transaction**.
    - Enforces the global invariant: **one team per user per hackathon**.
-   - Handles voluntary departure, member ejection, and leadership succession.
+   - Enforces **leadership invariants**: leader must always be an active member; leader cannot leave or be removed without transfer or disbandment; atomic concurrent transfers; disbandment when the last member departs.
 6. **Invitation Module (`src/modules/invitations`)**:
-   - Cryptographically random invite token generation.
-   - SHA-256 token hashing for secure database storage.
-   - Token redemption workflow routed through the Membership Concurrency Engine.
+   - Cryptographically random invite token generation with SHA-256 token hashing for database storage.
+   - Token redemption workflow routed through the Membership Transaction Engine.
 7. **Join Request Module (`src/modules/join-requests`)**:
    - Candidate application queue with message support.
    - Leader approval workflow triggering atomic seat reservation and membership insertion.
@@ -148,62 +141,63 @@ flowchart TD
 10. **Real-Time Module (`src/modules/realtime`)**:
     - Authenticated Socket.IO server mapping connected sockets to `user:${userId}` and `team:${teamId}` rooms.
 
-### C. Persistence Layer (MongoDB 7.0+ Replica Set)
-- Standalone MongoDB instances do not support ACID transactions (`session.startTransaction()`).
-- CrewConnect enforces a Replica Set (`rs0`) locally via Docker Compose and in production.
-- Atomic conditional updates (`$inc: { memberCount: 1 }` with `{ memberCount: { $lt: maxCapacity } }`) eliminate write-lock contention.
-- Compound unique indexes guarantee schema-level consistency even under transaction retries.
-
 ---
 
-## 4. End-to-End Request Lifecycle
+## 4. End-to-End Unified Transaction Lifecycle
 
 ```mermaid
 sequenceDiagram
     autonumber
-    actor Client as Participant / Browser
+    actor Client as Participant (1 of 50)
     participant GW as Reverse Proxy / Rate Limiter
     participant Router as Express API Router
     participant Auth as Auth & RBAC Middleware
-    participant Idemp as Idempotency Middleware
-    participant Val as Zod Validation
-    participant Service as Membership Service (Engine)
+    participant Idemp as Idempotency Filter
+    participant Service as Membership Service
+    participant Mongoose as Mongoose (Session)
     participant DB as MongoDB Replica Set (rs0)
-    participant Events as Event Dispatcher
     participant WS as Socket.IO Hub
 
-    Client->>GW: POST /api/v1/teams/:id/join (Bearer / Cookie, Idempotency-Key)
-    GW->>Router: Forward request
+    Client->>GW: POST /api/v1/teams/:id/join (Idempotency-Key)
+    GW->>Router: Forward Request
     Router->>Auth: Validate JWT & Extract User Context
-    Auth->>Idemp: Check Idempotency Cache
-    alt Idempotency Hit (Cached Response)
-        Idemp-->>Client: 200 OK (Cached Result, Header: X-Cache: HIT)
-    else Idempotency Miss (New Request)
-        Idemp->>Val: Validate Params & Body with Zod
-        Val->>Service: Execute race-proof join(teamId, userId, hackathonId)
-        Service->>DB: Start MongoDB Client Session & ACID Transaction
-        Service->>DB: Atomic Conditional Reservation (update team if count < max)
-        alt Seat Unavailable (count == max)
-            Service->>DB: Abort Transaction
-            Service-->>Router: Throw AppError(TEAM_FULL, 409)
-            Router-->>Client: 409 Conflict: Team is full
-        else Seat Reserved (count incremented 4 -> 5)
-            Service->>DB: Insert Membership record { teamId, userId, hackathonId }
-            alt Unique Index Violation (User already in team)
-                Service->>DB: Abort Transaction (rolls back counter)
-                Service-->>Router: Throw AppError(ALREADY_IN_TEAM, 409)
-                Router-->>Client: 409 Conflict: Already member of a team
-            else Success
-                Service->>DB: Insert AuditLog record
-                Service->>DB: Commit ACID Transaction
-                Service->>Idemp: Store response payload in idempotencyRecords
-                Service->>Events: Emit "team.member_joined"
-                par Real-time Broadcast
-                    Events->>WS: Broadcast to room `team:${teamId}` & `hackathon:${hackathonId}`
-                    WS-->>Client: WebSocket event: "team:updated" (seats: 5/5)
+    Auth->>Idemp: Check Scoped Key { key, userId, endpoint }
+    
+    alt In-Flight Duplicate (Status == PROCESSING)
+        Idemp-->>Client: 409 Conflict (REQUEST_IN_PROGRESS)
+    else Completed Duplicate (Same Payload Hash)
+        Idemp-->>Client: 200 OK / 201 Created (Cached Response, X-Cache: HIT)
+    else Key Reused with Different Payload
+        Idemp-->>Client: 409 Conflict (IDEMPOTENCY_KEY_PAYLOAD_MISMATCH)
+    else New Request
+        Idemp->>Service: Execute joinTeamRaceProof(...)
+        
+        loop Transaction Retry Loop (max 3 retries on TransientTransactionError)
+            Service->>Mongoose: mongoose.startSession() & session.startTransaction()
+            
+            Note over Service,DB: All 5 Operations in ONE Transaction Session:
+            Service->>DB: 1. Team.findOneAndUpdate({ _id, memberCount < maxCapacity }, { $inc: { memberCount: 1 } }, { session })
+            
+            alt Team returned is null (Capacity reached 5/5)
+                Service->>Mongoose: session.abortTransaction()
+                Service-->>Client: 409 Conflict (TEAM_FULL)
+            else Seat Reserved (memberCount: 4 -> 5)
+                Service->>DB: 2. Membership.create([{ hackathonId, teamId, userId, status: 'ACTIVE' }], { session })
+                
+                alt Unique Index Violation on { hackathonId, userId }
+                    Service->>Mongoose: session.abortTransaction() (Rolls back memberCount increment!)
+                    Service-->>Client: 409 Conflict (ALREADY_IN_TEAM)
+                else Success
+                    Service->>DB: 3. AuditLog.create([{ action: 'MEMBER_JOINED' }], { session })
+                    Service->>DB: 4. IdempotencyRecord.create([{ status: 'COMPLETED' }], { session })
+                    Service->>Mongoose: session.commitTransaction()
+                    
+                    par Broadcast
+                        Service->>WS: Emit "team:capacity_changed" (5/5)
+                        WS-->>Client: Live UI Update
+                    end
+                    Service-->>Client: 201 Created (MembershipDTO)
                 end
-                Service-->>Router: 201 Created (MembershipDTO)
-                Router-->>Client: 201 Created (Membership details)
             end
         end
     end
@@ -231,6 +225,7 @@ sequenceDiagram
 | `team:member_joined` | `team:${teamId}` | New member successfully added | `{ teamId, member: { userId, name, role } }` |
 | `team:member_removed` | `team:${teamId}`, `user:${userId}` | Member ejected or leaves | `{ teamId, userId, reason }` |
 | `team:leadership_transferred`| `team:${teamId}` | Leader passes role to member | `{ teamId, previousLeaderId, newLeaderId }` |
+| `team:disbanded` | `team:${teamId}`, `hackathon:${hackathonId}` | Last member leaves or leader disbands | `{ teamId, reason }` |
 | `request:received` | `user:${leaderId}` | Candidate requests to join | `{ requestId, teamId, candidate: { userId, name } }` |
 | `request:resolved` | `user:${candidateId}` | Leader approves or rejects | `{ requestId, teamId, status: "APPROVED" | "REJECTED" }` |
 | `invitation:received` | `user:${targetUserId}` | Leader invites candidate | `{ invitationId, teamId, teamName }` |
@@ -256,31 +251,15 @@ export class AppError extends Error {
 }
 ```
 
-### Standard Error Response Envelope
-Every client-facing error follows an identical, predictable JSON contract:
-```json
-{
-  "error": {
-    "code": "TEAM_FULL",
-    "message": "The team has reached its maximum member capacity (5/5).",
-    "details": {
-      "teamId": "65e2b4f910a2b8e3a1f9a001",
-      "currentCapacity": 5,
-      "maxCapacity": 5
-    },
-    "timestamp": "2026-11-09T22:00:00.000Z",
-    "requestId": "req_8df7a19c"
-  }
-}
-```
-
 ### Core Domain Error Code Catalog
 - `UNAUTHORIZED` (401): Missing or expired authentication token.
 - `FORBIDDEN` (403): User lacks permission (e.g. non-leader attempting to remove member).
 - `NOT_FOUND` (404): Resource not found (team, user, hackathon, invitation).
 - `VALIDATION_ERROR` (422): Zod schema parsing failure.
 - `TEAM_FULL` (409): Capacity reached during atomic reservation.
+- `TEAM_CLOSED` (409): Team is closed to new applicants.
 - `ALREADY_IN_TEAM` (409): User already holds active membership in this hackathon.
-- `INVITATION_INVALID` (400): Invite code does not exist, has expired, or exceeded max redemptions.
+- `LEADER_CANNOT_LEAVE` (400): Leader must transfer leadership or disband team.
+- `REQUEST_IN_PROGRESS` (409): Idempotent request currently executing in-flight.
+- `IDEMPOTENCY_KEY_PAYLOAD_MISMATCH` (409): Idempotency key reused with different body.
 - `CONCURRENCY_CONFLICT` (409): Write conflict in MongoDB transaction after max retries.
-- `IDEMPOTENT_REPLAY` (200/201): Cached response returned for repeated idempotent request.

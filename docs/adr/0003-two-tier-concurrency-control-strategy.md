@@ -1,4 +1,4 @@
-# ADR-0003: Two-Tier Concurrency Control Strategy (Atomic Reservation + ACID Transaction)
+# ADR-0003: Unified Transactional Concurrency Strategy with Atomic Capacity Reservation
 
 **Date**: 2026-11-09  
 **Status**: accepted  
@@ -6,36 +6,39 @@
 
 ## Context
 
-When 50 users simultaneously attempt to join a team with only 1 remaining seat (initial 4, capacity 5), standard read-modify-write patterns result in TOCTOU race conditions and capacity oversaturation. We need a concurrency strategy that guarantees exactly 1 winner and 49 clean rejections without long lock-holding or database deadlocks.
+When 50 users simultaneously attempt to join a team with only 1 remaining seat (initial 4, capacity 5), standard read-modify-write patterns result in TOCTOU race conditions and capacity oversaturation. Furthermore, if capacity reservation and membership creation are decoupled across multiple transactions or non-transactional updates, failures in membership insertion leave orphaned capacity increments, corrupting the team counter.
 
 ## Decision
 
-We implement a **Two-Tier Concurrency Control Strategy**:
-1. **Tier 1 (Atomic Conditional Reservation)**: Execute `findOneAndUpdate` on `teams` matching `{ _id: teamId, memberCount: { $lt: maxCapacity }, isOpen: true }` and incrementing `{ $inc: { memberCount: 1 } }`.
-2. **Tier 2 (Multi-Document ACID Transaction)**: Inside a MongoDB transaction (`session.withTransaction`), verify Tier 1, insert the `memberships` record (subject to the unique compound index), append the `auditLogs` entry, and record the `idempotencyRecords` entry.
-3. Transient write conflicts are handled via an exponential backoff retry loop with randomized jitter (max 3 retries).
+We implement a **Unified Single-Transaction Concurrency Control Strategy** inside a single Mongoose `ClientSession` (`session.startTransaction({ readConcern: "majority", writeConcern: "majority" })`):
+1. **Atomic Capacity Check & Reservation**: Execute `Team.findOneAndUpdate({ _id: teamId, memberCount: { $lt: maxCapacity }, isOpen: true }, { $inc: { memberCount: 1 } }, { session, new: true })`.
+2. **Atomic Membership Insertion**: Execute `Membership.create([{ hackathonId, teamId, userId, role: "MEMBER", status: "ACTIVE" }], { session })` protected by the unique compound partial index `{ hackathonId: 1, userId: 1 }`.
+3. **Atomic Audit Logging**: Append the `AuditLog` entry within the same session.
+4. **Atomic Idempotency Persistence**: Store the completed response payload in `IdempotencyRecord` within the same session.
+5. **Rollback Guarantee**: If any step fails, `session.abortTransaction()` rolls back all operations, restoring `memberCount` to its previous value.
+6. **Transient Write Conflict Handling**: A bounded retry runner handles `TransientTransactionError` and `WriteConflict` (code 112) using exponential backoff with randomized jitter (max 3 retries). Retrying transactions see `memberCount == maxCapacity`, match 0 documents, return `null`, and abort cleanly with `409 Conflict (TEAM_FULL)`.
 
 ## Alternatives Considered
 
-### Alternative 1: Application-Level Distributed Mutex (Redis Redlock)
-- **Pros**: Locks team ID before executing database writes.
-- **Cons**: Adds an external infrastructure dependency (Redis), network latency overhead, and failure modes when locks expire prematurely during GC pauses.
-- **Why not**: Adds unnecessary complexity when MongoDB's native storage engine (`WiredTiger`) already provides document-level serialized write locks.
+### Alternative 1: Decoupled Atomic Update followed by Separate Transaction
+- **Pros**: Fast initial reservation.
+- **Cons**: If the subsequent transaction or process fails before membership insertion, the team capacity counter remains incremented without a corresponding member record, requiring asynchronous compensation scripts.
+- **Why not**: Violates ACID guarantees and risks permanent state corruption.
 
-### Alternative 2: Standalone Atomic Update Without Multi-Document Transactions
-- **Pros**: Extremely fast.
-- **Cons**: Cannot atomically insert the membership record and audit log alongside the counter increment. If membership insertion fails (e.g. user already in another team), the counter is permanently out of sync.
-- **Why not**: Causes counter corruption and broken invariants.
+### Alternative 2: Application-Level Distributed Mutex (Redis Redlock)
+- **Pros**: Locks team ID before calling MongoDB.
+- **Cons**: External infrastructure dependency, network latency, and lock expiration during garbage collection pauses.
+- **Why not**: MongoDB's native storage engine (`WiredTiger`) already provides document write serialization.
 
 ## Consequences
 
 ### Positive
-- Under 50 concurrent requests, exactly 1 request succeeds in incrementing the counter; the other 49 fail immediately at the database level and abort cleanly.
-- Guaranteed all-or-nothing rollback if any secondary constraint fails.
-- Mathematical certainty against seat overflow.
+- Strict mathematical guarantee that exactly 1 request claims the seat and 49 fail cleanly.
+- Failed attempts (e.g. user already in another team) roll back the capacity increment completely.
+- Zero orphaned or phantom records.
 
 ### Negative
-- Requires a MongoDB replica set (`rs0`) for local and test environments.
+- High write contention on the team document requires handling transient write conflicts with backoff.
 
 ### Risks
-- Write conflicts under intense contention. Mitigated by bounded retry loops with jittered backoff.
+- Contention under extreme loads. Mitigated by bounded retries (max 3) and jittered backoff.

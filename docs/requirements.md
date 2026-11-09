@@ -4,8 +4,8 @@
 **Challenge:** Hack4Hack Crew Hiring Challenge 2026  
 **Problem Statement:** PS1 — Race-proof Team Formation  
 **Author:** Senior Software Architect & Engineering Lead  
-**Status:** Approved for Implementation Planning  
-**Version:** 1.0.0  
+**Status:** Finalized & Approved  
+**Version:** 1.1.0  
 
 ---
 
@@ -29,97 +29,95 @@ Beyond this core concurrency challenge, the platform must handle the complete li
 1. **FR-AUTH: User Registration & Authentication**
    - User account creation with email, secure password, and display name.
    - Secure session handling via signed JSON Web Tokens (stored in `httpOnly` secure cookies).
-   - Password hashing with salted Argon2id / bcrypt.
+   - Password hashing strictly with salted **Argon2id** (memory cost 64 MB, time cost 3, parallelism 1).
    - Profile retrieval and authenticated session verification (`/api/v1/auth/me`).
 
 2. **FR-USER: User Profiles & Skills Catalog**
    - User profile customization: bio, GitHub URL, LinkedIn URL, portfolio link.
    - Skill tagging (e.g., `TypeScript`, `Python`, `React`, `DevOps`, `UI/UX`, `AI/ML`).
-   - Experience level and preferred team roles (e.g., Frontend Lead, Backend Architect, Designer).
+   - Experience level and preferred team roles.
    - Availability status per hackathon.
 
 3. **FR-HACK: Hackathon Management**
-   - Hackathon entity with title, description, start/end dates, team capacity bounds (`minTeamSize`, `maxTeamSize`, default 1 to 5).
-   - Registration status tracking (open, active, ended).
+   - Hackathon entity with title, description, start/end dates, team capacity bounds (`minTeamSize: 1`, `maxTeamSize: 5`).
+   - Registration status tracking (`UPCOMING`, `ACTIVE`, `COMPLETED`).
    - Hackathon-scoped constraints: all teams, memberships, and invitations are strictly bounded to a specific `hackathonId`.
 
 4. **FR-TEAM: Team Creation & Management**
    - Any registered user registered in the hackathon can create a new team if not already in one.
    - Creator is automatically assigned the `LEADER` role.
-   - Team attributes: `name`, `tagline`, `description`, `skillsNeeded`, `isOpen` (toggle join availability), `maxCapacity`.
+   - Team attributes: `name`, `tagline`, `description`, `skillsNeeded`, `isOpen` (toggle join availability), `maxCapacity`, `status` (`ACTIVE`, `DISBANDED`, `ARCHIVED`).
    - Team profile updates restricted to current `LEADER`.
-   - Team deletion allowed only by `LEADER` when no other members remain or with explicit disband confirmation.
+   - Team disbandment: when a leader disbands the team or when the last member departs, the team transitions to `status: "DISBANDED"`, `isOpen: false`, and `memberCount: 0`.
 
 5. **FR-MEM: Team Membership Management & Race-Proof Joining**
-   - Direct join via open team enrollment (subject to strict concurrency control).
+   - Direct join via open team enrollment (subject to unified single-transaction concurrency control).
    - Join requests: non-team users can submit a join request with a note; team leader can approve or reject.
    - Member removal: `LEADER` can remove any non-leader member.
    - Voluntary departure: any non-leader member can leave the team.
    - Leadership transfer: `LEADER` can atomically transfer leadership to any existing active team member.
+   - **Leadership Invariants**:
+     - A team's leader must always be an active member.
+     - A leader cannot leave or be removed without a valid leadership transfer or explicit team disbandment.
+     - Leadership transfers are executed inside an ACID transaction to prevent concurrent race conditions.
 
 6. **FR-INV: Secret Invitation Codes & Direct Invites**
    - Secret join code generation: leader generates an alphanumeric invite token.
-   - Invite tokens can have an optional expiration timestamp or max redemptions limit.
-   - Invite tokens are stored as one-way SHA-256 hashes in the database (never plaintext).
-   - Direct user-to-user invitations sent to a target user's email or user ID.
-   - Atomic redemption: redeeming an invite enforces the exact same concurrency invariants as open joining.
+   - Stored strictly as SHA-256 hashes in MongoDB (never plaintext).
+   - Token redemption: redemption follows the exact same unified transaction concurrency engine as open joining.
 
 7. **FR-DISC: Team Discovery & Search**
    - Paginated team discovery board supporting thousands of teams.
-   - Filtering by: skills needed, open seats (`memberCount < maxCapacity`), team status.
+   - Filtering by: skills needed, open seats (`memberCount < maxCapacity`), team status (`ACTIVE`).
    - Full-text search on team name, tagline, and required tech stack.
    - High-performance indexing ensuring p95 response time $< 200\text{ ms}$ under load.
 
 8. **FR-REC: Complementary Teammate Recommendations**
-   - Recommendation engine calculating affinity scores between unassigned participants and teams with vacancies.
-   - Scoring algorithm weighing complementary skills (skills needed by team $\cap$ skills possessed by candidate).
-   - Recommendation board for both teams looking for members and solo participants looking for teams.
+   - Recommendation engine calculating affinity scores between unassigned participants and teams with vacancies based on skill overlap.
 
 9. **FR-RT: Real-Time Event Dispatch**
-   - WebSocket (Socket.IO) push notifications for:
-     - Real-time seat availability updates (live counter decrements/increments).
-     - New join requests received by leaders.
-     - Join request approvals, rejections, or member removals received by applicants.
-     - Direct invitations.
+   - Socket.IO push notifications for real-time seat availability updates, join request workflows, and member changes.
 
 10. **FR-AUDIT: Tamper-Evident Audit Logging**
-    - Complete, immutable operational log of all state mutations:
-      - `TEAM_CREATED`, `MEMBER_JOINED`, `MEMBER_LEFT`, `MEMBER_REMOVED`, `LEADERSHIP_TRANSFERRED`, `INVITE_GENERATED`, `INVITE_REDEEMED`.
-    - Captured fields: `timestamp`, `hackathonId`, `teamId`, `userId`, `actorId`, `action`, `metadata`, `ipAddress`.
+    - Complete, immutable operational log of all state mutations committed within the same transaction.
 
 ---
 
 ### B. Critical Non-Functional Requirements (NFR)
 
-1. **NFR-CONC: Race-Condition Protection & Serializability**
+1. **NFR-CONC: Race-Condition Protection & Unified Transaction Serialization**
    - Zero seat oversaturation: If a team has 1 vacant seat, 50 concurrent joining operations must result in exactly 1 success and 49 failures.
-   - Two-tier concurrency control: Atomic conditional reservations (`$inc: { memberCount: 1 }` conditioned on `memberCount: { $lt: maxCapacity }`) combined with MongoDB multi-document ACID transactions.
-   - Zero dirty reads or uncommitted state visible to other participants.
+   - **Unified Single-Transaction Execution**: Seat reservation check, capacity increment, membership record insertion, audit log insertion, and idempotency persistence MUST execute within the **same MongoDB transaction** using session-aware Mongoose operations.
+   - **Rollback Guarantee**: If any operation fails (e.g. unique compound index violation on membership), the entire transaction rolls back; a failed join never leaves a permanently incremented `memberCount`.
+   - **Conflict Handling**: Losing transactions encountering storage write conflicts (`TransientTransactionError` / `WriteConflict`) retry with jittered exponential backoff and discover that `memberCount == maxCapacity`, aborting cleanly with `409 Conflict (TEAM_FULL)`.
 
 2. **NFR-INVAR: Global Database Invariants**
-   - Invariant 1: **Single Team per Hackathon** — enforced at the database level by unique compound index `{ hackathonId: 1, userId: 1 }` on the `memberships` collection.
+   - Invariant 1: **Single Team per Hackathon** — enforced at the database level by unique compound index `{ hackathonId: 1, userId: 1 }` on `memberships` (`status: "ACTIVE"`).
    - Invariant 2: **Capacity Bounding** — team `memberCount` cannot exceed `maxCapacity`.
    - Invariant 3: **Counter Reconciliation** — team `memberCount` must match `count(memberships where teamId = team._id and status = 'ACTIVE')`.
-   - Invariant 4: **Valid Active Leader** — every active team must have exactly one member with `role = 'LEADER'`.
+   - Invariant 4: **Valid Active Leader** — every active team must have exactly one member with `role = 'LEADER'` and `status = 'ACTIVE'`.
+   - Invariant 5: **Last Member Exit Safety** — when the final member leaves or is removed, the team is automatically marked `DISBANDED` and closed.
 
-3. **NFR-IDEMP: Strict Request Idempotency**
-   - All state-mutating HTTP POST/PUT/DELETE requests support an `Idempotency-Key` header (UUIDv4).
-   - Retried requests with the same idempotency key return the cached identical response without re-executing transactions or duplicating side effects.
+3. **NFR-IDEMP: Scoped Request Idempotency & In-Flight Protection**
+   - All state-mutating HTTP requests support an `Idempotency-Key` header (UUIDv4).
+   - Keys are scoped by `{ userId, endpoint }`.
+   - Incoming requests check payload fingerprint (`payloadHash`); reusing a key with a different payload returns `409 Conflict (IDEMPOTENCY_KEY_PAYLOAD_MISMATCH)`.
+   - In-flight requests set status `PROCESSING`; concurrent identical requests receive `409 Conflict (REQUEST_IN_PROGRESS)` to prevent duplicate parallel transactions.
+   - Failed transactions never leave successful idempotency records.
+   - TTL indexes are strictly for eventual database cleanup, not correctness.
 
-4. **NFR-PERF: High-Throughput & Low-Latency Performance**
+4. **NFR-TECH: Technology Decisions**
+   - Package manager: **npm** exclusively (retaining `package-lock.json`).
+   - Data access: **Mongoose** as the primary, consistent data-access layer using session-aware operations for all transactions and atomic updates.
+   - Password hashing: **Argon2id**.
+
+5. **NFR-PERF: High-Throughput & Low-Latency Performance**
    - Team discovery board endpoint (`GET /api/v1/hackathons/:id/teams`) p95 latency $< 200\text{ ms}$ under 100 concurrent requests against a 2,000-team dataset.
-   - Efficient pagination via keyset/cursor or indexed compound skip-limit.
 
-5. **NFR-SEC: Comprehensive Defense-in-Depth Security**
-   - Input validation: 100% of request bodies, query params, and route params validated using strict Zod schemas.
-   - Authentication: JWT signed with HMAC-SHA256 (minimum 256-bit secret), transmitted via `httpOnly`, `SameSite=Lax/Strict`, `Secure` cookies.
-   - Rate limiting: Tiered IP and user rate limiting (general API: 100 req/15min; sensitive join/auth: 10 req/min).
-   - Invite code security: Cryptographically strong token generation; stored as SHA-256 hashes.
-   - Role-Based Access Control (RBAC): Strict verification that only leaders can perform privileged team actions.
-
-6. **NFR-A11Y: Accessibility & Responsive UI**
-   - Fully responsive design supporting mobile (320px+), tablet, and desktop viewports.
-   - WCAG 2.1 AA keyboard accessibility: tab navigation, focus rings, ARIA labels, semantic HTML.
+6. **NFR-SEC: Comprehensive Defense-in-Depth Security**
+   - 100% of request bodies, query params, and route params validated using strict Zod schemas.
+   - JWT transmitted via `httpOnly`, `SameSite=Lax`, `Secure` cookies.
+   - Tiered rate limiting (general: 100 req/15min; sensitive join/auth: 10 req/min).
 
 ---
 
@@ -135,35 +133,14 @@ Beyond this core concurrency challenge, the platform must handle the complete li
 | **Load Test Concurrency** | 100 concurrent Virtual Users (VUs) sustained | k6 / autocannon load test script |
 | **Team Board p95 Latency** | $< 200\text{ ms}$ at 100 VUs on seeded database | k6 metrics summary output |
 | **CI Automation** | Automated build, lint, and test on PR & push | GitHub Actions workflow (`.github/workflows/ci.yml`) |
-| **Code Coverage** | $\ge 80\%$ statement and branch coverage on core logic | Vitest c8/v8 coverage reporter |
 
 ---
 
-## 3. Submission Deliverables & Evaluation Criteria
-
-### Deliverables Required for Challenge Submission
-1. Complete source repository with clear monorepo structure.
-2. `docker-compose.yml` orchestrating API, Web, and single-node MongoDB Replica Set (`rs0`).
-3. Automated database seeding script supporting 10,000 users and 2,000 teams.
-4. Comprehensive test suite demonstrating $\ge 20$ automated API tests.
-5. Reproducible concurrency benchmark script proving the 50-to-1 seat invariant.
-6. Complete documentation: Architecture, Database Design, Concurrency Design, API Spec, Security, Testing.
-7. Recorded demonstration / live deployment link showing responsive UI and real-time socket events.
-
-### Challenge Evaluation Axes
-- **Concurrency Correctness (40%)**: Proof that race conditions are mathematically and mechanically eliminated.
-- **System Architecture & Code Quality (25%)**: Clean modular monolith, separation of concerns, strict typing, error handling.
-- **Performance & Scalability (15%)**: Index optimization, query execution plans, sub-200ms latency under load.
-- **User Experience & Accessibility (10%)**: Intuitive interface, real-time visual feedback, keyboard accessibility.
-- **Testing & Verification (10%)**: Comprehensive test coverage across unit, integration, and load dimensions.
-
----
-
-## 4. Requirements Traceability Matrix (RTM)
+## 3. Requirements Traceability Matrix (RTM)
 
 | Req ID | Description | Priority | Planned Implementation Module | Verification Method | Planned Phase |
 | :--- | :--- | :--- | :--- | :--- | :--- |
-| **FR-AUTH-1** | User registration & password hashing | Must-have | `apps/api/src/modules/auth` | Vitest API integration tests | Phase 3 |
+| **FR-AUTH-1** | User registration & Argon2id hashing | Must-have | `apps/api/src/modules/auth` | Vitest API integration tests | Phase 3 |
 | **FR-AUTH-2** | JWT cookie-based session management | Must-have | `apps/api/src/modules/auth` | Supertest auth cookie tests | Phase 3 |
 | **FR-USER-1** | User profile & skills catalog | Must-have | `apps/api/src/modules/users` | Unit & API tests | Phase 3 |
 | **FR-HACK-1** | Hackathon configuration & boundaries | Must-have | `apps/api/src/modules/hackathons` | CRUD integration tests | Phase 3 |
@@ -173,43 +150,18 @@ Beyond this core concurrency challenge, the platform must handle the complete li
 | **FR-MEM-2** | Single-team-per-hackathon enforcement | Must-have | `apps/api/src/modules/memberships` | Unique index & dual-join tests | Phase 5 |
 | **FR-MEM-3** | Voluntary departure & member removal | Must-have | `apps/api/src/modules/memberships` | Membership lifecycle tests | Phase 4 |
 | **FR-MEM-4** | Atomic leadership transfer | Must-have | `apps/api/src/modules/memberships` | Leadership transfer tests | Phase 4 |
+| **FR-MEM-5** | Disbandment on last member departure | Must-have | `apps/api/src/modules/memberships` | Team lifecycle integration tests | Phase 4 |
 | **FR-INV-1** | Hashed invitation code generation & redemption | Must-have | `apps/api/src/modules/invitations` | Expiry & redemption tests | Phase 4 |
 | **FR-REQ-1** | Join requests & leader approval/rejection | Must-have | `apps/api/src/modules/join-requests` | Request workflow tests | Phase 4 |
 | **FR-DISC-1** | Paginated team discovery board | Must-have | `apps/api/src/modules/teams` | k6 p95 latency benchmark | Phase 4, 7 |
 | **FR-REC-1** | Skill-matching recommendation engine | Should-have| `apps/api/src/modules/recommendations` | Unit tests with test vectors | Phase 4 |
 | **FR-RT-1** | Real-time seat updates & notifications | Should-have| `apps/api/src/modules/notifications` | Socket.IO client mock tests | Phase 6 |
-| **FR-AUDIT-1**| Tamper-evident audit logging | Must-have | `apps/api/src/modules/audit` | Database inspection tests | Phase 4 |
-| **NFR-CONC-1**| 50-to-1 seat race-proof allocation | Must-have | Concurrency engine / MongoDB Txn | Automated concurrency test | Phase 5 |
-| **NFR-IDEMP-1**| `Idempotency-Key` header support | Must-have | `apps/api/src/middleware/idempotency` | Duplicate POST retry test | Phase 5 |
+| **FR-AUDIT-1**| Tamper-evident audit logging in transaction | Must-have | `apps/api/src/modules/audit` | Database inspection tests | Phase 4 |
+| **NFR-CONC-1**| 50-to-1 seat race-proof allocation | Must-have | Unified Mongoose Transaction | Automated concurrency test | Phase 5 |
+| **NFR-IDEMP-1**| Scoped & hashed `Idempotency-Key` support | Must-have | `apps/api/src/middleware/idempotency` | Duplicate POST retry & conflict tests | Phase 5 |
 | **NFR-PERF-1**| Discovery endpoint p95 $< 200\text{ ms}$ | Must-have | Indexed MongoDB queries | k6 100 VU benchmark | Phase 7 |
 | **NFR-PERF-2**| Seeding 10k users & 2k teams | Must-have | `scripts/seed.ts` | Count verification query | Phase 7 |
 | **NFR-TEST-1**| At least 20 automated API tests | Must-have | `apps/api/tests/**/*.test.ts` | CI pipeline report | Phase 7 |
 | **NFR-CI-1**  | GitHub Actions CI workflow | Must-have | `.github/workflows/ci.yml` | GitHub Actions runner status | Phase 2 |
 | **UI-RESP-1** | Responsive mobile & desktop interface | Must-have | `apps/web/src` | Playwright / visual inspection | Phase 6 |
 | **UI-A11Y-1** | WCAG 2.1 AA keyboard accessibility | Should-have| `apps/web/src` | Lighthouse accessibility audit | Phase 6 |
-| **BONUS-1**   | Real-time team chat & activity feed | Bonus      | `apps/api/src/modules/chat` | Manual / E2E test | Phase 8 |
-| **BONUS-2**   | AI-powered resume / GitHub profile parser | Bonus  | `apps/api/src/modules/ai` | Unit tests with mock responses | Phase 8 |
-
----
-
-## 5. Distinction: Official Requirements vs. Proposed Improvements
-
-To maintain total transparency, here is the explicit division between mandatory challenge specifications and our proposed engineering improvements:
-
-### Official Challenge Specifications (Mandatory)
-1. 50 simultaneous users attempting to take 1 remaining seat must produce exactly 1 winner and 49 clean rejections.
-2. No user can belong to multiple teams in the same hackathon.
-3. Teams cannot exceed capacity.
-4. Membership counts must remain strictly consistent.
-5. Support for 10,000 seeded users and 2,000 seeded teams.
-6. Discovery board p95 latency under 200 ms with 100 concurrent users.
-7. At least 20 automated API tests.
-8. GitHub Actions CI pipeline.
-9. Responsive UI with keyboard accessibility.
-
-### Proposed Engineering Improvements (Best-Practice Enhancements)
-1. **Idempotency Key Middleware**: RFC-compliant `Idempotency-Key` handling to protect against mobile or flaky network retries during concurrent operations.
-2. **Two-Tier Reservation Strategy**: High-throughput conditional atomic counter decrement combined with an transactional compensation rollback pattern, optimizing MongoDB lock duration.
-3. **Cryptographic Invite Token Hashing**: Storing invite tokens as SHA-256 hashes instead of plaintext to prevent token leakage in read-only database replicas or audit exports.
-4. **Structured Error Contract (`AppError`)**: RFC 7807-inspired error response envelope `{ error: { code, message, details, timestamp } }` for machine-actionable client error handling.
-5. **Architectural Decision Records (ADR)**: Version-controlled ADR directory (`docs/adr/`) documenting every key design trade-off for auditability.

@@ -2,8 +2,8 @@
 
 **Document:** Database Design & Data Modeling  
 **Author:** Senior Database Architect  
-**Status:** Approved for Implementation  
-**Version:** 1.0.0  
+**Status:** Finalized & Approved  
+**Version:** 1.1.0  
 
 ---
 
@@ -23,7 +23,7 @@ A pivotal design decision in MongoDB is choosing between embedding members insid
 * **Why This Wins**:
   1. **Unbreakable Global Constraint**: A database-level unique compound index on `memberships`:
      ```json
-     { "hackathonId": 1, "userId": 1 } (unique: true)
+     { "hackathonId": 1, "userId": 1 } (unique: true, partialFilterExpression: { status: "ACTIVE" })
      ```
      guarantees that no user can ever belong to more than one team in the same hackathon. Even if concurrent transactions slip past the application layer, the database engine enforces serialization and rejects duplicates with error code 11000.
   2. **Reduced Lock Contention**: Member profile lookups and status updates don't lock the team document.
@@ -81,6 +81,7 @@ erDiagram
         int memberCount
         int maxCapacity
         bool isOpen
+        string status
         ObjectId leaderId FK
         date createdAt
     }
@@ -133,6 +134,8 @@ erDiagram
         string key UK
         ObjectId userId FK
         string endpoint
+        string payloadHash
+        string status
         int statusCode
         object responseBody
         date expiresAt
@@ -141,16 +144,16 @@ erDiagram
 
 ---
 
-## 3. Detailed Collection Schemas & Specifications
+## 3. Detailed Collection Schemas & Invariant Rules
 
 ### 1. `users`
 Represents registered platform participants.
 - `_id`: `ObjectId` (Primary Key)
 - `email`: `String` (Required, Lowercase, Trimmed, Unique)
-- `passwordHash`: `String` (Required, Argon2id/bcrypt hashed password)
+- `passwordHash`: `String` (Required, Argon2id hashed password with salt)
 - `displayName`: `String` (Required, 2–50 chars)
 - `bio`: `String` (Optional, max 500 chars)
-- `skills`: `Array<String>` (Required, indexed for matchmaking, e.g. `["React", "Node.js"]`)
+- `skills`: `Array<String>` (Required, indexed for matchmaking)
 - `experienceLevel`: `String` (Optional: `"BEGINNER" | "INTERMEDIATE" | "ADVANCED"`)
 - `githubUrl`: `String` (Optional, URL format)
 - `linkedinUrl`: `String` (Optional, URL format)
@@ -160,7 +163,7 @@ Represents registered platform participants.
 
 **Indexes:**
 - `{ email: 1 }` (unique: true)
-- `{ skills: 1 }` (multikey index for teammate recommendation filtering)
+- `{ skills: 1 }` (multikey index for recommendation queries)
 
 ---
 
@@ -179,7 +182,7 @@ Defines the boundary and capacity limits for an event.
 
 **Indexes:**
 - `{ slug: 1 }` (unique: true)
-- `{ status: 1, startDate: 1 }` (for listing active/upcoming events)
+- `{ status: 1, startDate: 1 }` (for active hackathon queries)
 
 ---
 
@@ -191,18 +194,24 @@ Represents a formed team competing in a specific hackathon.
 - `tagline`: `String` (Optional, max 100 chars)
 - `description`: `String` (Optional, max 1000 chars)
 - `skillsNeeded`: `Array<String>` (Indexed array of required technical skills)
-- `memberCount`: `Number` (Required, cached active count, range: `1` to `maxCapacity`)
-- `maxCapacity`: `Number` (Required, derived from hackathon `maxTeamSize`, default `5`)
+- `memberCount`: `Number` (Required, cached active count, range: `0` to `maxCapacity`)
+- `maxCapacity`: `Number` (Required, default `5`)
 - `isOpen`: `Boolean` (Required, default `true`, whether team is open to direct joins/requests)
+- `status`: `String` (Required, enum: `["ACTIVE", "DISBANDED", "ARCHIVED"]`, default `"ACTIVE"`)
 - `leaderId`: `ObjectId` (Required, References `users._id` of the current active team leader)
 - `createdAt`: `Date` (Required)
 - `updatedAt`: `Date` (Required)
 
+**Leadership & Team Lifecycle Invariants:**
+1. **Leader Must Be Active Member**: `teams.leaderId` must always reference a user who possesses an active record in `memberships` with `role: "LEADER"` and `status: "ACTIVE"`.
+2. **Leader Departure Protection**: The leader cannot leave (`/leave`) or be removed (`/members/:id`) without first executing a leadership transfer (`/transfer-leadership`) to another active member, or explicitly disbanding the team.
+3. **Disbandment on Last Member Departure**: When the last remaining member leaves or is removed, the team atomically transitions to `status: "DISBANDED"`, `isOpen: false`, and `memberCount: 0`. Disbanded teams cannot be joined.
+
 **Indexes:**
-- `{ hackathonId: 1, isOpen: 1, memberCount: 1 }` (Composite index for Team Discovery Board)
-- `{ hackathonId: 1, name: 1 }` (Unique compound index per hackathon to prevent duplicate team names)
-- `{ hackathonId: 1, skillsNeeded: 1 }` (Multikey compound index for skill-based discovery search)
-- `{ leaderId: 1 }` (Index for leader queries)
+- `{ hackathonId: 1, status: 1, isOpen: 1, memberCount: 1 }` (Composite index for Team Discovery Board)
+- `{ hackathonId: 1, name: 1 }` (Unique compound index per hackathon)
+- `{ hackathonId: 1, skillsNeeded: 1 }` (Multikey index for skill-based search)
+- `{ leaderId: 1 }` (Leader active team lookup)
 
 ---
 
@@ -219,7 +228,7 @@ Represents the active or historical association between a user and a team within
 
 **Critical Indexes:**
 - `{ hackathonId: 1, userId: 1 }` (**Unique compound partial index**: `unique: true, partialFilterExpression: { status: "ACTIVE" }`)
-  - *Invariant Guaranteed*: Exactly one active membership per user per hackathon across all teams.
+  - *Hard Invariant Guaranteed*: A user can have at most one active membership across all teams in the same hackathon.
 - `{ teamId: 1, status: 1 }` (For listing current team members and reconciling counter)
 - `{ userId: 1, status: 1 }` (For instant user dashboard lookup)
 
@@ -238,8 +247,8 @@ Tracks requests from solo participants seeking to join open teams.
 - `resolvedBy`: `ObjectId` (Optional, References `users._id`)
 
 **Indexes:**
-- `{ teamId: 1, status: 1 }` (Leader inbox: listing pending requests for team)
-- `{ hackathonId: 1, userId: 1, status: 1 }` (User view: listing pending requests submitted by user)
+- `{ teamId: 1, status: 1 }` (Listing pending requests for team)
+- `{ hackathonId: 1, userId: 1, status: 1 }` (Listing pending requests submitted by user)
 - `{ teamId: 1, userId: 1 }` (Preventing duplicate pending requests to same team)
 
 ---
@@ -255,14 +264,13 @@ Supports secret alphanumeric invite codes as well as direct user invitations.
 - `status`: `String` (Required, enum: `["ACTIVE", "EXPIRED", "REVOKED", "EXHAUSTED"]`, default `"ACTIVE"`)
 - `usesCount`: `Number` (Required, default `0`, incremented atomically upon redemption)
 - `maxUses`: `Number` (Required, default `1`, max redemptions allowed for this code)
-- `expiresAt`: `Date` (Required, TTL expiration timestamp)
+- `expiresAt`: `Date` (Required, expiration timestamp)
 - `createdAt`: `Date` (Required, default `now`)
 
 **Indexes:**
 - `{ tokenHash: 1 }` (unique: true — Fast O(1) secret lookup)
 - `{ teamId: 1, status: 1 }` (Team active invitation lookup)
 - `{ inviteeId: 1, status: 1 }` (User direct invitation inbox)
-- `{ expiresAt: 1 }` (MongoDB TTL index for automatic expiry cleanup or status transition)
 
 ---
 
@@ -273,42 +281,37 @@ Immutable record of all security and team composition actions.
 - `teamId`: `ObjectId` (Optional, References `teams._id`)
 - `actorId`: `ObjectId` (Required, References `users._id` who initiated the action)
 - `targetUserId`: `ObjectId` (Optional, References `users._id` affected by the action)
-- `action`: `String` (Required, enum: `["TEAM_CREATED", "MEMBER_JOINED", "MEMBER_LEFT", "MEMBER_REMOVED", "LEADERSHIP_TRANSFERRED", "INVITE_CREATED", "INVITE_REDEEMED", "JOIN_REQUEST_SUBMITTED", "JOIN_REQUEST_APPROVED"]`)
+- `action`: `String` (Required, enum: `["TEAM_CREATED", "TEAM_DISBANDED", "MEMBER_JOINED", "MEMBER_LEFT", "MEMBER_REMOVED", "LEADERSHIP_TRANSFERRED", "INVITE_CREATED", "INVITE_REDEEMED", "JOIN_REQUEST_SUBMITTED", "JOIN_REQUEST_APPROVED"]`)
 - `metadata`: `Object` (Required, contextual data such as IP address, user agent, old/new counts)
 - `timestamp`: `Date` (Required, default `now`)
 
 **Indexes:**
 - `{ teamId: 1, timestamp: -1 }` (Team activity feed ordered newest first)
 - `{ actorId: 1, timestamp: -1 }` (User activity log)
-- `{ hackathonId: 1, timestamp: -1 }` (Hackathon global compliance audit)
+- `{ hackathonId: 1, timestamp: -1 }` (Hackathon compliance audit)
 
 ---
 
 ### 8. `idempotencyRecords`
-Guarantees duplicate-safe retries for mutating operations.
+Guarantees duplicate-safe retries and prevents parallel in-flight race conditions for state-mutating requests.
 - `_id`: `ObjectId` (Primary Key)
-- `key`: `String` (Required, Unique UUIDv4 string sent in `Idempotency-Key` header)
+- `key`: `String` (Required, UUIDv4 sent in `Idempotency-Key` header)
 - `userId`: `ObjectId` (Required, References `users._id`)
 - `endpoint`: `String` (Required, e.g. `"POST /api/v1/teams/:id/join"`)
-- `statusCode`: `Number` (Required, e.g. `201`, `409`)
-- `responseBody`: `Object` (Required, exact JSON payload returned)
+- `payloadHash`: `String` (Required, SHA-256 hash of the request body to detect payload mismatches)
+- `status`: `String` (Required, enum: `["PROCESSING", "COMPLETED", "FAILED"]`, default `"PROCESSING"`)
+- `statusCode`: `Number` (Optional, populated on completion, e.g. `201`, `409`)
+- `responseBody`: `Object` (Optional, exact JSON response payload returned)
 - `createdAt`: `Date` (Required, default `now`)
-- `expiresAt`: `Date` (Required, TTL index, expires after 24 hours)
+- `expiresAt`: `Date` (Required, TTL index for eventual cleanup only)
+
+**Idempotency Invariant & TTL Clarification:**
+1. **User & Endpoint Scoping**: The compound index `{ key: 1, userId: 1, endpoint: 1 }` is strictly unique. An idempotency key is tied to the authenticated user and operation route.
+2. **In-Flight Lock**: If a concurrent request arrives with the same key while `status == "PROCESSING"`, it is rejected with `409 Conflict (REQUEST_IN_PROGRESS)` to eliminate parallel race execution.
+3. **Payload Verification**: If a subsequent request reuses an existing key with a different request payload, the system detects `payloadHash !== existing.payloadHash` and rejects with `409 Conflict (IDEMPOTENCY_KEY_PAYLOAD_MISMATCH)`.
+4. **Transaction Consistency**: If the transaction fails, the record is marked `FAILED` or removed. Failed transactions never leave misleading `COMPLETED` records.
+5. **Role of TTL**: The MongoDB TTL index (`expireAfterSeconds: 0` on `expiresAt`) is solely for **eventual database storage reclamation** (e.g. purging 24-hour-old keys), **NOT for correctness**. Correctness is strictly enforced by the database transaction and unique index.
 
 **Indexes:**
-- `{ key: 1, userId: 1 }` (unique: true — Scoped to user to prevent cross-tenant collision)
-- `{ expiresAt: 1 }` (expireAfterSeconds: 0 — Automatic MongoDB TTL cleanup)
-
----
-
-## 4. Query & Index Strategy Matrix
-
-| Query Use-Case | Target Collection | Primary Filter / Sort | Recommended Index | Covered Query? |
-| :--- | :--- | :--- | :--- | :--- |
-| **Team Discovery Board** | `teams` | `hackathonId = X, isOpen = true`, sort by `createdAt -1` | `{ hackathonId: 1, isOpen: 1, createdAt: -1 }` | Yes |
-| **Skill Filter Search** | `teams` | `hackathonId = X, skillsNeeded in [Y, Z]` | `{ hackathonId: 1, skillsNeeded: 1 }` | Yes |
-| **User Current Team** | `memberships` | `hackathonId = X, userId = Y, status = 'ACTIVE'` | `{ hackathonId: 1, userId: 1 }` (unique partial) | Yes |
-| **Team Active Roster** | `memberships` | `teamId = X, status = 'ACTIVE'` | `{ teamId: 1, status: 1 }` | Yes |
-| **Pending Join Requests**| `joinRequests` | `teamId = X, status = 'PENDING'` | `{ teamId: 1, status: 1 }` | Yes |
-| **Invite Token Lookup** | `invitations` | `tokenHash = H(token)` | `{ tokenHash: 1 }` (unique) | Yes |
-| **Team Audit Trail** | `auditLogs` | `teamId = X`, sort `timestamp -1` | `{ teamId: 1, timestamp: -1 }` | Yes |
+- `{ key: 1, userId: 1, endpoint: 1 }` (unique: true — Scoped idempotency constraint)
+- `{ expiresAt: 1 }` (expireAfterSeconds: 0 — Eventual storage cleanup)
