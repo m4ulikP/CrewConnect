@@ -77,6 +77,7 @@ const InvitationSchema = new Schema<IInvitation>(
         if (ret.teamId) ret.teamId = String(ret.teamId);
         if (ret.inviterId) ret.inviterId = String(ret.inviterId);
         if (ret.inviteeId) ret.inviteeId = String(ret.inviteeId);
+        delete ret.tokenHash;
         delete ret._id;
         delete ret.__v;
         return ret;

@@ -1,14 +1,22 @@
 import { Router, type Request, type Response, type NextFunction } from "express";
 import { Types } from "mongoose";
 import { TeamService } from "../services/team.service.js";
+import { SeatReservationService } from "../services/seat-reservation.service.js";
+import { JoinRequestService } from "../services/join-request.service.js";
+import { InvitationService } from "../services/invitation.service.js";
 import { AuditLog, Membership } from "../models/index.js";
 import { requireAuth } from "../middleware/auth.js";
 import { validateBody } from "../middleware/validate.js";
+import { idempotency } from "../middleware/idempotency.js";
 import {
   UpdateTeamSchema,
   TransferLeadershipSchema,
+  CreateJoinRequestSchema,
+  CreateInvitationSchema,
   type UpdateTeamInput,
   type TransferLeadershipInput,
+  type CreateJoinRequestInput,
+  type CreateInvitationInput,
 } from "@crewconnect/shared";
 import { AppError } from "../errors/AppError.js";
 
@@ -42,6 +50,37 @@ teamsRouter.get(
       res.status(200).json({
         success: true,
         data: roster,
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
+/**
+ * POST /api/v1/teams/:id/join
+ * Direct team join - Core race-proof capacity reservation endpoint.
+ * Requires Idempotency-Key header.
+ */
+teamsRouter.post(
+  "/:id/join",
+  requireAuth,
+  idempotency({ required: true, endpoint: "POST /api/v1/teams/:id/join" }),
+  async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+    try {
+      const teamId = req.params.id;
+      const userId = req.user!.id;
+
+      const result = await SeatReservationService.reserveSeatAndJoin({
+        teamId,
+        userId,
+        action: "MEMBER_JOINED",
+        idempotency: req.idempotency,
+      });
+
+      res.status(201).json({
+        success: true,
+        data: result.responsePayload,
       });
     } catch (error) {
       next(error);
@@ -265,6 +304,222 @@ teamsRouter.get(
       res.status(200).json({
         success: true,
         data: logs,
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
+/**
+ * POST /api/v1/teams/:id/join-requests
+ * Submit a join request to an open team
+ */
+teamsRouter.post(
+  "/:id/join-requests",
+  requireAuth,
+  validateBody(CreateJoinRequestSchema),
+  async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+    try {
+      const teamId = req.params.id;
+      const userId = req.user!.id;
+      const input = req.body as CreateJoinRequestInput;
+
+      const joinRequest = await JoinRequestService.createJoinRequest(teamId, userId, input.message);
+
+      res.status(201).json({
+        success: true,
+        data: joinRequest,
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
+/**
+ * GET /api/v1/teams/:id/join-requests
+ * List pending join requests for a team (Leader only)
+ */
+teamsRouter.get(
+  "/:id/join-requests",
+  requireAuth,
+  async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+    try {
+      const teamId = req.params.id;
+      const leaderUserId = req.user!.id;
+
+      const requests = await JoinRequestService.listJoinRequests(teamId, leaderUserId);
+
+      res.status(200).json({
+        success: true,
+        data: requests,
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
+/**
+ * POST /api/v1/teams/:id/join-requests/:requestId/approve
+ * Approve a pending join request using central atomic seat reservation (Leader only)
+ */
+teamsRouter.post(
+  "/:id/join-requests/:requestId/approve",
+  requireAuth,
+  idempotency({
+    required: false,
+    endpoint: "POST /api/v1/teams/:id/join-requests/:requestId/approve",
+  }),
+  async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+    try {
+      const teamId = req.params.id;
+      const requestId = req.params.requestId;
+      const leaderUserId = req.user!.id;
+
+      const result = await JoinRequestService.approveJoinRequest(
+        teamId,
+        requestId,
+        leaderUserId,
+        req.idempotency
+      );
+
+      res.status(201).json({
+        success: true,
+        data: result.responsePayload,
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
+/**
+ * POST /api/v1/teams/:id/join-requests/:requestId/reject
+ * Reject a pending join request (Leader only)
+ */
+teamsRouter.post(
+  "/:id/join-requests/:requestId/reject",
+  requireAuth,
+  async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+    try {
+      const teamId = req.params.id;
+      const requestId = req.params.requestId;
+      const leaderUserId = req.user!.id;
+
+      const result = await JoinRequestService.rejectJoinRequest(teamId, requestId, leaderUserId);
+
+      res.status(200).json({
+        success: true,
+        data: result,
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
+/**
+ * DELETE /api/v1/teams/:id/join-requests/:requestId
+ * Cancel a pending join request (Request Owner only)
+ */
+teamsRouter.delete(
+  "/:id/join-requests/:requestId",
+  requireAuth,
+  async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+    try {
+      const teamId = req.params.id;
+      const requestId = req.params.requestId;
+      const userId = req.user!.id;
+
+      const result = await JoinRequestService.cancelJoinRequest(teamId, requestId, userId);
+
+      res.status(200).json({
+        success: true,
+        data: result,
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
+/**
+ * POST /api/v1/teams/:id/invitations
+ * Create an invitation code/token for the team (Leader only)
+ */
+teamsRouter.post(
+  "/:id/invitations",
+  requireAuth,
+  validateBody(CreateInvitationSchema),
+  async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+    try {
+      const teamId = req.params.id;
+      const leaderUserId = req.user!.id;
+      const input = req.body as CreateInvitationInput;
+
+      const { invitation, rawToken } = await InvitationService.createInvitation(
+        teamId,
+        leaderUserId,
+        input
+      );
+
+      res.status(201).json({
+        success: true,
+        data: {
+          invitation,
+          token: rawToken,
+        },
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
+/**
+ * GET /api/v1/teams/:id/invitations
+ * List invitations for a team (Leader only)
+ */
+teamsRouter.get(
+  "/:id/invitations",
+  requireAuth,
+  async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+    try {
+      const teamId = req.params.id;
+      const leaderUserId = req.user!.id;
+
+      const invitations = await InvitationService.listInvitations(teamId, leaderUserId);
+
+      res.status(200).json({
+        success: true,
+        data: invitations,
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
+/**
+ * DELETE /api/v1/teams/:id/invitations/:invitationId
+ * Revoke an invitation (Leader only)
+ */
+teamsRouter.delete(
+  "/:id/invitations/:invitationId",
+  requireAuth,
+  async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+    try {
+      const teamId = req.params.id;
+      const invitationId = req.params.invitationId;
+      const leaderUserId = req.user!.id;
+
+      const revoked = await InvitationService.revokeInvitation(teamId, invitationId, leaderUserId);
+
+      res.status(200).json({
+        success: true,
+        data: revoked,
       });
     } catch (error) {
       next(error);

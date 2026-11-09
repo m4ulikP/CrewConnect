@@ -72,7 +72,10 @@ const JoinRequestSchema = new Schema<IJoinRequest>(
 
 JoinRequestSchema.index({ teamId: 1, status: 1 });
 JoinRequestSchema.index({ hackathonId: 1, userId: 1, status: 1 });
-JoinRequestSchema.index({ teamId: 1, userId: 1 });
+JoinRequestSchema.index(
+  { teamId: 1, userId: 1 },
+  { unique: true, partialFilterExpression: { status: "PENDING" } }
+);
 
 export const JoinRequest =
   (mongoose.models.JoinRequest as Model<IJoinRequest>) ||

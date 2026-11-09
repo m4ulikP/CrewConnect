@@ -280,3 +280,158 @@ export async function apiDisbandTeam(teamId: string): Promise<TeamRecord> {
 export async function apiGetTeamAuditLogs(teamId: string): Promise<AuditLogRecord[]> {
   return apiRequest<AuditLogRecord[]>(`/teams/${teamId}/audit-logs`);
 }
+
+// -------------------------------------------------------------------
+// Phase 5: Race-Proof Membership, Join Requests & Invitations
+// -------------------------------------------------------------------
+
+export function generateIdempotencyKey(): string {
+  if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
+    return crypto.randomUUID();
+  }
+  return `idemp-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`;
+}
+
+export interface JoinTeamResponse {
+  membershipId: string;
+  teamId: string;
+  userId: string;
+  role: string;
+  status: string;
+  currentMemberCount: number;
+  maxCapacity: number;
+  joinedAt: string;
+}
+
+export async function apiJoinTeam(
+  teamId: string,
+  idempotencyKey?: string
+): Promise<JoinTeamResponse> {
+  const key = idempotencyKey || generateIdempotencyKey();
+  return apiRequest<JoinTeamResponse>(`/teams/${teamId}/join`, {
+    method: "POST",
+    headers: {
+      "Idempotency-Key": key,
+    },
+  });
+}
+
+export interface JoinRequestRecord {
+  id: string;
+  hackathonId: string;
+  teamId: string;
+  userId:
+    | string
+    | {
+        id: string;
+        displayName: string;
+        email?: string;
+        skills?: string[];
+        bio?: string;
+        githubUrl?: string;
+        experienceLevel?: string;
+      };
+  message?: string;
+  status: "PENDING" | "APPROVED" | "REJECTED" | "CANCELLED";
+  createdAt: string;
+}
+
+export async function apiCreateJoinRequest(
+  teamId: string,
+  message?: string
+): Promise<JoinRequestRecord> {
+  return apiRequest<JoinRequestRecord>(`/teams/${teamId}/join-requests`, {
+    method: "POST",
+    body: JSON.stringify({ message }),
+  });
+}
+
+export async function apiGetJoinRequests(teamId: string): Promise<JoinRequestRecord[]> {
+  return apiRequest<JoinRequestRecord[]>(`/teams/${teamId}/join-requests`);
+}
+
+export async function apiApproveJoinRequest(
+  teamId: string,
+  requestId: string,
+  idempotencyKey?: string
+): Promise<JoinTeamResponse> {
+  const headers: Record<string, string> = {};
+  if (idempotencyKey) {
+    headers["Idempotency-Key"] = idempotencyKey;
+  }
+  return apiRequest<JoinTeamResponse>(`/teams/${teamId}/join-requests/${requestId}/approve`, {
+    method: "POST",
+    headers,
+  });
+}
+
+export async function apiRejectJoinRequest(
+  teamId: string,
+  requestId: string
+): Promise<JoinRequestRecord> {
+  return apiRequest<JoinRequestRecord>(`/teams/${teamId}/join-requests/${requestId}/reject`, {
+    method: "POST",
+  });
+}
+
+export async function apiCancelJoinRequest(
+  teamId: string,
+  requestId: string
+): Promise<JoinRequestRecord> {
+  return apiRequest<JoinRequestRecord>(`/teams/${teamId}/join-requests/${requestId}`, {
+    method: "DELETE",
+  });
+}
+
+export interface InvitationRecord {
+  id: string;
+  hackathonId: string;
+  teamId: string;
+  inviterId: string | { id: string; displayName: string };
+  inviteeId?: string | { id: string; displayName: string };
+  status: "ACTIVE" | "EXPIRED" | "REVOKED" | "EXHAUSTED";
+  usesCount: number;
+  maxUses: number;
+  expiresAt: string;
+  createdAt: string;
+}
+
+export async function apiCreateInvitation(
+  teamId: string,
+  data: { inviteeId?: string; maxUses?: number; expiresInHours?: number }
+): Promise<{ invitation: InvitationRecord; token: string }> {
+  return apiRequest<{ invitation: InvitationRecord; token: string }>(
+    `/teams/${teamId}/invitations`,
+    {
+      method: "POST",
+      body: JSON.stringify(data),
+    }
+  );
+}
+
+export async function apiGetInvitations(teamId: string): Promise<InvitationRecord[]> {
+  return apiRequest<InvitationRecord[]>(`/teams/${teamId}/invitations`);
+}
+
+export async function apiRevokeInvitation(
+  teamId: string,
+  invitationId: string
+): Promise<InvitationRecord> {
+  return apiRequest<InvitationRecord>(`/teams/${teamId}/invitations/${invitationId}`, {
+    method: "DELETE",
+  });
+}
+
+export async function apiAcceptInvitation(
+  token: string,
+  idempotencyKey?: string
+): Promise<JoinTeamResponse> {
+  const key = idempotencyKey || generateIdempotencyKey();
+  return apiRequest<JoinTeamResponse>("/invitations/accept", {
+    method: "POST",
+    headers: {
+      "Idempotency-Key": key,
+    },
+    body: JSON.stringify({ token }),
+  });
+}

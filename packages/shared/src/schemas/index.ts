@@ -54,6 +54,18 @@ export const CreateInviteCodeSchema = z.object({
 });
 export type CreateInviteCodeInput = z.infer<typeof CreateInviteCodeSchema>;
 
+export const CreateInvitationSchema = z.object({
+  inviteeId: z.string().optional(),
+  maxUses: z.number().int().min(1).max(10).default(1),
+  expiresInHours: z.number().min(1).max(168).default(24),
+});
+export type CreateInvitationInput = z.infer<typeof CreateInvitationSchema>;
+
+export const AcceptInvitationSchema = z.object({
+  token: z.string().min(1, "Invitation token is required").trim(),
+});
+export type AcceptInvitationInput = z.infer<typeof AcceptInvitationSchema>;
+
 export const RedeemInviteCodeSchema = z.object({
   inviteCode: z.string().min(4, "Invalid invite code format").trim().toUpperCase(),
 });

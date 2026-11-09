@@ -3,6 +3,7 @@ import { healthRouter } from "./health.js";
 import { authRouter } from "./auth.js";
 import { hackathonsRouter } from "./hackathons.js";
 import { teamsRouter } from "./teams.js";
+import { invitationsRouter } from "./invitations.js";
 
 export const v1Router = Router();
 
@@ -17,6 +18,9 @@ v1Router.use("/hackathons", hackathonsRouter);
 
 // Team module under /api/v1/teams
 v1Router.use("/teams", teamsRouter);
+
+// Invitations module under /api/v1/invitations
+v1Router.use("/invitations", invitationsRouter);
 
 // Root /api/v1 info
 v1Router.get("/", (_req, res) => {

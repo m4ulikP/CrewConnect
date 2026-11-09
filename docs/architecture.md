@@ -146,7 +146,7 @@ flowchart TD
 
 ---
 
-## 4. End-to-End Unified Transaction Lifecycle
+## 4. End-to-End Unified Transaction Lifecycle & Fenced Lease Protocol
 
 ```mermaid
 sequenceDiagram
@@ -156,50 +156,54 @@ sequenceDiagram
     participant Router as Express API Router
     participant Auth as Auth & RBAC Middleware
     participant Idemp as Idempotency Filter
-    participant Service as Membership Service
+    participant Service as Seat Reservation Engine
     participant Mongoose as Mongoose (Session)
     participant DB as MongoDB Replica Set (rs0)
     participant WS as Socket.IO Hub
 
-    Client->>GW: POST /api/v1/teams/:id/join (Idempotency-Key)
+    Client->>GW: POST /api/v1/teams/:id/join (Idempotency-Key: UUID)
     GW->>Router: Forward Request
     Router->>Auth: Validate JWT & Extract User Context
     Auth->>Idemp: Check Scoped Key { key, userId, endpoint }
 
-    alt In-Flight Duplicate (Status == PROCESSING)
+    alt In-Flight Duplicate (Status == PROCESSING and lockedAt < 30s)
         Idemp-->>Client: 409 Conflict (REQUEST_IN_PROGRESS)
     else Completed Duplicate (Same Payload Hash)
-        Idemp-->>Client: 200 OK / 201 Created (Cached Response, X-Cache: HIT)
-    else Key Reused with Different Payload
+        Idemp-->>Client: 200/201 Cached Response (X-Cache: HIT)
+    else Key Reused with Different Payload Hash
         Idemp-->>Client: 409 Conflict (IDEMPOTENCY_KEY_PAYLOAD_MISMATCH)
-    else New Request
-        Idemp->>Service: Execute joinTeamRaceProof(...)
+    else New Request or Expired Lease Reclaimed
+        Idemp->>Service: reserveSeatAndJoin({ teamId, userId, ... })
 
         loop Transaction Retry Loop (max 3 retries on TransientTransactionError)
-            Service->>Mongoose: mongoose.startSession() & session.startTransaction()
+            Service->>Mongoose: withTransactionRetry() -> session.startTransaction()
 
-            Note over Service,DB: All 5 Operations in ONE Transaction Session:
-            Service->>DB: 1. Team.findOneAndUpdate({ _id, memberCount < maxCapacity }, { $inc: { memberCount: 1 } }, { session })
+            Note over Service,DB: All Operations in ONE ACID Transaction Session:
+            Service->>DB: 1. Team.findOneAndUpdate({ _id, status: "ACTIVE", isOpen: true, $expr: { $lt: ["$memberCount", "$maxCapacity"] } }, { $inc: { memberCount: 1 } }, { session })
 
-            alt Team returned is null (Capacity reached 5/5)
+            alt Predicate Fails ($memberCount >= $maxCapacity)
                 Service->>Mongoose: session.abortTransaction()
                 Service-->>Client: 409 Conflict (TEAM_FULL)
-            else Seat Reserved (memberCount: 4 -> 5)
-                Service->>DB: 2. Membership.create([{ hackathonId, teamId, userId, status: 'ACTIVE' }], { session })
+            else Seat Atomically Reserved (memberCount: 4 -> 5)
+                Service->>DB: 2. Membership.create([{ hackathonId, teamId, userId, role: 'MEMBER', status: 'ACTIVE' }], { session })
 
-                alt Unique Index Violation on { hackathonId, userId }
-                    Service->>Mongoose: session.abortTransaction() (Rolls back memberCount increment!)
+                alt Compound Partial Unique Index Violation on { hackathonId, userId }
+                    Service->>Mongoose: session.abortTransaction() (Rolls back memberCount!)
                     Service-->>Client: 409 Conflict (ALREADY_IN_TEAM)
-                else Success
-                    Service->>DB: 3. AuditLog.create([{ action: 'MEMBER_JOINED' }], { session })
-                    Service->>DB: 4. IdempotencyRecord.create([{ status: 'COMPLETED' }], { session })
-                    Service->>Mongoose: session.commitTransaction()
-
-                    par Broadcast
-                        Service->>WS: Emit "team:capacity_changed" (5/5)
-                        WS-->>Client: Live UI Update
+                else Membership Created
+                    opt Optional onBeforeCommit Hook (Join Request / Invitation)
+                        Service->>DB: Update JoinRequest status -> 'APPROVED' OR Invitation usesCount += 1
                     end
-                    Service-->>Client: 201 Created (MembershipDTO)
+                    Service->>DB: 3. AuditLog.create([{ action: 'MEMBER_JOINED' }], { session })
+                    Service->>DB: 4. IdempotencyRecord.findOneAndUpdate({ key, userId, endpoint, ownerToken, status: 'PROCESSING' }, { status: 'COMPLETED', responseBody, $unset: { lockedAt: 1 } }, { session })
+
+                    alt Lease Stolen / Owner Token Mismatch
+                        Service->>Mongoose: session.abortTransaction()
+                        Service-->>Client: 409 Conflict (LEASE_LOST)
+                    else Lease Fenced & Completed
+                        Service->>Mongoose: session.commitTransaction()
+                        Service-->>Client: 201 Created (MembershipDTO)
+                    end
                 end
             end
         end
@@ -269,3 +273,95 @@ export class AppError extends Error {
 - `REQUEST_IN_PROGRESS` (409): Idempotent request currently executing in-flight.
 - `IDEMPOTENCY_KEY_PAYLOAD_MISMATCH` (409): Idempotency key reused with different body.
 - `CONCURRENCY_CONFLICT` (409): Write conflict in MongoDB transaction after max retries.
+- `LEASE_LOST` (409): Idempotency lease owner token mismatch during in-transaction completion.
+- `IDEMPOTENCY_KEY_REQUIRED` (400): Mutating reservation endpoint called without Idempotency-Key.
+- `IDEMPOTENCY_KEY_INVALID` (422): Key violates regex / character length limits (1-128 chars).
+
+---
+
+## 7. Race-Proof Membership & Idempotency Guarantee: Mathematical Invariant Proof
+
+### 1. The 50-Concurrent-Requests Capacity Invariant
+
+When 50 distinct authenticated participants concurrently attempt to join a team with exactly 1 vacancy remaining (`memberCount: 4`, `maxCapacity: 5`), the system provides a mathematical guarantee against overbooking:
+
+$$\text{Final } memberCount = 5 \quad \land \quad |\text{Active Memberships}| = 5$$
+
+#### Mathematical Invariant Proof:
+
+1. **Storage Engine Serialization (WiredTiger MVCC & Document Locks)**:
+   MongoDB executes document-level write modifications atomically. Every joining transaction executes:
+   ```javascript
+   Team.findOneAndUpdate(
+     {
+       _id: teamId,
+       status: "ACTIVE",
+       isOpen: true,
+       $expr: { $lt: ["$memberCount", "$maxCapacity"] },
+     },
+     { $inc: { memberCount: 1 } },
+     { new: true, session }
+   );
+   ```
+2. **Serial Predicate Evaluation**:
+   - Exactly one transaction $T_1$ acquires the document write lock first.
+   - For $T_1$, `$expr: 4 < 5` evaluates to `TRUE`. The document is updated to `memberCount = 5` and $T_1$ proceeds.
+   - For all subsequent transactions $T_2, \dots, T_{50}$ contending on the same document:
+     - MongoDB detects write contention and raises `TransientTransactionError` (WriteConflict).
+     - Under `withTransactionRetry()`, these transactions back off with full jitter and retry.
+     - Upon retry, $T_1$ has already committed `memberCount: 5`.
+     - The atomic filter `$expr: 5 < 5` evaluates to `FALSE`.
+     - The atomic update returns `null` (zero documents matched).
+3. **Clean Failure Path**:
+   - The engine queries the current team state outside or within the transaction, observing `memberCount >= maxCapacity`.
+   - The service rejects the request with HTTP `409 Conflict` and error code `TEAM_FULL`.
+   - The transaction cleanly aborts with zero side-effects.
+   - **Conclusion**: Overbooking is impossible. Exactly 1 request succeeds ($201\text{ Created}$) and 49 requests receive clean $409\text{ Conflict}$ errors.
+
+### 2. Multi-Team Hackathon Seat Invariant (Compound Partial Unique Index)
+
+To guarantee that a participant cannot occupy seats on multiple teams simultaneously in the same hackathon under concurrent race conditions:
+
+$$\forall u \in \text{Users}, h \in \text{Hackathons}: \sum_{m \in \text{Memberships}(u, h)} [\text{status}(m) = \text{'ACTIVE'}] \le 1$$
+
+- Enforced at the database storage engine layer via MongoDB partial unique index:
+  ```javascript
+  MembershipSchema.index(
+    { hackathonId: 1, userId: 1 },
+    { unique: true, partialFilterExpression: { status: "ACTIVE" } }
+  );
+  ```
+- Any concurrent attempt to insert a second active membership inside a transaction triggers MongoDB E11000 duplicate key error, which `SeatReservationService` traps and maps to `409 Conflict (ALREADY_IN_TEAM)`.
+
+### 3. Fenced Two-Phase Idempotency Lease Guarantee
+
+To prevent double-execution, stale worker updates, and zombie transaction commits:
+
+1. **Phase A (Outside Transaction — Lease Acquisition)**:
+   - Atomically attempts insertion of `{ key, userId, endpoint, status: "PROCESSING", ownerToken: UUID, lockedAt: Date.now() }`.
+   - If document exists with status `PROCESSING`:
+     - If `lockedAt > Date.now() - 30s`: rejects with `409 REQUEST_IN_PROGRESS`.
+     - If `lockedAt <= Date.now() - 30s` (stale worker / crash): atomically reclaims lease via Compare-And-Swap (CAS):
+       ```javascript
+       IdempotencyRecord.findOneAndUpdate(
+         { key, userId, endpoint, status: "PROCESSING", lockedAt: existing.lockedAt },
+         { $set: { lockedAt: new Date(), ownerToken: freshOwnerToken } },
+         { new: true }
+       );
+       ```
+   - If document exists with status `COMPLETED`: compares SHA-256 payload fingerprints. If identical, short-circuits execution and replays saved status code and cached JSON body with `X-Cache: HIT`. If payload differs, rejects with `409 IDEMPOTENCY_KEY_PAYLOAD_MISMATCH`.
+
+2. **Phase B (Inside Transaction — Fencing & Completion)**:
+   - The transition to `COMPLETED` is executed inside the business transaction:
+     ```javascript
+     IdempotencyRecord.findOneAndUpdate(
+       { key, userId, endpoint, ownerToken, status: "PROCESSING" },
+       {
+         $set: { status: "COMPLETED", responseStatus, responseBody },
+         $unset: { lockedAt: 1 },
+       },
+       { session }
+     );
+     ```
+   - **Fencing Protection**: If the original worker stalled for $> 30\text{ seconds}$ and another worker reclaimed the lease, the `ownerToken` will not match. The query returns `null`, throwing `409 LEASE_LOST`.
+   - This immediately rolls back the business transaction, mathematically preventing zombie commits from ever corrupting team capacity or roster state.

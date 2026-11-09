@@ -147,20 +147,22 @@ All API responses adhere to standard envelopes:
 
 ---
 
-## 4. Race-Proof Membership Module (`/teams/:id/memberships`)
+## 4. Race-Proof Membership Module (`/teams/:id`)
+
+All capacity-modifying operations funnel through the centralized **SeatReservationService** ensuring invariant protection, session-aware transactional consistency, and two-phase fenced idempotency.
 
 ### 1. `POST /teams/:id/join` (Direct Open Join — Core Concurrency Endpoint)
 
 - **Auth**: Authenticated
-- **Header**: `Idempotency-Key: <UUIDv4>` (Mandatory)
+- **Header**: `Idempotency-Key: <string>` (Mandatory, 1-128 chars)
 - **Execution Flow**:
-  1. Atomic Idempotency Lease Acquisition outside business transaction (30s lease expiry).
-  2. Unified Session-Aware Mongoose Business Transaction:
+  1. **Phase A (Outside Transaction)**: Atomic Idempotency Lease Acquisition (`status: "PROCESSING"`, 30s TTL, `ownerToken: UUID`).
+  2. **Phase B (ACID Transaction with Exponential Backoff & Commit-Retry Separation)**:
      - Atomic capacity check and conditional reservation (`$expr: { $lt: ["$memberCount", "$maxCapacity"] }`, `$inc: { memberCount: 1 }`).
-     - Insert active membership (guarded by unique compound index `{ hackathonId: 1, userId: 1 }`).
-     - Insert auditable event log.
-  3. On confirmed commit: Update idempotency record to `COMPLETED` and emit Socket.IO events.
-  4. On failure: Clean up idempotency lease and abort transaction.
+     - Insert active membership (guarded by compound partial unique index `{ hackathonId: 1, userId: 1 }` where `{ status: "ACTIVE" }`).
+     - Insert auditable event log (`MEMBER_JOINED`).
+     - Inside same transaction: fenced completion of idempotency lease (`status: "COMPLETED"`, cached response envelope, `$unset: { lockedAt: 1 }`).
+  3. **Commit & Post-Processing**: On confirmed commit, return `201 Created`. On replay with identical payload, return cached response with `X-Cache: HIT`.
 - **Success Response (201 Created)**:
   ```json
   {
@@ -178,15 +180,95 @@ All API responses adhere to standard envelopes:
   }
   ```
 - **Failure Cases**:
+  - `400 Bad Request`: `IDEMPOTENCY_KEY_REQUIRED` ("Idempotency-Key header is required.")
+  - `422 Unprocessable Entity`: `IDEMPOTENCY_KEY_INVALID` ("Invalid Idempotency-Key format.")
   - `409 Conflict`: `TEAM_FULL` ("The team has reached maximum capacity (5/5).")
   - `409 Conflict`: `TEAM_CLOSED` ("The team is not accepting new members.")
-  - `409 Conflict`: `ALREADY_IN_TEAM` ("User is already a member of a team in this hackathon.")
+  - `409 Conflict`: `ALREADY_IN_TEAM` ("User is already a member of an active team in this hackathon.")
   - `409 Conflict`: `REQUEST_IN_PROGRESS` ("A request with this idempotency key is currently processing.")
   - `409 Conflict`: `IDEMPOTENCY_KEY_PAYLOAD_MISMATCH` ("Idempotency key reused with different request payload.")
   - `409 Conflict`: `LEASE_LOST` ("Idempotency lease ownership lost during execution. Transaction aborted.")
-  - `409 Conflict`: `CONCURRENCY_CONFLICT` ("Operation failed due to concurrent write contention. Please retry.")
+  - `409 Conflict`: `CONCURRENCY_CONFLICT` ("Operation failed due to concurrent write contention after max retries.")
 
-### 2. `POST /teams/:id/leave` (Voluntary Departure)
+### 2. `POST /teams/:id/join-requests` (Apply to Join Team)
+
+- **Auth**: Authenticated
+- **Header**: `Idempotency-Key: <string>` (Optional)
+- **Request Body**:
+  ```json
+  {
+    "message": "Specialized in distributed systems and consensus protocols."
+  }
+  ```
+- **Description**: Submits candidate application to team leader. Enforces partial unique index `{ teamId: 1, userId: 1 }` where `{ status: "PENDING" }` to prevent duplicate pending applications.
+- **Success Response (201 Created)**:
+  ```json
+  {
+    "success": true,
+    "data": {
+      "id": "65e2b4f910a2b8e3a1f9a088",
+      "teamId": "65e2b4f910a2b8e3a1f9a010",
+      "userId": "65e2b4f910a2b8e3a1f9a055",
+      "status": "PENDING",
+      "message": "Specialized in distributed systems and consensus protocols.",
+      "createdAt": "2026-11-09T22:00:00.000Z"
+    }
+  }
+  ```
+- **Failure Cases**:
+  - `409 Conflict`: `JOIN_REQUEST_ALREADY_EXISTS` ("You already have a pending join request for this team.")
+  - `409 Conflict`: `ALREADY_IN_TEAM` ("User is already in an active team.")
+  - `409 Conflict`: `TEAM_FULL` ("Team is already full.")
+
+### 3. `GET /teams/:id/join-requests` (List Team Join Requests)
+
+- **Auth**: Authenticated (Team Leader only)
+- **Query Params**: `status` (default: "PENDING")
+- **Success Response (200 OK)**:
+  ```json
+  {
+    "success": true,
+    "data": [
+      {
+        "id": "65e2b4f910a2b8e3a1f9a088",
+        "userId": {
+          "id": "65e2b4f910a2b8e3a1f9a055",
+          "displayName": "Alex Chen",
+          "email": "alex@example.com",
+          "skills": ["TypeScript", "Distributed Systems"]
+        },
+        "status": "PENDING",
+        "message": "Specialized in distributed systems.",
+        "createdAt": "2026-11-09T22:00:00.000Z"
+      }
+    ]
+  }
+  ```
+
+### 4. `POST /teams/:id/join-requests/:requestId/approve` (Approve Join Request)
+
+- **Auth**: Authenticated (Team Leader only)
+- **Header**: `Idempotency-Key: <string>` (Mandatory)
+- **Description**: Executes `SeatReservationService.reserveSeatAndJoin` inside an ACID transaction with an `onBeforeCommit` hook that transitions `JoinRequest.status: "PENDING" -> "APPROVED"`.
+- **Success Response (200 OK)**: Returns the newly created `MembershipRecord`.
+- **Failure Cases**:
+  - `403 Forbidden`: `NOT_TEAM_LEADER`
+  - `404 Not Found`: `JOIN_REQUEST_NOT_FOUND`
+  - `409 Conflict`: `TEAM_FULL` / `ALREADY_IN_TEAM`
+
+### 5. `POST /teams/:id/join-requests/:requestId/reject` (Reject Join Request)
+
+- **Auth**: Authenticated (Team Leader only)
+- **Description**: Atomically transitions `JoinRequest.status: "PENDING" -> "REJECTED"`.
+- **Success Response (200 OK)**: `{ "success": true, "message": "Join request rejected successfully." }`
+
+### 6. `DELETE /teams/:id/join-requests/:requestId` (Cancel Own Join Request)
+
+- **Auth**: Authenticated (Applicant only)
+- **Description**: Atomically transitions `JoinRequest.status: "PENDING" -> "CANCELLED"`.
+- **Success Response (200 OK)**: `{ "success": true, "message": "Join request cancelled successfully." }`
+
+### 7. `POST /teams/:id/leave` (Voluntary Departure)
 
 - **Auth**: Authenticated (Member only)
 - **Header**: `Idempotency-Key`
@@ -197,7 +279,7 @@ All API responses adhere to standard envelopes:
 - **Failure Cases**:
   - `400 Bad Request`: `LEADER_CANNOT_LEAVE` ("Leader cannot leave a multi-member team without transferring leadership.")
 
-### 3. `DELETE /teams/:id/members/:userId` (Remove Member)
+### 8. `DELETE /teams/:id/members/:userId` (Remove Member)
 
 - **Auth**: Authenticated (Leader only)
 - **Description**: Leader removes a member. Atomically decrements `memberCount` inside transaction.
@@ -206,7 +288,7 @@ All API responses adhere to standard envelopes:
   - `403 Forbidden`: `NOT_TEAM_LEADER`
   - `400 Bad Request`: `CANNOT_REMOVE_SELF` (Leader cannot remove self)
 
-### 4. `POST /teams/:id/transfer-leadership`
+### 9. `POST /teams/:id/transfer-leadership`
 
 - **Auth**: Authenticated (Current Leader only)
 - **Header**: `Idempotency-Key`
@@ -220,24 +302,85 @@ All API responses adhere to standard envelopes:
 
 ---
 
-## 5. Invitations Module (`/invitations`)
+## 5. Invitations Module (`/teams/:id/invitations` & `/invitations`)
 
-### 1. `POST /teams/:id/invitations/code` (Generate Secret Code)
+### 1. `POST /teams/:id/invitations` (Generate Cryptographic Invitation)
 
 - **Auth**: Authenticated (Leader only)
-- **Request Body**: `{ "maxUses": 1, "expiresInHours": 24 }`
-- **Success Response (201 Created)**: Returns `{ inviteCode: "CREW-7X9K2M", expiresAt: "...", maxUses: 1 }`.
-  _(Database stores only `SHA-256("CREW-7X9K2M")`)_
+- **Request Body**:
+  ```json
+  {
+    "inviteeId": "65e2b4f910a2b8e3a1f9a055",
+    "maxUses": 1,
+    "expiresInHours": 24
+  }
+  ```
+- **Security Invariant**: Generates a 64-character hex secret (`crew_<randomBytes(32)>`).
+  Only the `SHA-256(token)` is stored in MongoDB. The plaintext secret is returned **only once** in this response and is excluded from `toJSON` transforms and idempotency caches.
+- **Success Response (201 Created)**:
+  ```json
+  {
+    "success": true,
+    "data": {
+      "invitation": {
+        "id": "65e2b4f910a2b8e3a1f9a077",
+        "teamId": "65e2b4f910a2b8e3a1f9a010",
+        "maxUses": 1,
+        "usesCount": 0,
+        "status": "ACTIVE",
+        "expiresAt": "2026-11-10T22:00:00.000Z"
+      },
+      "token": "crew_7f8a9b1c2d3e4f5a6b7c8d9e0f1a2b3c4d5e6f7a8b9c0d1e2f3a4b5c6d7e8f9a"
+    }
+  }
+  ```
 
-### 2. `POST /invitations/redeem` (Redeem Invite Code)
+### 2. `GET /teams/:id/invitations` (List Team Invitations)
+
+- **Auth**: Authenticated (Leader only)
+- **Success Response (200 OK)**: Returns array of active/revoked team invitations (without tokens or token hashes).
+
+### 3. `DELETE /teams/:id/invitations/:invitationId` (Revoke Invitation)
+
+- **Auth**: Authenticated (Leader only)
+- **Description**: Transitions invitation status to `REVOKED`.
+- **Success Response (200 OK)**: `{ "success": true, "message": "Invitation revoked successfully." }`
+
+### 4. `POST /invitations/accept` (or `/invitations/redeem`) (Accept Invitation)
 
 - **Auth**: Authenticated
-- **Header**: `Idempotency-Key`
-- **Request Body**: `{ "inviteCode": "CREW-7X9K2M" }`
-- **Description**: Hashes input code, verifies validity, and executes the race-proof reservation transaction.
-- **Success Response (200 OK)**: Membership details.
+- **Header**: `Idempotency-Key: <string>` (Mandatory)
+- **Request Body**:
+  ```json
+  {
+    "token": "crew_7f8a9b1c2d3e4f5a6b7c8d9e0f1a2b3c4d5e6f7a8b9c0d1e2f3a4b5c6d7e8f9a"
+  }
+  ```
+- **Execution Flow**:
+  1. Hashes input token with `SHA-256`.
+  2. Resolves and validates invitation: must be `ACTIVE`, not expired, `usesCount < maxUses`, and matches `inviteeId` if account-scoped.
+  3. Funnels into `SeatReservationService.reserveSeatAndJoin` with an `onBeforeCommit` hook that increments `usesCount` and marks `EXHAUSTED` if `usesCount + 1 >= maxUses`.
+  4. Fenced idempotency lease completion in the same ACID transaction.
+- **Success Response (200 OK)**:
+  ```json
+  {
+    "success": true,
+    "data": {
+      "teamId": "65e2b4f910a2b8e3a1f9a010",
+      "membership": {
+        "id": "65e2b4f910a2b8e3a1f9a099",
+        "teamId": "65e2b4f910a2b8e3a1f9a010",
+        "userId": "65e2b4f910a2b8e3a1f9a055",
+        "role": "MEMBER",
+        "status": "ACTIVE",
+        "joinedAt": "2026-11-09T22:00:00.000Z"
+      }
+    }
+  }
+  ```
 - **Failure Cases**:
-  - `400 Bad Request`: `INVITATION_INVALID` / `INVITATION_EXPIRED`
+  - `400 Bad Request`: `INVITATION_REVOKED` / `INVITATION_EXPIRED` / `INVITATION_EXHAUSTED` / `INVITATION_WRONG_ACCOUNT`
+  - `404 Not Found`: `INVITATION_NOT_FOUND`
   - `409 Conflict`: `TEAM_FULL` / `ALREADY_IN_TEAM`
 
 ---
