@@ -3,7 +3,7 @@
 **Document:** Database Design & Data Modeling  
 **Author:** Senior Database Architect  
 **Status:** Finalized & Approved  
-**Version:** 1.1.0  
+**Version:** 1.2.0  
 
 ---
 
@@ -136,6 +136,7 @@ erDiagram
         string endpoint
         string payloadHash
         string status
+        date lockedAt
         int statusCode
         object responseBody
         date expiresAt
@@ -274,8 +275,8 @@ Supports secret alphanumeric invite codes as well as direct user invitations.
 
 ---
 
-### 7. `auditLogs`
-Immutable record of all security and team composition actions.
+### 7. `auditLogs` (Auditable Event Log)
+Operational event log providing chronological auditability for all team state transitions.
 - `_id`: `ObjectId` (Primary Key)
 - `hackathonId`: `ObjectId` (Required, References `hackathons._id`)
 - `teamId`: `ObjectId` (Optional, References `teams._id`)
@@ -285,6 +286,10 @@ Immutable record of all security and team composition actions.
 - `metadata`: `Object` (Required, contextual data such as IP address, user agent, old/new counts)
 - `timestamp`: `Date` (Required, default `now`)
 
+**Security Clarification & Boundaries:**
+- **Purpose**: Provides operational accountability, user activity feeds, and debugging traceability committed within business transactions.
+- **Security Limitations**: Ordinary MongoDB documents are not mathematically tamper-evident without an external append-only ledger or hardware security module. A MongoDB database administrator with direct write credentials has the technical capability to update or drop collection records. For CrewConnect's hackathon scope, this auditable operational log is appropriate, transparent, and avoids unnecessary blockchain over-engineering.
+
 **Indexes:**
 - `{ teamId: 1, timestamp: -1 }` (Team activity feed ordered newest first)
 - `{ actorId: 1, timestamp: -1 }` (User activity log)
@@ -293,24 +298,25 @@ Immutable record of all security and team composition actions.
 ---
 
 ### 8. `idempotencyRecords`
-Guarantees duplicate-safe retries and prevents parallel in-flight race conditions for state-mutating requests.
+Manages atomic lease acquisition, in-flight locks, and response caching for mutating HTTP requests.
 - `_id`: `ObjectId` (Primary Key)
 - `key`: `String` (Required, UUIDv4 sent in `Idempotency-Key` header)
 - `userId`: `ObjectId` (Required, References `users._id`)
 - `endpoint`: `String` (Required, e.g. `"POST /api/v1/teams/:id/join"`)
-- `payloadHash`: `String` (Required, SHA-256 hash of the request body to detect payload mismatches)
+- `payloadHash`: `String` (Required, SHA-256 fingerprint of the request payload)
 - `status`: `String` (Required, enum: `["PROCESSING", "COMPLETED", "FAILED"]`, default `"PROCESSING"`)
+- `lockedAt`: `Date` (Required when status is `PROCESSING`, tracks lease timeout)
 - `statusCode`: `Number` (Optional, populated on completion, e.g. `201`, `409`)
 - `responseBody`: `Object` (Optional, exact JSON response payload returned)
 - `createdAt`: `Date` (Required, default `now`)
 - `expiresAt`: `Date` (Required, TTL index for eventual cleanup only)
 
-**Idempotency Invariant & TTL Clarification:**
-1. **User & Endpoint Scoping**: The compound index `{ key: 1, userId: 1, endpoint: 1 }` is strictly unique. An idempotency key is tied to the authenticated user and operation route.
-2. **In-Flight Lock**: If a concurrent request arrives with the same key while `status == "PROCESSING"`, it is rejected with `409 Conflict (REQUEST_IN_PROGRESS)` to eliminate parallel race execution.
-3. **Payload Verification**: If a subsequent request reuses an existing key with a different request payload, the system detects `payloadHash !== existing.payloadHash` and rejects with `409 Conflict (IDEMPOTENCY_KEY_PAYLOAD_MISMATCH)`.
-4. **Transaction Consistency**: If the transaction fails, the record is marked `FAILED` or removed. Failed transactions never leave misleading `COMPLETED` records.
-5. **Role of TTL**: The MongoDB TTL index (`expireAfterSeconds: 0` on `expiresAt`) is solely for **eventual database storage reclamation** (e.g. purging 24-hour-old keys), **NOT for correctness**. Correctness is strictly enforced by the database transaction and unique index.
+**Idempotency Mechanics:**
+1. **Scoped Unique Constraint**: Scoped to `{ key: 1, userId: 1, endpoint: 1 }` (unique: true).
+2. **Atomic Lease Acquisition**: Handled outside the business transaction. An incoming request atomically inserts or checks the key.
+3. **In-Flight Lock & Crash Recovery**: `status == "PROCESSING"` with `lockedAt` timestamp. Concurrent requests within 30 seconds receive `409 Conflict (REQUEST_IN_PROGRESS)`. If older than 30 seconds (crash recovery), the lease is reclaimed.
+4. **Cleanup on Failure**: If the business transaction fails, the in-flight lease is deleted so that failed transactions never leave false success records.
+5. **TTL Role**: The TTL index is purely for **eventual storage reclamation** (24 hours), not application correctness.
 
 **Indexes:**
 - `{ key: 1, userId: 1, endpoint: 1 }` (unique: true — Scoped idempotency constraint)

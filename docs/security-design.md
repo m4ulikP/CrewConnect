@@ -3,7 +3,7 @@
 **Document:** Security Architecture  
 **Author:** Senior Application Security Architect  
 **Status:** Finalized & Approved  
-**Version:** 1.1.0  
+**Version:** 1.2.0  
 
 ---
 
@@ -41,9 +41,9 @@ CrewConnect enforces a strict **Defense-in-Depth** security posture to safeguard
   - Leadership transfers verify inside an ACID transaction that the target recipient is an active member (`status: "ACTIVE"`) of the same team.
 
 ### D. Scoped Idempotency Security & In-Flight Protection
-- **Cross-Tenant Isolation**: Idempotency records are scoped to `{ key, userId, endpoint }`. A malicious user cannot guess or replay another user's idempotency key.
+- **Cross-Tenant Isolation**: Idempotency records are scoped to `{ key, userId, endpoint }`. A malicious user cannot guess, hijack, or replay another user's idempotency key.
 - **Payload Integrity Fingerprint**: The request payload is hashed (`SHA-256(JSON.stringify(req.body))`) upon receipt. If a client attempts to reuse a key with altered parameters, the request is blocked with `409 Conflict (IDEMPOTENCY_KEY_PAYLOAD_MISMATCH)`.
-- **In-Flight Lock**: While a transaction is running, the idempotency record is set to `status: "PROCESSING"`. Duplicate concurrent requests are rejected with `409 Conflict (REQUEST_IN_PROGRESS)`, preventing parallel execution of duplicate transactions.
+- **Atomic Two-Phase Lease**: Executed outside the business transaction with a 30-second lease expiry. Parallel concurrent requests within the lease window receive `409 Conflict (REQUEST_IN_PROGRESS)`, preventing concurrent transaction launches.
 
 ### E. Cryptographic Secret Invite Code Security
 - **High Entropy**: Generated via Node.js `crypto.randomBytes(4)` formatted as `CREW-XXXXXX` (minimum 32-bit to 64-bit entropy).
@@ -62,4 +62,10 @@ CrewConnect enforces a strict **Defense-in-Depth** security posture to safeguard
   - `X-Content-Type-Options: nosniff`: Prevents MIME confusion.
 
 ### H. WebSocket Connection Security
-- Socket.IO handshakes require valid JWT tokens. Unauthenticated sockets are severed immediately. Authenticated sockets join isolated rooms scoped by user ID and team ID.
+- Socket.IO handshakes require valid JWT tokens. Unauthenticated sockets are severed immediately. Authenticated sockets join isolated rooms scoped by user ID and team ID. External real-time events are emitted only after confirmed database commits.
+
+### I. Auditable Event Log: Scope & Security Boundaries
+- **Scope**: Every critical state transition (`TEAM_CREATED`, `MEMBER_JOINED`, `MEMBER_LEFT`, `MEMBER_REMOVED`, `LEADERSHIP_TRANSFERRED`, `TEAM_DISBANDED`) is recorded in `auditLogs` within the same business transaction.
+- **Security Clarification & Boundaries**:
+  - The audit log provides **operational accountability**, full chronological traceability, and actor identity metadata for competitive fairness.
+  - **Limitations**: Records are stored as standard MongoDB documents. They do not constitute an immutable cryptographic blockchain or hardware-backed write-once-read-many (WORM) storage. A privileged MongoDB superuser with direct database write credentials can technically alter or remove documents. This design meets the hackathon challenge requirements cleanly without introducing excessive architectural complexity.

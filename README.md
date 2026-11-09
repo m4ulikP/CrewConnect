@@ -14,11 +14,12 @@ Consider a team with **4 members** and a maximum capacity of **5**. Suppose **50
 
 **CrewConnect guarantees:**
 1. **Strict Seat Invariant**: Exactly **one** user claims the final seat (5/5). The remaining 49 requests fail cleanly with typed `409 Conflict (TEAM_FULL)` error responses after transaction write conflict retries.
-2. **Unified Single-Transaction Consistency**: Capacity check & reservation, capacity increment, active membership insertion, audit logging, and idempotency persistence happen within the **same session-aware MongoDB transaction**. If any step fails, the entire transaction rolls back—preventing permanent orphaned capacity increments.
-3. **Global Single-Team Invariant**: Enforced by a database-level unique compound index `{ hackathonId: 1, userId: 1 }` on `memberships`, ensuring no user can belong to more than one team within the same hackathon under any race condition.
-4. **Idempotency with In-Flight Locking**: Scoped by `{ key, userId, endpoint }` with SHA-256 request payload verification; in-flight requests lock duplicate executions, while retries return cached responses.
-5. **Team Leadership Invariants**: The team leader must always be an active member. Leaders cannot leave without transferring leadership, transfers are atomic, and last-member departure disbands the team.
-6. **Real-Time Consistency**: Team members receive sub-second Socket.IO WebSocket updates reflecting the exact committed state.
+2. **Unified Single-Transaction Consistency**: Capacity check & reservation, capacity increment, active membership insertion, and auditable event logging happen within the **same session-aware MongoDB transaction**. If any step fails, the entire transaction rolls back—preventing permanent orphaned capacity increments.
+3. **Specific Transaction Retry Semantics**: Distinguishes `TransientTransactionError` (retry whole callback with jittered backoff) from `UnknownTransactionCommitResult` (retry only the commit command). Exhausted retries report `409 Conflict (CONCURRENCY_CONFLICT)`, never `TEAM_FULL`. Side effects (WebSockets) dispatch only after confirmed commits.
+4. **Global Single-Team Invariant**: Enforced by a database-level unique compound index `{ hackathonId: 1, userId: 1 }` on `memberships`, ensuring no user can belong to more than one team within the same hackathon under any race condition.
+5. **Two-Phase Lease Idempotency**: Atomic lease acquisition outside the business transaction with 30s timeout crash recovery and SHA-256 payload verification. In-flight requests lock duplicate executions (`409 REQUEST_IN_PROGRESS`), while retries return cached responses.
+6. **Team Leadership Invariants**: The team leader must always be an active member. Leaders cannot leave without transferring leadership, transfers are atomic, and last-member departure disbands the team safely.
+7. **Real-Time Consistency**: Team members receive sub-second Socket.IO WebSocket updates reflecting the exact committed state.
 
 ---
 
@@ -64,10 +65,10 @@ All engineering specifications, design trade-offs, and architecture decisions ar
 
 1. **[Requirements Specification](./docs/requirements.md)**: Full breakdown of core functional requirements, critical non-functional invariants, and the Requirements Traceability Matrix.
 2. **[System Architecture](./docs/architecture.md)**: Modular monolith architecture, module boundaries, request lifecycle, data flow, and Mermaid diagrams.
-3. **[Database Design](./docs/database-design.md)**: Complete collection schemas, field specifications, compound indexes, trade-off analysis, leadership lifecycle rules, and ER diagrams.
-4. **[Concurrency Architecture](./docs/concurrency-design.md)**: Deep dive into the 50-simultaneous-users scenario, unified Mongoose transaction engine, WiredTiger write conflict retry mechanics, and mathematical proofs.
+3. **[Database Design](./docs/database-design.md)**: Complete collection schemas, field specifications, compound indexes, trade-off analysis, leadership lifecycle rules, auditable event log scope, and ER diagrams.
+4. **[Concurrency Architecture](./docs/concurrency-design.md)**: Deep dive into the 50-simultaneous-users scenario, two-phase lease idempotency protocol, MongoDB transaction retry semantics, and mathematical proofs.
 5. **[REST API Specification](./docs/api-specification.md)**: End-to-end endpoint contracts, request/response structures, authorization tiers, and HTTP status codes.
-6. **[Security Architecture](./docs/security-design.md)**: Argon2id password hashing parameters, JWT session strategy, rate limiting, invite-code hashing, CORS, and audit logging.
+6. **[Security Architecture](./docs/security-design.md)**: Argon2id password hashing parameters, JWT session strategy, rate limiting, invite-code hashing, CORS, and auditable event log boundaries.
 7. **[Testing Strategy](./docs/testing-strategy.md)**: Vitest unit & integration suites (20+ tests), k6 concurrency benchmarks, 10k-user seeding, and latency targets.
 8. **[Implementation Roadmap](./docs/implementation-roadmap.md)**: 8-phase execution plan from architecture foundation to production delivery.
 9. **[Architecture Decision Records (ADRs)](./docs/adr/)**: Formal ADRs 0001 through 0009 capturing context, alternatives, and trade-offs for core design decisions.
@@ -76,7 +77,7 @@ All engineering specifications, design trade-offs, and architecture decisions ar
 
 ## 🚦 Project Phases & Status
 
-- [x] **Phase 1: Project Foundation, Repository Initialization & System Architecture** *(Current Phase — Finalized & Clarified)*
+- [x] **Phase 1: Project Foundation, Repository Initialization & System Architecture** *(Current Phase — Complete & Finalized)*
 - [ ] **Phase 2: Project Scaffolding & Infrastructure** *(Pending Approval)*
 - [ ] **Phase 3: Database & Authentication**
 - [ ] **Phase 4: Core Team Management**

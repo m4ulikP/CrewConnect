@@ -3,7 +3,7 @@
 **Document:** Concurrency Architecture  
 **Author:** Senior Concurrency & Systems Architect  
 **Status:** Finalized & Approved  
-**Version:** 1.1.0  
+**Version:** 1.2.0  
 
 ---
 
@@ -18,89 +18,72 @@
   3. **Zero Counter Inconsistency**: `team.memberCount` must equal **5**, never 6, never 4.
   4. **Single-Team Invariant**: If any of those 50 users is simultaneously competing for a seat in another team, the user must belong to at most one team in the hackathon.
   5. **No Phantom or Orphan Records**: No `memberships` document may exist without the team counter reflecting it, and vice versa.
-  6. **Zero Orphaned Increments on Failure**: If any secondary operation (membership insertion, audit logging, idempotency persistence) fails, the entire transaction rolls back, restoring `memberCount` to 4.
+  6. **Zero Orphaned Increments on Failure**: If any secondary operation (membership insertion, auditable event logging) fails, the entire transaction rolls back, restoring `memberCount` to 4.
 
 ---
 
-## 2. Core Concurrency Rule: Unified Single-Transaction Execution
+## 2. Corrected Idempotency Architecture: Atomic Lease Acquisition Outside the Transaction
 
-All mutations for joining a team MUST happen within the **same MongoDB multi-document ACID transaction** using a single, unified `ClientSession` in Mongoose:
+### The Visibility Dilemma in Transactions
+Under MongoDB's Read Committed / Majority transaction isolation, uncommitted document writes created *inside* an active transaction are invisible to concurrent transactions. If Transaction A begins and writes a `PROCESSING` record inside its transaction, a concurrent Transaction B cannot see that uncommitted record.
+
+### The Solution: Two-Phase Idempotency Lease Protocol
+CrewConnect separates idempotency lease acquisition from the multi-document business transaction:
 
 ```mermaid
 flowchart TD
-    Start(["Client Request (POST /teams/:id/join)"]) --> IdempCheck{"In-flight or Completed\nIdempotency Key?"}
+    Start(["Incoming Request with Idempotency-Key"]) --> Step1["Step 1: Atomic Key Acquisition / Evaluation\n(Executed OUTSIDE Business Transaction)"]
     
-    IdempCheck -- "In-flight (Concurrent)" --> RejectInFlight["409 Conflict (REQUEST_IN_PROGRESS)"]
-    IdempCheck -- "Completed (Same Payload)" --> ReplaySuccess["Replay Original Response (200/201)"]
-    IdempCheck -- "Completed (Different Payload)" --> RejectPayloadMismatch["409 Conflict (PAYLOAD_MISMATCH)"]
-    IdempCheck -- "New Key" --> StartTxn["Start MongoDB Session & Transaction\n(readConcern: majority, writeConcern: majority)"]
+    Step1 --> CheckDoc{"Does record exist for\n{ key, userId, endpoint }?"}
+    
+    CheckDoc -- "Yes, status == COMPLETED" --> CheckPayload{"Does payloadHash match\nSHA-256(currentBody)?"}
+    CheckPayload -- "Match" --> ReplayCached["Replay Cached Response (200/201)\nHeader: X-Cache: HIT"]
+    CheckPayload -- "Mismatch" --> RejectMismatch["409 Conflict\n(IDEMPOTENCY_KEY_PAYLOAD_MISMATCH)"]
+    
+    CheckDoc -- "Yes, status == PROCESSING" --> CheckLease{"Has lease expired?\n(now - lockedAt > 30s)"}
+    CheckLease -- "No (Active In-Flight)" --> RejectInFlight["409 Conflict\n(REQUEST_IN_PROGRESS)"]
+    CheckLease -- "Yes (Crash Recovery)" --> ReclaimLease["Reclaim Lease atomically:\nUpdate lockedAt = now"]
+    
+    CheckDoc -- "No (New Key)" --> InsertLease["Atomically Insert Record:\nstatus: 'PROCESSING', lockedAt: now"]
+    
+    InsertLease --> Step2["Step 2: Execute Business Transaction\n(Capacity Check, Increment, Membership, Audit Log)"]
+    ReclaimLease --> Step2
 
-    subgraph Txn["Unified Single MongoDB ACID Transaction (session)"]
-        direction TB
-        Op1["1. Atomic Capacity Check & Reservation\nTeam.findOneAndUpdate(\n  { _id, memberCount: { $lt: maxCapacity }, isOpen: true },\n  { $inc: { memberCount: 1 } },\n  { session, new: true }\n)"]
-        
-        CheckOp1{"Team returned\nby query?"}
-        Op1 --> CheckOp1
-
-        CheckOp1 -- "No (Capacity reached\nor Team Closed)" --> AbortFull["Abort Transaction\nThrow AppError(TEAM_FULL, 409)"]
-        CheckOp1 -- "Yes (Seat Reserved)" --> Op2["2. Insert Active Membership\nMembership.create([\n  { hackathonId, teamId, userId, role: 'MEMBER', status: 'ACTIVE' }\n], { session })"]
-        
-        CheckOp2{"Unique Compound Index\n{ hackathonId, userId } violated?"}
-        Op2 --> CheckOp2
-
-        CheckOp2 -- "Yes (Error 11000)" --> AbortAlreadyInTeam["Abort Transaction\n(Rolls back memberCount increment!)\nThrow AppError(ALREADY_IN_TEAM, 409)"]
-        CheckOp2 -- "No (Valid)" --> Op3["3. Insert Audit Log\nAuditLog.create([\n  { hackathonId, teamId, actorId: userId, action: 'MEMBER_JOINED' }\n], { session })"]
-
-        Op3 --> Op4["4. Persist Completed Idempotency Record\nIdempotencyRecord.create([\n  { key, userId, endpoint, payloadHash, statusCode: 201, responseBody }\n], { session })"]
-
-        Op4 --> CommitTxn["Commit Transaction\n(session.commitTransaction())"]
-    end
-
-    StartTxn --> Op1
-    CommitTxn --> Success["Return 201 Created & Broadcast WebSocket Event"]
-    AbortFull --> CleanFail["Return 409 Conflict (TEAM_FULL)"]
-    AbortAlreadyInTeam --> CleanFail2["Return 409 Conflict (ALREADY_IN_TEAM)"]
+    Step2 --> TxnResult{"Transaction Result"}
+    
+    TxnResult -- "Commit Confirmed" --> Step3Success["Step 3a: Finalize Idempotency Record\nUpdate status: 'COMPLETED', statusCode, responseBody\nDispatch WebSocket Events"]
+    TxnResult -- "Aborted / Domain Failure" --> Step3Fail["Step 3b: Clean Up Idempotency Lease\nDelete record or mark status: 'FAILED'\n(Never leaves false success!)"]
 ```
 
----
-
-## 3. Storage Engine Mechanics: Why Losing Requests Don't All See TEAM_FULL Immediately
-
-In high-concurrency systems, architects must not assume that 50 concurrent transactions will immediately read a committed state. We must account for **WiredTiger storage-level document locking**, **write conflicts**, and **transient transaction retries**.
-
-### Exact Low-Level Concurrency Breakdown:
-1. **Initial State**: Team $T$ has `memberCount: 4`, `maxCapacity: 5`.
-2. **Concurrent Influx**: 50 client threads concurrently execute `session.startTransaction()` and invoke `Team.findOneAndUpdate(...)` with `{ session }`.
-3. **Lock Acquisition**:
-   - Thread 1 acquires the WiredTiger write ticket on document $T$.
-   - Threads 2 through 50 attempt to write-lock document $T$ simultaneously.
-   - Because document $T$ is currently modified within Thread 1's active transaction, WiredTiger throws `WriteConflictException` on the contending threads.
-   - In MongoDB, this surfaces to Mongoose as a `MongoServerError` with error label **`TransientTransactionError`** (Error Code `112: WriteConflict`).
-4. **Bounded Retry Runner with Jittered Backoff**:
-   - The application does NOT fail Threads 2–50 immediately as unhandled 500 errors.
-   - The application transaction runner catches `TransientTransactionError` or `UnknownTransactionCommitResult` and enters a bounded retry loop (up to 3 attempts) with **exponential backoff and randomized jitter**:
-     $$\text{delay} = \min\left(50 \times 2^{\text{attempt}-1} + \text{random}(0, 50), 300\right)\text{ ms}$$
-5. **Thread 1 Commits**:
-   - Thread 1 increments `memberCount` from 4 to 5.
-   - Thread 1 inserts `memberships` record for User 1.
-   - Thread 1 inserts `auditLogs` record.
-   - Thread 1 persists the idempotency record.
-   - Thread 1 successfully calls `session.commitTransaction()` with `writeConcern: majority`.
-   - The document write lock on $T$ is released.
-6. **Retrying Threads Wake Up**:
-   - As Threads 2–50 wake up from their backoff sleep, each begins its retry attempt inside a new transaction session.
-   - Each retrying thread executes `Team.findOneAndUpdate({ _id: teamId, memberCount: { $lt: 5 }, isOpen: true }, { $inc: { memberCount: 1 } }, { session, new: true })`.
-   - Because Thread 1's commit is visible under `readConcern: majority`, WiredTiger evaluates `$memberCount < 5`. Since `memberCount == 5`, the condition is **FALSE**.
-   - `findOneAndUpdate` returns `null` (zero documents matched and zero documents modified).
-   - The application detects `null`, aborts the retrying transaction immediately without performing any writes, and deterministically returns **`409 Conflict (TEAM_FULL)`**.
-7. **Write Conflict Exhaustion**:
-   - If severe CPU starvation causes any thread to exhaust its 3 retry attempts while write conflicts are still occurring, the runner catches the failure and returns **`409 Conflict (CONCURRENCY_CONFLICT)`** with a clear message: `"High contention detected. Please retry your request."`
+### Idempotency Correctness & Crash Recovery Guarantees
+1. **Scoped Keys**: The unique compound index on `idempotencyRecords` (`{ key: 1, userId: 1, endpoint: 1 }`) guarantees that keys are strictly scoped per authenticated user and endpoint.
+2. **In-Flight Lock**: If a duplicate concurrent request arrives while a transaction is actively running, it finds `status == "PROCESSING"` within its 30-second lease window and is immediately rejected with `409 Conflict (REQUEST_IN_PROGRESS)`.
+3. **Payload Verification**: Any attempt to reuse a key with altered request parameters is trapped via SHA-256 payload fingerprinting and rejected with `409 Conflict (IDEMPOTENCY_KEY_PAYLOAD_MISMATCH)`.
+4. **Crash Recovery**: If a server crashes or encounters an unhandled process kill during Step 2, the 30-second lease window expires. Any subsequent retry recognizes the expired lease, reclaims ownership, and safely re-executes.
+5. **No False Success Records**: If the business transaction aborts (e.g., `TEAM_FULL` or `ALREADY_IN_TEAM`), Step 3b immediately deletes the in-flight lease or marks it `FAILED`. Failed transactions **never** leave misleading `COMPLETED` records.
+6. **Role of TTL**: The MongoDB TTL index (`expiresAt: 24h`) is strictly for **eventual storage cleanup**, not for application correctness.
 
 ---
 
-## 4. Production Mongoose Transaction Runner
+## 3. MongoDB Transaction Retry Semantics
 
-The following session-aware Mongoose transaction runner is the standard execution template for all state-mutating operations:
+We rigorously distinguish between four distinct error categories to prevent incorrect retries or misreported error codes:
+
+| Error Category | Identification | Correct System Action | Resulting HTTP Response |
+| :--- | :--- | :--- | :--- |
+| **A. `TransientTransactionError`** | Error label `TransientTransactionError` or code 112 (`WriteConflict`). | **Abort transaction** (`session.abortTransaction()`). Rerun the **entire business callback** from the beginning with randomized jittered backoff. | Retried up to 3 times. If retries exhausted -> `409 Conflict (CONCURRENCY_CONFLICT)`. |
+| **B. `UnknownTransactionCommitResult`** | Error label `UnknownTransactionCommitResult` on commit. | **Do NOT rerun business callback!** Re-invoke **ONLY** `session.commitTransaction()` on the existing session until confirmed or failed. | `201 Created` upon commit resolution. |
+| **C. Deterministic Duplicate Key** | MongoDB Error code 11000 on `{ hackathonId: 1, userId: 1 }`. | **Non-transient domain violation!** Abort transaction immediately. **Do NOT retry.** | `409 Conflict (ALREADY_IN_TEAM)`. |
+| **D. Application Capacity Limit** | `Team.findOneAndUpdate(...)` returns `null` (condition unmet). | **Non-transient domain condition!** Abort transaction immediately. **Do NOT retry.** | `409 Conflict (TEAM_FULL)`. |
+
+### Important Execution Rules:
+- **Never report `TEAM_FULL` on exhausted retries**: If 3 retries are exhausted due to continuous write conflicts under extreme load, the system returns `409 Conflict (CONCURRENCY_CONFLICT)` with a clear message: `"High concurrent contention. Please retry your request."` It never falsely blames a full team when the actual cause was lock contention.
+- **Pure Callbacks**: The transaction callback must be strictly idempotent and safe to execute multiple times during transient error retries.
+- **Side Effect Deferral (WebSockets)**: WebSocket broadcasts (`io.to(...).emit(...)`) and notifications are queued in-memory and emitted **ONLY AFTER** `session.commitTransaction()` has successfully resolved and returned confirmation.
+
+---
+
+## 4. Production Transaction Runner Implementation Blueprint
 
 ```typescript
 import mongoose, { ClientSession } from "mongoose";
@@ -128,47 +111,68 @@ export async function executeInTransaction<T>(
         writeConcern: { w: "majority", j: true }
       });
 
+      // Execute business operation callback
       const result = await operation(session);
 
-      await session.commitTransaction();
+      // Commit loop: handle UnknownTransactionCommitResult specifically
+      await commitWithRetry(session);
+
       return result;
     } catch (error: any) {
       await session.abortTransaction();
       lastError = error;
 
-      // Check for transient transaction errors or unknown commit results
+      // Handle TransientTransactionError (e.g. WriteConflict)
       const isTransient =
         error.hasErrorLabel?.("TransientTransactionError") ||
-        error.hasErrorLabel?.("UnknownTransactionCommitResult") ||
-        error.code === 112; // WriteConflict error code
+        error.code === 112; // WriteConflict
 
       if (isTransient && attempt < maxRetries) {
-        // Randomized jitter prevents thundering herd on retry
         const jitter = Math.random() * 50;
         const delay = Math.min(baseDelayMs * Math.pow(2, attempt - 1) + jitter, maxDelayMs);
         await new Promise((resolve) => setTimeout(resolve, delay));
         continue;
       }
 
-      // Non-transient domain errors (TEAM_FULL, ALREADY_IN_TEAM) should terminate immediately
+      // Non-transient errors (TEAM_FULL, ALREADY_IN_TEAM) or exhausted retries fail immediately
       throw error;
     } finally {
       await session.endSession();
     }
   }
 
+  // Explicitly report CONCURRENCY_CONFLICT, never TEAM_FULL
   throw new AppError(
-    "Transaction failed due to concurrent write contention. Please retry.",
+    "Operation failed due to concurrent write contention. Please retry.",
     "CONCURRENCY_CONFLICT",
     409,
     { originalError: lastError?.message }
   );
 }
+
+/**
+ * Specifically retries ONLY the commit command if the commit result was unknown.
+ * Does NOT re-execute the business logic!
+ */
+async function commitWithRetry(session: ClientSession, maxCommitAttempts = 3): Promise<void> {
+  for (let i = 1; i <= maxCommitAttempts; i++) {
+    try {
+      await session.commitTransaction();
+      return;
+    } catch (error: any) {
+      if (error.hasErrorLabel?.("UnknownTransactionCommitResult") && i < maxCommitAttempts) {
+        await new Promise((resolve) => setTimeout(resolve, 50 * i));
+        continue;
+      }
+      throw error;
+    }
+  }
+}
 ```
 
 ---
 
-## 5. End-to-End Membership Service Implementation Blueprint
+## 5. End-to-End Membership Service Implementation
 
 ```typescript
 export async function joinTeamRaceProof(
@@ -176,154 +180,214 @@ export async function joinTeamRaceProof(
   userId: string,
   hackathonId: string,
   idempotencyKey?: string,
-  requestPayloadHash?: string
+  rawPayload: any = {}
 ): Promise<JoinTeamResult> {
-  return await executeInTransaction(async (session) => {
-    // Step 1: Atomic Capacity Check & Reservation inside Transaction Session
-    const updatedTeam = await Team.findOneAndUpdate(
-      {
-        _id: teamId,
-        hackathonId: hackathonId,
-        isOpen: true,
-        $expr: { $lt: ["$memberCount", "$maxCapacity"] }
-      },
-      {
-        $inc: { memberCount: 1 }
-      },
-      {
-        session,
-        new: true
+  const endpoint = "POST /api/v1/teams/:id/join";
+  const payloadHash = crypto.createHash("sha256").update(JSON.stringify(rawPayload)).digest("hex");
+
+  // =========================================================================
+  // Step 1: Atomic Idempotency Lease Acquisition (OUTSIDE Transaction)
+  // =========================================================================
+  let idempotencyRecordId: string | null = null;
+  if (idempotencyKey) {
+    const existing = await IdempotencyRecord.findOne({
+      key: idempotencyKey,
+      userId,
+      endpoint
+    });
+
+    if (existing) {
+      if (existing.status === "COMPLETED") {
+        if (existing.payloadHash !== payloadHash) {
+          throw new AppError(
+            "Idempotency key reused with different request payload",
+            "IDEMPOTENCY_KEY_PAYLOAD_MISMATCH",
+            409
+          );
+        }
+        return existing.responseBody;
       }
-    );
 
-    if (!updatedTeam) {
-      // Deterministic check: why did it fail?
-      const teamExists = await Team.findById(teamId).session(session);
-      if (!teamExists) throw new AppError("Team not found", "NOT_FOUND", 404);
-      if (!teamExists.isOpen) throw new AppError("Team is closed to new members", "TEAM_CLOSED", 409);
-      throw new AppError("Team has reached maximum capacity (5/5)", "TEAM_FULL", 409, {
-        currentCapacity: teamExists.memberCount,
-        maxCapacity: teamExists.maxCapacity
-      });
+      if (existing.status === "PROCESSING") {
+        const isLeaseActive = Date.now() - existing.lockedAt.getTime() < 30000;
+        if (isLeaseActive) {
+          throw new AppError(
+            "A request with this idempotency key is currently processing",
+            "REQUEST_IN_PROGRESS",
+            409
+          );
+        }
+        // Reclaim expired lease (crash recovery)
+        existing.lockedAt = new Date();
+        await existing.save();
+        idempotencyRecordId = existing._id.toString();
+      }
+    } else {
+      try {
+        const created = await IdempotencyRecord.create({
+          key: idempotencyKey,
+          userId,
+          endpoint,
+          payloadHash,
+          status: "PROCESSING",
+          lockedAt: new Date(),
+          expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000)
+        });
+        idempotencyRecordId = created._id.toString();
+      } catch (err: any) {
+        if (err.code === 11000) {
+          throw new AppError(
+            "A request with this idempotency key is currently processing",
+            "REQUEST_IN_PROGRESS",
+            409
+          );
+        }
+        throw err;
+      }
     }
+  }
 
-    // Step 2: Insert Active Membership Record (Guarded by Unique Compound Index)
-    try {
-      await Membership.create(
+  // =========================================================================
+  // Step 2: Unified Mongoose Business Transaction
+  // =========================================================================
+  let deferredEvents: Array<() => void> = [];
+  let result: JoinTeamResult;
+
+  try {
+    result = await executeInTransaction(async (session) => {
+      // 2a. Atomic Capacity Check & Reservation
+      const updatedTeam = await Team.findOneAndUpdate(
+        {
+          _id: teamId,
+          hackathonId,
+          isOpen: true,
+          $expr: { $lt: ["$memberCount", "$maxCapacity"] }
+        },
+        { $inc: { memberCount: 1 } },
+        { session, new: true }
+      );
+
+      if (!updatedTeam) {
+        const teamExists = await Team.findById(teamId).session(session);
+        if (!teamExists) throw new AppError("Team not found", "NOT_FOUND", 404);
+        if (!teamExists.isOpen) throw new AppError("Team is closed to new members", "TEAM_CLOSED", 409);
+        throw new AppError("Team has reached maximum capacity (5/5)", "TEAM_FULL", 409, {
+          currentCapacity: teamExists.memberCount,
+          maxCapacity: teamExists.maxCapacity
+        });
+      }
+
+      // 2b. Insert Active Membership (Guarded by Unique Partial Index)
+      try {
+        await Membership.create(
+          [
+            {
+              hackathonId,
+              teamId,
+              userId,
+              role: "MEMBER",
+              status: "ACTIVE",
+              joinedAt: new Date()
+            }
+          ],
+          { session }
+        );
+      } catch (err: any) {
+        if (err.code === 11000) {
+          // Aborting the transaction automatically rolls back updatedTeam counter increment!
+          throw new AppError(
+            "Participant is already an active member of a team in this hackathon",
+            "ALREADY_IN_TEAM",
+            409
+          );
+        }
+        throw err;
+      }
+
+      // 2c. Insert Auditable Event Log
+      await AuditLog.create(
         [
           {
             hackathonId,
             teamId,
-            userId,
-            role: "MEMBER",
-            status: "ACTIVE",
-            joinedAt: new Date()
+            actorId: userId,
+            action: "MEMBER_JOINED",
+            metadata: {
+              newMemberCount: updatedTeam.memberCount,
+              maxCapacity: updatedTeam.maxCapacity
+            },
+            timestamp: new Date()
           }
         ],
         { session }
       );
-    } catch (err: any) {
-      if (err.code === 11000) {
-        // Unique index violation on { hackathonId: 1, userId: 1 }
-        // Aborting the transaction rolls back updatedTeam memberCount increment!
-        throw new AppError(
-          "Participant is already an active member of a team in this hackathon",
-          "ALREADY_IN_TEAM",
-          409
-        );
-      }
-      throw err;
+
+      // 2d. Prepare Result and Deferred Event (NO in-transaction side effects)
+      const payload: JoinTeamResult = {
+        teamId: updatedTeam._id.toString(),
+        userId,
+        role: "MEMBER",
+        memberCount: updatedTeam.memberCount,
+        maxCapacity: updatedTeam.maxCapacity,
+        joinedAt: new Date()
+      };
+
+      deferredEvents.push(() => {
+        io.to(`hackathon:${hackathonId}`).emit("team:capacity_changed", {
+          teamId: updatedTeam._id.toString(),
+          memberCount: updatedTeam.memberCount,
+          maxCapacity: updatedTeam.maxCapacity
+        });
+        io.to(`team:${teamId}`).emit("team:member_joined", {
+          teamId: updatedTeam._id.toString(),
+          userId,
+          role: "MEMBER"
+        });
+      });
+
+      return payload;
+    });
+
+    // =========================================================================
+    // Step 3a: Finalize Idempotency Record (On Confirmed Success)
+    // =========================================================================
+    if (idempotencyRecordId) {
+      await IdempotencyRecord.findByIdAndUpdate(idempotencyRecordId, {
+        status: "COMPLETED",
+        statusCode: 201,
+        responseBody: result,
+        lockedAt: null
+      });
     }
 
-    // Step 3: Insert Audit Log Record
-    await AuditLog.create(
-      [
-        {
-          hackathonId,
-          teamId,
-          actorId: userId,
-          action: "MEMBER_JOINED",
-          metadata: {
-            newMemberCount: updatedTeam.memberCount,
-            maxCapacity: updatedTeam.maxCapacity
-          },
-          timestamp: new Date()
-        }
-      ],
-      { session }
-    );
+    // Step 3b: Dispatch External Side Effects ONLY after Confirmed Commit
+    deferredEvents.forEach((dispatch) => dispatch());
 
-    const responsePayload = {
-      teamId: updatedTeam._id,
-      userId,
-      role: "MEMBER",
-      memberCount: updatedTeam.memberCount,
-      maxCapacity: updatedTeam.maxCapacity,
-      joinedAt: new Date()
-    };
-
-    // Step 4: Persist Idempotency Record (if key provided)
-    if (idempotencyKey && requestPayloadHash) {
-      await IdempotencyRecord.create(
-        [
-          {
-            key: idempotencyKey,
-            userId,
-            endpoint: "POST /teams/:id/join",
-            payloadHash: requestPayloadHash,
-            status: "COMPLETED",
-            statusCode: 201,
-            responseBody: responsePayload,
-            expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000)
-          }
-        ],
-        { session }
-      );
+    return result;
+  } catch (error) {
+    // =========================================================================
+    // Step 3c: Clean Up Idempotency Lease on Failure
+    // =========================================================================
+    if (idempotencyRecordId) {
+      await IdempotencyRecord.findByIdAndDelete(idempotencyRecordId);
     }
-
-    return responsePayload;
-  });
+    throw error;
+  }
 }
 ```
 
 ---
 
-## 6. Failure Mode Matrix & Guaranteed System Behavior
+## 6. Mathematical Verification & Invariant Proof
 
-| Failure Mode / Race Condition | Mechanism of Detection | Immediate System Action | Guaranteed Final State |
-| :--- | :--- | :--- | :--- |
-| **50 simultaneous requests for 1 seat** | WiredTiger write locks on team document; Thread 1 commits count 4 -> 5. | Threads 2–50 hit write conflict, retry with backoff, see `$lt` condition unmet (`null` returned). | Exactly 1 success (201); 49 rejections (409 `TEAM_FULL`). Count = 5. |
-| **User in 2 simultaneous team join races** | Unique compound partial index on `memberships`: `{ hackathonId: 1, userId: 1 }`. | Race 1 commits; Race 2 hits MongoDB Error 11000 and aborts transaction. | Aborted transaction rolls back Race 2's capacity increment. User belongs to 1 team only. |
-| **Network timeout after commit** | Client retries with identical `Idempotency-Key` and payload hash. | Idempotency filter intercepts request before transaction, returns cached response. | No double execution; client receives original 201 response. Count unchanged. |
-| **Idempotency key reuse with different payload** | Payload hash comparison: `SHA-256(currentBody) !== existing.payloadHash`. | Middleware rejects request with 409 Conflict. | Prevents corrupted state replay across different operations. |
-| **Concurrent requests with same key in-flight** | Idempotency state check: existing record status is `PROCESSING`. | Middleware rejects second request with 409 `REQUEST_IN_PROGRESS`. | Parallel duplicate transactions prevented. |
-| **Server crash during transaction** | MongoDB writeConcern majority journal. | Uncommitted transaction discarded by MongoDB server on recovery. | Zero partial writes; team count remains at 4. |
+Let $C_t$ be the team's member count at time $t$. Let $M = 5$. Initial count: $C_0 = 4$.
 
----
-
-## 7. Mathematical Proof of Invariants
-
-Let $C_t$ be the team's member count at time $t$. Let $M$ be the team capacity ($M = 5$).  
-Initial state: $C_0 = 4$.
-
-For any transaction $k \in [1, 50]$, the update rule under transaction serialization is:
-$$\Delta C_k = \begin{cases} 
-1 & \text{if } C_{t_k} < M \text{ and transaction } k \text{ commits} \\
-0 & \text{if } C_{t_k} \ge M \text{ or transaction } k \text{ aborts}
-\end{cases}$$
-
-Since all transactions modify the same document $T$, MongoDB serializes the execution of the update operation:
-- The first committing transaction $k_1$ evaluates $C_{t_{k_1}} = 4 < 5$, so $\Delta C_{k_1} = 1$. It commits, yielding $C_1 = 5$.
-- For every subsequent transaction $k_j$ ($j \ge 2$), $C_{t_{k_j}} = 5 \not< 5$.
-- Therefore, for all $j \ge 2$:
-  $$\Delta C_{k_j} = 0$$
-- The final count is:
-  $$C_{\text{final}} = C_0 + \sum_{k=1}^{50} \Delta C_k = 4 + 1 + 0 = 5 = M$$
-
-The number of successful memberships created is:
-$$N_{\text{success}} = \sum_{k=1}^{50} \Delta C_k = 1$$
-
-The number of rejected requests is:
-$$N_{\text{rejected}} = 50 - 1 = 49$$
-
-The probability of an overflow state ($C > 5$) or an orphan membership record is **identically 0**.
+1. **Storage Serialization**: MongoDB WiredTiger serializes write locks on the document $T$.
+2. **First Transaction $T_1$**: Evaluates $C_0 = 4 < 5$. Condition holds true. $T_1$ increments $C \to 5$ and commits.
+3. **Contending Transactions $T_2 \dots T_{50}$**:
+   - Encounter `WriteConflict` during $T_1$'s active lock, catch `TransientTransactionError`, and back off with jitter.
+   - Upon wake-up, evaluate $C = 5 < 5 \implies \text{FALSE}$.
+   - Match 0 documents. `findOneAndUpdate` returns `null`.
+   - Abort cleanly with `409 Conflict (TEAM_FULL)`.
+4. **Failure Rollback Invariant**: If a candidate already has an active team in Hackathon $H$, the unique compound partial index `{ hackathonId: 1, userId: 1 }` rejects the membership insertion with error code 11000. The transaction aborts, rolling back the increment on document $T$. $C$ is restored to 4.
+5. **Result**: Strictly 1 successful membership; 49 clean rejections; $C_{\text{final}} = 5$; zero orphan increments.

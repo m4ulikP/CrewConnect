@@ -5,7 +5,7 @@
 **Problem Statement:** PS1 — Race-proof Team Formation  
 **Author:** Senior Software Architect & Engineering Lead  
 **Status:** Finalized & Approved  
-**Version:** 1.1.0  
+**Version:** 1.2.0  
 
 ---
 
@@ -76,10 +76,10 @@ Beyond this core concurrency challenge, the platform must handle the complete li
    - Recommendation engine calculating affinity scores between unassigned participants and teams with vacancies based on skill overlap.
 
 9. **FR-RT: Real-Time Event Dispatch**
-   - Socket.IO push notifications for real-time seat availability updates, join request workflows, and member changes.
+   - Socket.IO push notifications for real-time seat availability updates, join request workflows, and member changes. Deferred until after confirmed database commits.
 
-10. **FR-AUDIT: Tamper-Evident Audit Logging**
-    - Complete, immutable operational log of all state mutations committed within the same transaction.
+10. **FR-AUDIT: Auditable Event Log**
+    - Complete, chronological operational log of all state mutations committed within business transactions.
 
 ---
 
@@ -87,9 +87,13 @@ Beyond this core concurrency challenge, the platform must handle the complete li
 
 1. **NFR-CONC: Race-Condition Protection & Unified Transaction Serialization**
    - Zero seat oversaturation: If a team has 1 vacant seat, 50 concurrent joining operations must result in exactly 1 success and 49 failures.
-   - **Unified Single-Transaction Execution**: Seat reservation check, capacity increment, membership record insertion, audit log insertion, and idempotency persistence MUST execute within the **same MongoDB transaction** using session-aware Mongoose operations.
+   - **Unified Single-Transaction Execution**: Seat reservation check, capacity increment, membership record insertion, and auditable event log insertion MUST execute within the **same MongoDB transaction** using session-aware Mongoose operations.
    - **Rollback Guarantee**: If any operation fails (e.g. unique compound index violation on membership), the entire transaction rolls back; a failed join never leaves a permanently incremented `memberCount`.
-   - **Conflict Handling**: Losing transactions encountering storage write conflicts (`TransientTransactionError` / `WriteConflict`) retry with jittered exponential backoff and discover that `memberCount == maxCapacity`, aborting cleanly with `409 Conflict (TEAM_FULL)`.
+   - **Specific Retry Semantics**:
+     - `TransientTransactionError` / code 112 -> Abort and retry entire transaction callback with jittered backoff.
+     - `UnknownTransactionCommitResult` -> Retry ONLY the commit command on the existing session.
+     - Deterministic domain errors (`ALREADY_IN_TEAM`, `TEAM_FULL`) -> Non-transient, abort immediately without retrying.
+     - Exhausted retries -> Return `409 Conflict (CONCURRENCY_CONFLICT)`, never misreport `TEAM_FULL`.
 
 2. **NFR-INVAR: Global Database Invariants**
    - Invariant 1: **Single Team per Hackathon** — enforced at the database level by unique compound index `{ hackathonId: 1, userId: 1 }` on `memberships` (`status: "ACTIVE"`).
@@ -98,12 +102,12 @@ Beyond this core concurrency challenge, the platform must handle the complete li
    - Invariant 4: **Valid Active Leader** — every active team must have exactly one member with `role = 'LEADER'` and `status = 'ACTIVE'`.
    - Invariant 5: **Last Member Exit Safety** — when the final member leaves or is removed, the team is automatically marked `DISBANDED` and closed.
 
-3. **NFR-IDEMP: Scoped Request Idempotency & In-Flight Protection**
-   - All state-mutating HTTP requests support an `Idempotency-Key` header (UUIDv4).
-   - Keys are scoped by `{ userId, endpoint }`.
-   - Incoming requests check payload fingerprint (`payloadHash`); reusing a key with a different payload returns `409 Conflict (IDEMPOTENCY_KEY_PAYLOAD_MISMATCH)`.
-   - In-flight requests set status `PROCESSING`; concurrent identical requests receive `409 Conflict (REQUEST_IN_PROGRESS)` to prevent duplicate parallel transactions.
-   - Failed transactions never leave successful idempotency records.
+3. **NFR-IDEMP: Two-Phase Lease-Based Request Idempotency**
+   - Scoped by `{ key, userId, endpoint }`.
+   - Atomic lease acquisition outside the business transaction with a 30-second lease window.
+   - Duplicate in-flight requests receive `409 Conflict (REQUEST_IN_PROGRESS)`.
+   - Request body SHA-256 fingerprint comparison: reusing key with different payload returns `409 Conflict (IDEMPOTENCY_KEY_PAYLOAD_MISMATCH)`.
+   - Failed transactions delete the in-flight lease; failed transactions never leave false success records.
    - TTL indexes are strictly for eventual database cleanup, not correctness.
 
 4. **NFR-TECH: Technology Decisions**
@@ -156,9 +160,9 @@ Beyond this core concurrency challenge, the platform must handle the complete li
 | **FR-DISC-1** | Paginated team discovery board | Must-have | `apps/api/src/modules/teams` | k6 p95 latency benchmark | Phase 4, 7 |
 | **FR-REC-1** | Skill-matching recommendation engine | Should-have| `apps/api/src/modules/recommendations` | Unit tests with test vectors | Phase 4 |
 | **FR-RT-1** | Real-time seat updates & notifications | Should-have| `apps/api/src/modules/notifications` | Socket.IO client mock tests | Phase 6 |
-| **FR-AUDIT-1**| Tamper-evident audit logging in transaction | Must-have | `apps/api/src/modules/audit` | Database inspection tests | Phase 4 |
+| **FR-AUDIT-1**| Auditable event logging in transaction | Must-have | `apps/api/src/modules/audit` | Database inspection tests | Phase 4 |
 | **NFR-CONC-1**| 50-to-1 seat race-proof allocation | Must-have | Unified Mongoose Transaction | Automated concurrency test | Phase 5 |
-| **NFR-IDEMP-1**| Scoped & hashed `Idempotency-Key` support | Must-have | `apps/api/src/middleware/idempotency` | Duplicate POST retry & conflict tests | Phase 5 |
+| **NFR-IDEMP-1**| Two-phase lease `Idempotency-Key` support | Must-have | `apps/api/src/middleware/idempotency` | Duplicate POST retry & conflict tests | Phase 5 |
 | **NFR-PERF-1**| Discovery endpoint p95 $< 200\text{ ms}$ | Must-have | Indexed MongoDB queries | k6 100 VU benchmark | Phase 7 |
 | **NFR-PERF-2**| Seeding 10k users & 2k teams | Must-have | `scripts/seed.ts` | Count verification query | Phase 7 |
 | **NFR-TEST-1**| At least 20 automated API tests | Must-have | `apps/api/tests/**/*.test.ts` | CI pipeline report | Phase 7 |

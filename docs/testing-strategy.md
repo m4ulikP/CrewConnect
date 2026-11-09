@@ -3,7 +3,7 @@
 **Document:** Testing & Verification Strategy  
 **Author:** Senior Quality & Performance Engineer  
 **Status:** Finalized & Approved  
-**Version:** 1.1.0  
+**Version:** 1.2.0  
 
 ---
 
@@ -14,7 +14,7 @@ CrewConnect enforces a multi-tier testing strategy specifically tailored to veri
 ```mermaid
 flowchart TD
     LT["Load & Stress Tests (k6 / autocannon)\n100 VUs, 10k users, 2k teams, p95 < 200ms"]
-    CT["Concurrency Race Tests (Vitest + Supertest)\n50 simultaneous users -> 1 seat, Dual-team race, Idempotency lock"]
+    CT["Concurrency Race Tests (Vitest + Supertest)\n50 simultaneous users -> 1 seat, Dual-team race, Idempotency lease lock"]
     IT["Integration Tests (Supertest + Mongoose Replica Set)\nAuth, Team CRUD, Invites, Join Requests, Leadership Invariants (20+ tests)"]
     UT["Unit Tests (Vitest)\nBusiness logic, Zod validation, Argon2id params, Recommendation math"]
 
@@ -56,9 +56,9 @@ Minimum $\ge 20$ comprehensive passing tests against a local MongoDB Replica Set
 17. `test_member_removal_by_leader`: Leader kicks member, counter decrements.
 18. `test_leadership_transfer_atomic`: Transfers leadership, updates roles and `team.leaderId`.
 19. `test_leadership_transfer_invalid_target`: Transfer to non-member fails with 400.
-20. `test_idempotency_duplicate_replay`: Replays request with identical key, returns cached response.
+20. `test_idempotency_duplicate_replay`: Replays request with identical key and payload, returns cached response.
 21. `test_idempotency_payload_mismatch`: Reuses key with different payload, returns 409 Conflict.
-22. `test_audit_log_generation`: Confirms audit entries written within transaction.
+22. `test_auditable_event_log_generation`: Confirms auditable log entries written within transaction.
 
 ### C. Concurrency Race Tests (`apps/api/tests/concurrency/**/*.test.ts`)
 1. **The 50-Simultaneous-Users Race for 1 Seat**:
@@ -69,7 +69,7 @@ Minimum $\ge 20$ comprehensive passing tests against a local MongoDB Replica Set
      - Exactly **49** HTTP responses have status `409 Conflict (TEAM_FULL)` after transaction retries.
      - Final `team.memberCount === 5`.
      - `Membership.countDocuments({ teamId, status: "ACTIVE" }) === 5`.
-     - Exactly 1 new audit log record with action `MEMBER_JOINED`.
+     - Exactly 1 new record in `auditLogs` with action `MEMBER_JOINED`.
 2. **Dual-Team Competing Join Race**:
    - User A attempts to join Team X and Team Y concurrently in the same hackathon.
    - **Assertions**: Exactly 1 succeeds (201); 1 fails with `409 ALREADY_IN_TEAM`. The failed team's counter does NOT increment.
@@ -78,7 +78,10 @@ Minimum $\ge 20$ comprehensive passing tests against a local MongoDB Replica Set
    - **Assertion**: Transaction aborts completely; `team.memberCount` remains at original value (no permanent orphaned increment).
 4. **In-Flight Concurrent Idempotency Race**:
    - 2 concurrent requests arrive with the same key simultaneously.
-   - **Assertion**: 1 proceeds to execute; 1 is rejected with `409 REQUEST_IN_PROGRESS`.
+   - **Assertion**: 1 acquires the lease (`status: PROCESSING`); the other is rejected with `409 REQUEST_IN_PROGRESS`.
+5. **Transient Write Conflict vs Retry Exhaustion**:
+   - Verify that transactions experiencing `WriteConflict` back off and retry.
+   - If retries are artificially exhausted, verify that the API returns `409 CONCURRENCY_CONFLICT`, not `TEAM_FULL`.
 
 ### D. Load & Performance Testing (`scripts/k6/load-test.js`)
 - **Dataset**: $10,000$ participants, $2,000$ teams.

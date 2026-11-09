@@ -3,7 +3,7 @@
 **Document:** API Specification & Endpoint Contracts  
 **Author:** Senior API Architect  
 **Status:** Finalized & Approved  
-**Version:** 1.1.0  
+**Version:** 1.2.0  
 **Base URL:** `/api/v1`  
 
 ---
@@ -60,21 +60,7 @@ All API responses adhere to standard envelopes:
     "skills": ["TypeScript", "React", "Node.js"]
   }
   ```
-- **Success Response (201 Created)**:
-  ```json
-  {
-    "success": true,
-    "data": {
-      "user": {
-        "id": "65e2b4f910a2b8e3a1f9a001",
-        "email": "alex.dev@example.com",
-        "displayName": "Alex Chen",
-        "skills": ["TypeScript", "React", "Node.js"]
-      },
-      "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
-    }
-  }
-  ```
+- **Success Response (201 Created)**: Returns user profile and signed JWT token.
 - **Failure Cases**:
   - `409 Conflict`: `EMAIL_ALREADY_EXISTS`
   - `422 Unprocessable Entity`: Validation failure on email/password format.
@@ -82,13 +68,6 @@ All API responses adhere to standard envelopes:
 ### 2. `POST /auth/login`
 - **Auth**: Public
 - **Description**: Authenticates user and issues signed JWT in cookie and body.
-- **Request Body**:
-  ```json
-  {
-    "email": "alex.dev@example.com",
-    "password": "StrongPassword123!"
-  }
-  ```
 - **Success Response (200 OK)**: Set-Cookie: `token=...; HttpOnly; Secure; SameSite=Lax`
 - **Failure Cases**:
   - `401 Unauthorized`: `INVALID_CREDENTIALS`
@@ -114,7 +93,7 @@ All API responses adhere to standard envelopes:
   - `search`: string (matches team name or tagline)
   - `hasVacancies`: boolean (if true, filters `memberCount < maxCapacity`)
   - `skills`: comma-separated string (`React,Node.js`)
-- **Success Response (200 OK)** (p95 < 200ms target):
+- **Success Response (200 OK)** (Target p95 latency < 200ms):
   ```json
   {
     "success": true,
@@ -142,15 +121,6 @@ All API responses adhere to standard envelopes:
 ### 2. `POST /hackathons/:hackathonId/teams` (Create Team)
 - **Auth**: Authenticated
 - **Header**: `Idempotency-Key` (Required)
-- **Request Body**:
-  ```json
-  {
-    "name": "Distributed Titans",
-    "tagline": "Solving PS1 with race-proof algorithms",
-    "description": "Experienced backend developers building high-throughput systems.",
-    "skillsNeeded": ["Node.js", "MongoDB", "TypeScript"]
-  }
-  ```
 - **Success Response (201 Created)**: Returns created team and leader membership.
 - **Failure Cases**:
   - `409 Conflict`: `ALREADY_IN_TEAM` (User already has active team in this hackathon).
@@ -159,7 +129,7 @@ All API responses adhere to standard envelopes:
 ### 3. `POST /teams/:id/disband` (Disband Team)
 - **Auth**: Authenticated (Leader only)
 - **Header**: `Idempotency-Key` (Required)
-- **Description**: Atomically transitions team status to `DISBANDED`, sets `isOpen = false`, marks all active memberships as `LEFT`, and writes audit log.
+- **Description**: Atomically transitions team status to `DISBANDED`, sets `isOpen = false`, marks all active memberships as `LEFT`, and writes auditable event log.
 - **Success Response (200 OK)**: `{ "success": true, "message": "Team disbanded successfully" }`
 - **Failure Cases**:
   - `403 Forbidden`: `NOT_TEAM_LEADER`
@@ -171,12 +141,14 @@ All API responses adhere to standard envelopes:
 ### 1. `POST /teams/:id/join` (Direct Open Join — Core Concurrency Endpoint)
 - **Auth**: Authenticated
 - **Header**: `Idempotency-Key: <UUIDv4>` (Mandatory)
-- **Description**: Executes the unified session-aware Mongoose transaction:
-  1. Atomic capacity check & reservation on team document
-  2. Increment memberCount
-  3. Insert active membership
-  4. Insert audit log
-  5. Persist idempotency record
+- **Execution Flow**:
+  1. Atomic Idempotency Lease Acquisition outside business transaction (30s lease expiry).
+  2. Unified Session-Aware Mongoose Business Transaction:
+     - Atomic capacity check and conditional reservation (`$expr: { $lt: ["$memberCount", "$maxCapacity"] }`, `$inc: { memberCount: 1 }`).
+     - Insert active membership (guarded by unique compound index `{ hackathonId: 1, userId: 1 }`).
+     - Insert auditable event log.
+  3. On confirmed commit: Update idempotency record to `COMPLETED` and emit Socket.IO events.
+  4. On failure: Clean up idempotency lease and abort transaction.
 - **Success Response (201 Created)**:
   ```json
   {
@@ -198,13 +170,13 @@ All API responses adhere to standard envelopes:
   - `409 Conflict`: `TEAM_CLOSED` ("The team is not accepting new members.")
   - `409 Conflict`: `ALREADY_IN_TEAM` ("User is already a member of a team in this hackathon.")
   - `409 Conflict`: `REQUEST_IN_PROGRESS` ("A request with this idempotency key is currently processing.")
-  - `409 Conflict`: `IDEMPOTENCY_KEY_PAYLOAD_MISMATCH` ("Idempotency key reused with different payload.")
-  - `409 Conflict`: `CONCURRENCY_CONFLICT` ("Write conflict occurred under extreme contention. Please retry.")
+  - `409 Conflict`: `IDEMPOTENCY_KEY_PAYLOAD_MISMATCH` ("Idempotency key reused with different request payload.")
+  - `409 Conflict`: `CONCURRENCY_CONFLICT` ("Operation failed due to concurrent write contention. Please retry.")
 
 ### 2. `POST /teams/:id/leave` (Voluntary Departure)
 - **Auth**: Authenticated (Member only)
 - **Header**: `Idempotency-Key`
-- **Description**: Atomically transitions membership to `LEFT`, decrements `memberCount`, writes audit record.
+- **Description**: Atomically transitions membership to `LEFT`, decrements `memberCount`, writes auditable log.
   - If the user is the **sole remaining member** (count = 1), the team is automatically transitioned to `status: "DISBANDED"`, `isOpen: false`, and `memberCount: 0`.
   - If the user is the **leader** and other members remain, departure is blocked until leadership is transferred.
 - **Success Response (200 OK)**: `{ "success": true, "message": "Left team successfully" }`
@@ -213,7 +185,7 @@ All API responses adhere to standard envelopes:
 
 ### 3. `DELETE /teams/:id/members/:userId` (Remove Member)
 - **Auth**: Authenticated (Leader only)
-- **Description**: Leader removes a member. Atomically decrements `memberCount`.
+- **Description**: Leader removes a member. Atomically decrements `memberCount` inside transaction.
 - **Success Response (200 OK)**: `{ "success": true, "message": "Member removed successfully" }`
 - **Failure Cases**:
   - `403 Forbidden`: `NOT_TEAM_LEADER`
@@ -222,30 +194,9 @@ All API responses adhere to standard envelopes:
 ### 4. `POST /teams/:id/transfer-leadership`
 - **Auth**: Authenticated (Current Leader only)
 - **Header**: `Idempotency-Key`
-- **Request Body**:
-  ```json
-  {
-    "newLeaderId": "65e2b4f910a2b8e3a1f9a055"
-  }
-  ```
-- **Description**: Atomically inside an ACID transaction:
-  1. Verifies `req.user.id` matches current `team.leaderId`.
-  2. Verifies `newLeaderId` holds an active membership with `status: "ACTIVE"` in `teamId`.
-  3. Updates `team.leaderId = newLeaderId`.
-  4. Demotes old leader to `role: "MEMBER"`.
-  5. Promotes new leader to `role: "LEADER"`.
-  6. Appends `auditLogs` record.
-- **Success Response (200 OK)**:
-  ```json
-  {
-    "success": true,
-    "data": {
-      "teamId": "65e2b4f910a2b8e3a1f9a010",
-      "previousLeaderId": "65e2b4f910a2b8e3a1f9a001",
-      "newLeaderId": "65e2b4f910a2b8e3a1f9a055"
-    }
-  }
-  ```
+- **Request Body**: `{ "newLeaderId": "65e2b4f910a2b8e3a1f9a055" }`
+- **Description**: Atomically swaps roles inside an ACID transaction: current leader demoted to `MEMBER`, target promoted to `LEADER`, `team.leaderId` updated.
+- **Success Response (200 OK)**: Returns updated team leadership metadata.
 - **Failure Cases**:
   - `403 Forbidden`: `NOT_TEAM_LEADER`
   - `400 Bad Request`: `TARGET_USER_NOT_ACTIVE_MEMBER`
@@ -265,7 +216,7 @@ All API responses adhere to standard envelopes:
 - **Auth**: Authenticated
 - **Header**: `Idempotency-Key`
 - **Request Body**: `{ "inviteCode": "CREW-7X9K2M" }`
-- **Description**: Hashes code, checks token validity, and routes through the unified transaction reservation engine.
+- **Description**: Hashes input code, verifies validity, and executes the race-proof reservation transaction.
 - **Success Response (200 OK)**: Membership details.
 - **Failure Cases**:
   - `400 Bad Request`: `INVITATION_INVALID` / `INVITATION_EXPIRED`
@@ -273,14 +224,9 @@ All API responses adhere to standard envelopes:
 
 ---
 
-## 6. Join Requests Module (`/join-requests`)
+## 6. Audit & Activity Logs Module (`/audit`)
 
-### 1. `POST /teams/:id/join-requests`
-- **Auth**: Authenticated (Non-member)
-- **Request Body**: `{ "message": "Full-stack engineer with React/Node expertise" }`
-- **Success Response (201 Created)**: Pending request entity.
-
-### 2. `POST /join-requests/:requestId/resolve`
-- **Auth**: Authenticated (Leader only)
-- **Request Body**: `{ "decision": "APPROVED" }` (or `"REJECTED"`)
-- **Description**: If `APPROVED`, executes the unified transaction reservation engine. If full, returns `409 TEAM_FULL`.
+### 1. `GET /teams/:id/audit-logs`
+- **Auth**: Authenticated (Team members only)
+- **Query Params**: `page`, `limit`
+- **Success Response (200 OK)**: Paginated chronological history from the auditable event log.
