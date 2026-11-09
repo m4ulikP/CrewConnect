@@ -754,6 +754,109 @@ describe("Phase 5: Race-Proof Membership Engine & Concurrency Verification", () 
       expect(finalTeam?.memberCount).toBe(3);
     });
 
+    it("handles 5 simultaneous concurrent redemptions against one invitation with maxUses = 2", async () => {
+      const team = await Team.create({
+        hackathonId: new Types.ObjectId(testHackathonId),
+        leaderId: leaderUser._id,
+        name: `FiveWay MultiUse Team ${Date.now()}`,
+        memberCount: 1,
+        maxCapacity: 10,
+        isOpen: true,
+        status: "ACTIVE",
+      });
+
+      await Membership.create({
+        hackathonId: new Types.ObjectId(testHackathonId),
+        teamId: team._id,
+        userId: leaderUser._id,
+        role: "LEADER",
+        status: "ACTIVE",
+        joinedAt: new Date(),
+      });
+
+      // 1. Create multi-use invitation with maxUses = 2
+      const createRes = await request(app)
+        .post(`/api/v1/teams/${team._id}/invitations`)
+        .set("Authorization", `Bearer ${leaderToken}`)
+        .send({ maxUses: 2, expiresInHours: 24 });
+
+      expect(createRes.status).toBe(201);
+      const rawToken = createRes.body.data.token;
+      const invId = createRes.body.data.invitation.id;
+
+      // 2. Prepare 5 distinct users and their auth tokens
+      const candidateUsers = await Promise.all(
+        Array.from({ length: 5 }, (_, i) =>
+          User.create({
+            email: `fiveway-user-${i}-${Date.now()}@test-race.com`,
+            passwordHash,
+            displayName: `FiveWay User ${i}`,
+            skills: ["TypeScript", `Skill-${i}`],
+            status: "ACTIVE",
+          })
+        )
+      );
+
+      const candidateTokens = candidateUsers.map((u) => AuthService.generateToken(u));
+
+      // 3. Launch all 5 redemption requests simultaneously
+      const responses = await Promise.all(
+        candidateUsers.map((_, i) =>
+          request(app)
+            .post("/api/v1/invitations/accept")
+            .set("Authorization", `Bearer ${candidateTokens[i]}`)
+            .set("Idempotency-Key", `idemp-fiveway-${i}-${Date.now()}`)
+            .send({ token: rawToken })
+        )
+      );
+
+      // 4. Verify exactly 2 requests succeed (201) and 3 fail with INVITATION_EXHAUSTED (400)
+      const successfulResponses = responses.filter((r) => r.status === 201);
+      const exhaustedResponses = responses.filter(
+        (r) => r.status === 400 && r.body.error?.code === ERROR_CODES.INVITATION_EXHAUSTED
+      );
+
+      expect(successfulResponses).toHaveLength(2);
+      expect(exhaustedResponses).toHaveLength(3);
+
+      // 5. Verify usesCount is exactly 2 and status is EXHAUSTED
+      const dbInv = await Invitation.findById(invId);
+      expect(dbInv?.usesCount).toBe(2);
+      expect(dbInv?.status).toBe("EXHAUSTED");
+
+      // 6. Verify exactly two new active memberships exist (total 3 including leader)
+      const activeMemberships = await Membership.find({ teamId: team._id, status: "ACTIVE" });
+      expect(activeMemberships).toHaveLength(3);
+
+      const newMemberships = activeMemberships.filter(
+        (m) => m.userId.toString() !== leaderUser._id.toString()
+      );
+      expect(newMemberships).toHaveLength(2);
+
+      // Verify the new members match the users who got 201 responses
+      const successfulUserIds = successfulResponses.map((r) => r.body.data.userId);
+      const newMembershipUserIds = newMemberships.map((m) => m.userId.toString());
+      expect(new Set(newMembershipUserIds)).toEqual(new Set(successfulUserIds));
+
+      // 7. Verify team memberCount matches active membership documents
+      const finalTeam = await Team.findById(team._id);
+      expect(finalTeam?.memberCount).toBe(3);
+      expect(finalTeam?.memberCount).toBe(activeMemberships.length);
+
+      // 8. Verify no duplicate memberships exist
+      const allMemberships = await Membership.find({ teamId: team._id });
+      expect(allMemberships).toHaveLength(3);
+      const uniqueUserIds = new Set(allMemberships.map((m) => m.userId.toString()));
+      expect(uniqueUserIds.size).toBe(3);
+
+      // 9. Verify exactly two INVITE_REDEEMED audit events exist
+      const inviteRedeemedAudits = await AuditLog.find({
+        teamId: team._id,
+        action: "INVITE_REDEEMED",
+      });
+      expect(inviteRedeemedAudits).toHaveLength(2);
+    });
+
     it("handles single-use invitation (maxUses = 1) under concurrent redemptions", async () => {
       const team = await Team.create({
         hackathonId: new Types.ObjectId(testHackathonId),

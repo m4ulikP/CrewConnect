@@ -60,7 +60,7 @@ export const Profile: React.FC = () => {
             Technical Skills ({user.skills.length})
           </h2>
           <div className="flex flex-wrap gap-2">
-            {user.skills.map((skill) => (
+            {user.skills.map((skill: string) => (
               <span
                 key={skill}
                 className="px-3 py-1.5 rounded-lg text-xs font-medium bg-slate-950 border border-slate-800 text-emerald-400"
