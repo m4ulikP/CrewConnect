@@ -27,12 +27,15 @@ describe("MongoDB Replica Set Transaction Verification", () => {
 
   it("executes transaction commit and rollback if MongoDB replica set is available", async () => {
     if (!isConnected) {
-      console.warn("MongoDB replica set not currently running. Skipping live transaction test.");
+      console.warn("MongoDB replica set offline. SKIPPED: live transaction test.");
       return;
     }
 
+    console.log("MongoDB replica set ONLINE. GENUINELY EXECUTING live ACID transaction test...");
+
     const testSchema = new mongoose.Schema({ name: String, val: Number });
-    const TestModel = mongoose.model("TransactionTest", testSchema);
+    const TestModel =
+      mongoose.models.TransactionTest || mongoose.model("TransactionTest", testSchema);
 
     // 1. Test Rollback
     const sessionRollback = await mongoose.startSession();
@@ -61,7 +64,10 @@ describe("MongoDB Replica Set Transaction Verification", () => {
     expect(committedDoc).not.toBeNull();
     expect(committedDoc?.val).toBe(200);
 
-    // Cleanup
+    // 3. Verify clean state after test cleanup (no leftover records)
     await TestModel.deleteMany({ name: "commit-test" });
+    const leftoverDoc = await TestModel.findOne({ name: "commit-test" });
+    expect(leftoverDoc).toBeNull();
+    console.log("PASS: Rollback, Commit, and zero leftover records verified.");
   });
 });

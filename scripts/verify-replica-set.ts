@@ -63,8 +63,13 @@ async function verifyReplicaSetAndTransactions(): Promise<void> {
     }
     console.log("PASS: Commit verified. Document successfully retrieved with counter = 42.");
 
-    // Clean up
+    // Clean up & verify no leftover records
     await TestModel.deleteMany({ name: "commit-sample" });
+    const docAfterCleanup = await TestModel.findOne({ name: "commit-sample" });
+    if (docAfterCleanup !== null) {
+      throw new Error("FAIL: Leftover test records remained after cleanup!");
+    }
+    console.log("PASS: Zero leftover test records confirmed after cleanup.");
     await mongoose.disconnect();
     console.log("All MongoDB replica set and ACID transaction tests PASSED!");
     process.exit(0);

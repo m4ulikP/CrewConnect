@@ -32,23 +32,27 @@ async function startServer(): Promise<void> {
 // Graceful shutdown handling
 async function gracefulShutdown(signal: string): Promise<void> {
   console.log(`Received ${signal}. Gracefully shutting down...`);
-  server.close(async () => {
-    console.log("HTTP server closed.");
-    try {
-      await disconnectDatabase();
-      console.log("Database connection closed.");
-      process.exit(0);
-    } catch (err) {
-      console.error("Error during database disconnection:", err);
-      process.exit(1);
-    }
-  });
+  return new Promise<void>((resolve, reject) => {
+    server.close(async () => {
+      console.log("HTTP server closed.");
+      try {
+        await disconnectDatabase();
+        console.log("Database connection closed.");
+        resolve();
+        process.exit(0);
+      } catch (err) {
+        console.error("Error during database disconnection:", err);
+        reject(err);
+        process.exit(1);
+      }
+    });
 
-  // Force close after 10s timeout
-  setTimeout(() => {
-    console.error("Could not close connections in time, forcefully shutting down");
-    process.exit(1);
-  }, 10000);
+    // Force close after 10s timeout
+    setTimeout(() => {
+      console.error("Could not close connections in time, forcefully shutting down");
+      process.exit(1);
+    }, 10000).unref();
+  });
 }
 
 process.on("SIGTERM", () => gracefulShutdown("SIGTERM"));
@@ -58,4 +62,4 @@ if (process.env.NODE_ENV !== "test") {
   startServer();
 }
 
-export { server };
+export { server, startServer, gracefulShutdown };
