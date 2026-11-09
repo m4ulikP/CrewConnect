@@ -4,19 +4,26 @@
   "private": true,
   "description": "Production-grade hackathon team formation platform solving concurrency and race conditions (Hack4Hack 2026 PS1)",
   "workspaces": [
-    "apps/*",
-    "packages/*"
+    "packages/*",
+    "apps/*"
   ],
   "scripts": {
     "dev": "npm run dev --workspaces --if-present",
+    "dev:api": "npm run dev --workspace=@crewconnect/api",
+    "dev:web": "npm run dev --workspace=@crewconnect/web",
     "build": "npm run build --workspaces --if-present",
-    "test": "npm run test --workspaces --if-present",
-    "lint": "npm run lint --workspaces --if-present",
+    "typecheck": "npm run typecheck --workspaces --if-present",
+    "lint": "eslint . --ext .ts,.tsx",
+    "test": "vitest run",
     "format": "prettier --check \"**/*.{ts,tsx,js,json,md}\"",
     "format:fix": "prettier --write \"**/*.{ts,tsx,js,json,md}\""
   },
   "devDependencies": {
-    "prettier": "^3.2.5"
+    "@typescript-eslint/eslint-plugin": "^7.18.0",
+    "@typescript-eslint/parser": "^7.18.0",
+    "eslint": "^8.57.1",
+    "prettier": "^3.2.5",
+    "typescript": "^5.3.3"
   },
   "engines": {
     "node": ">=20.0.0",
@@ -24,7 +31,7 @@
   },
   "repository": {
     "type": "git",
-    "url": "https://github.com/hack4hack/crewconnect"
+    "url": "https://github.com/m4ulikP/CrewConnect.git"
   },
   "author": "CrewConnect Engineering Team",
   "license": "MIT"

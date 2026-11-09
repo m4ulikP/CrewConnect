@@ -3,7 +3,7 @@
 **Document:** Database Design & Data Modeling  
 **Author:** Senior Database Architect  
 **Status:** Finalized & Approved  
-**Version:** 1.3.0  
+**Version:** 1.3.0
 
 ---
 
@@ -12,15 +12,17 @@
 A pivotal design decision in MongoDB is choosing between embedding members inside the `teams` document vs. storing them in a dedicated `memberships` collection.
 
 ### Option A: Embedded Members Array (`team.members = [{ userId, role, joinedAt }]`)
-* **Pros**: Reading a team and its full member list requires only a single document fetch (no joins/`$lookup`).
-* **Fatal Flaws**:
+
+- **Pros**: Reading a team and its full member list requires only a single document fetch (no joins/`$lookup`).
+- **Fatal Flaws**:
   1. **Global Invariant Breach**: MongoDB cannot enforce a cross-document uniqueness constraint on array subfields. If User A submits two concurrent requests to join Team 1 and Team 2 in the same hackathon, two different team documents would be modified in parallel. Without a cross-document unique index, User A would successfully join both teams, violating Invariant 1 (**One team per user per hackathon**).
   2. **Document Growth & Fragmentation**: Frequent additions/removals cause document reallocation on disk.
   3. **High Write Contention**: Every team activity (member join, status update, profile edit) locks the same team document.
 
 ### Option B (Selected): Dedicated `memberships` Collection with Cached `memberCount`
-* **Architecture**: Team membership is modeled as a first-class document in `memberships`. The `teams` document maintains a cached counter `memberCount` for low-latency queries and atomic conditional reservations.
-* **Why This Wins**:
+
+- **Architecture**: Team membership is modeled as a first-class document in `memberships`. The `teams` document maintains a cached counter `memberCount` for low-latency queries and atomic conditional reservations.
+- **Why This Wins**:
   1. **Unbreakable Global Constraint**: A database-level unique compound index on `memberships`:
      ```json
      { "hackathonId": 1, "userId": 1 } (unique: true, partialFilterExpression: { status: "ACTIVE" })
@@ -39,7 +41,7 @@ erDiagram
     USERS ||--o{ JOIN_REQUESTS : "submits"
     USERS ||--o{ INVITATIONS : "creates / receives"
     USERS ||--o{ AUDIT_LOGS : "acts in"
-    
+
     HACKATHONS ||--o{ TEAMS : "hosts"
     HACKATHONS ||--o{ MEMBERSHIPS : "scopes"
     HACKATHONS ||--o{ JOIN_REQUESTS : "scopes"
@@ -150,7 +152,9 @@ erDiagram
 ## 3. Detailed Collection Schemas & Invariant Rules
 
 ### 1. `users`
+
 Represents registered platform participants.
+
 - `_id`: `ObjectId` (Primary Key)
 - `email`: `String` (Required, Lowercase, Trimmed, Unique)
 - `passwordHash`: `String` (Required, Argon2id hashed password with salt)
@@ -165,13 +169,16 @@ Represents registered platform participants.
 - `updatedAt`: `Date` (Required, default `now`)
 
 **Indexes:**
+
 - `{ email: 1 }` (unique: true)
 - `{ skills: 1 }` (multikey index for recommendation queries)
 
 ---
 
 ### 2. `hackathons`
+
 Defines the boundary and capacity limits for an event.
+
 - `_id`: `ObjectId` (Primary Key)
 - `slug`: `String` (Required, Unique, e.g. `"hack4hack-2026"`)
 - `title`: `String` (Required, 3–100 chars)
@@ -184,13 +191,16 @@ Defines the boundary and capacity limits for an event.
 - `createdAt`: `Date` (Required)
 
 **Indexes:**
+
 - `{ slug: 1 }` (unique: true)
 - `{ status: 1, startDate: 1 }` (for active hackathon queries)
 
 ---
 
 ### 3. `teams`
+
 Represents a formed team competing in a specific hackathon.
+
 - `_id`: `ObjectId` (Primary Key)
 - `hackathonId`: `ObjectId` (Required, References `hackathons._id`)
 - `name`: `String` (Required, 2–50 chars, trimmed)
@@ -206,11 +216,13 @@ Represents a formed team competing in a specific hackathon.
 - `updatedAt`: `Date` (Required)
 
 **Leadership & Team Lifecycle Invariants:**
+
 1. **Leader Must Be Active Member**: `teams.leaderId` must always reference a user who possesses an active record in `memberships` with `role: "LEADER"` and `status: "ACTIVE"`.
 2. **Leader Departure Protection**: The leader cannot leave (`/leave`) or be removed (`/members/:id`) without first executing a leadership transfer (`/transfer-leadership`) to another active member, or explicitly disbanding the team.
 3. **Disbandment on Last Member Departure**: When the last remaining member leaves or is removed, the team atomically transitions to `status: "DISBANDED"`, `isOpen: false`, and `memberCount: 0`. Disbanded teams cannot be joined.
 
 **Indexes:**
+
 - `{ hackathonId: 1, status: 1, isOpen: 1, memberCount: 1 }` (Composite index for Team Discovery Board)
 - `{ hackathonId: 1, name: 1 }` (Unique compound index per hackathon)
 - `{ hackathonId: 1, skillsNeeded: 1 }` (Multikey index for skill-based search)
@@ -219,7 +231,9 @@ Represents a formed team competing in a specific hackathon.
 ---
 
 ### 4. `memberships`
+
 Represents the active or historical association between a user and a team within a hackathon.
+
 - `_id`: `ObjectId` (Primary Key)
 - `hackathonId`: `ObjectId` (Required, References `hackathons._id`)
 - `teamId`: `ObjectId` (Required, References `teams._id`)
@@ -230,15 +244,18 @@ Represents the active or historical association between a user and a team within
 - `leftAt`: `Date` (Optional, set when departing or removed)
 
 **Critical Indexes:**
+
 - `{ hackathonId: 1, userId: 1 }` (**Unique compound partial index**: `unique: true, partialFilterExpression: { status: "ACTIVE" }`)
-  - *Hard Invariant Guaranteed*: A user can have at most one active membership across all teams in the same hackathon.
+  - _Hard Invariant Guaranteed_: A user can have at most one active membership across all teams in the same hackathon.
 - `{ teamId: 1, status: 1 }` (For listing current team members and reconciling counter)
 - `{ userId: 1, status: 1 }` (For instant user dashboard lookup)
 
 ---
 
 ### 5. `joinRequests`
+
 Tracks requests from solo participants seeking to join open teams.
+
 - `_id`: `ObjectId` (Primary Key)
 - `hackathonId`: `ObjectId` (Required, References `hackathons._id`)
 - `teamId`: `ObjectId` (Required, References `teams._id`)
@@ -250,6 +267,7 @@ Tracks requests from solo participants seeking to join open teams.
 - `resolvedBy`: `ObjectId` (Optional, References `users._id`)
 
 **Indexes:**
+
 - `{ teamId: 1, status: 1 }` (Listing pending requests for team)
 - `{ hackathonId: 1, userId: 1, status: 1 }` (Listing pending requests submitted by user)
 - `{ teamId: 1, userId: 1 }` (Preventing duplicate pending requests to same team)
@@ -257,7 +275,9 @@ Tracks requests from solo participants seeking to join open teams.
 ---
 
 ### 6. `invitations`
+
 Supports secret alphanumeric invite codes as well as direct user invitations.
+
 - `_id`: `ObjectId` (Primary Key)
 - `hackathonId`: `ObjectId` (Required, References `hackathons._id`)
 - `teamId`: `ObjectId` (Required, References `teams._id`)
@@ -271,6 +291,7 @@ Supports secret alphanumeric invite codes as well as direct user invitations.
 - `createdAt`: `Date` (Required, default `now`)
 
 **Indexes:**
+
 - `{ tokenHash: 1 }` (unique: true — Fast O(1) secret lookup)
 - `{ teamId: 1, status: 1 }` (Team active invitation lookup)
 - `{ inviteeId: 1, status: 1 }` (User direct invitation inbox)
@@ -278,7 +299,9 @@ Supports secret alphanumeric invite codes as well as direct user invitations.
 ---
 
 ### 7. `auditLogs` (Auditable Event Log)
+
 Operational event log providing chronological auditability for all team state transitions.
+
 - `_id`: `ObjectId` (Primary Key)
 - `hackathonId`: `ObjectId` (Required, References `hackathons._id`)
 - `teamId`: `ObjectId` (Optional, References `teams._id`)
@@ -289,10 +312,12 @@ Operational event log providing chronological auditability for all team state tr
 - `timestamp`: `Date` (Required, default `now`)
 
 **Security Clarification & Boundaries:**
+
 - **Purpose**: Provides operational accountability, user activity feeds, and debugging traceability committed within business transactions.
 - **Security Limitations**: Ordinary MongoDB documents are not mathematically tamper-evident without an external append-only ledger or hardware security module. A MongoDB database administrator with direct write credentials has the technical capability to update or drop collection records. For CrewConnect's hackathon scope, this auditable operational log is appropriate, transparent, and avoids unnecessary blockchain over-engineering.
 
 **Indexes:**
+
 - `{ teamId: 1, timestamp: -1 }` (Team activity feed ordered newest first)
 - `{ actorId: 1, timestamp: -1 }` (User activity log)
 - `{ hackathonId: 1, timestamp: -1 }` (Hackathon compliance audit)
@@ -300,7 +325,9 @@ Operational event log providing chronological auditability for all team state tr
 ---
 
 ### 8. `idempotencyRecords`
+
 Manages atomic lease acquisition, fencing tokens, in-flight locks, and response caching for mutating HTTP requests.
+
 - `_id`: `ObjectId` (Primary Key)
 - `key`: `String` (Required, UUIDv4 sent in `Idempotency-Key` header)
 - `userId`: `ObjectId` (Required, References `users._id`)
@@ -316,6 +343,7 @@ Manages atomic lease acquisition, fencing tokens, in-flight locks, and response 
 - `expiresAt`: `Date` (Required, TTL index for eventual cleanup only)
 
 **Idempotency Mechanics:**
+
 1. **Scoped Unique Constraint**: Scoped to `{ key: 1, userId: 1, endpoint: 1 }` (unique: true).
 2. **Atomic Lease Acquisition**: Handled outside the business transaction. An incoming request atomically inserts or checks the key, acquiring an `ownerToken`.
 3. **In-Flight Lock & Crash Recovery**: `status == "PROCESSING"` with `lockedAt` timestamp. Concurrent requests within 30 seconds receive `409 Conflict (REQUEST_IN_PROGRESS)`. If older than 30 seconds (crash recovery), the lease is reclaimed with a new `ownerToken`.
@@ -324,5 +352,6 @@ Manages atomic lease acquisition, fencing tokens, in-flight locks, and response 
 6. **TTL Role**: The TTL index is purely for **eventual storage reclamation** (24 hours), not application correctness.
 
 **Indexes:**
+
 - `{ key: 1, userId: 1, endpoint: 1 }` (unique: true — Scoped idempotency constraint)
 - `{ expiresAt: 1 }` (expireAfterSeconds: 0 — Eventual storage cleanup)

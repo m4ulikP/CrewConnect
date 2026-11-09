@@ -3,6 +3,7 @@
 Frontend Single Page Application (SPA) for the CrewConnect platform.
 
 ## Scope & Architectural Role
+
 - **Framework**: React 18+ with TypeScript
 - **Bundler & Dev Server**: Vite
 - **Styling**: Tailwind CSS
@@ -11,6 +12,7 @@ Frontend Single Page Application (SPA) for the CrewConnect platform.
 - **Accessibility**: WCAG 2.1 AA compliant, full keyboard navigation support
 
 ## Application Views (Planned for Implementation in Phase 6)
+
 - `/login` & `/register`: Authentication and onboarding
 - `/dashboard`: Active hackathons, user's current team status, pending invitations & requests
 - `/hackathons/:id/teams`: Interactive team discovery board with live seat count badges and search filters

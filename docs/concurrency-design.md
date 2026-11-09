@@ -3,13 +3,14 @@
 **Document:** Concurrency Architecture  
 **Author:** Senior Concurrency & Systems Architect  
 **Status:** Finalized & Approved  
-**Version:** 1.3.0  
+**Version:** 1.3.0
 
 ---
 
 ## 1. The Core Concurrency Problem: 50 Users Racing for 1 Seat
 
 ### The Concrete Scenario
+
 - **Team State**: Initial state: `memberCount: 4`, `maxCapacity: 5`. Vacant seats: **strictly 1**.
 - **Traffic**: **50 distinct registered participants** simultaneously trigger a join request (via direct open join, invitation code redemption, or leader acceptance) at the exact same millisecond.
 - **Strict Invariants to Satisfy**:
@@ -26,12 +27,14 @@
 ## 2. Corrected Idempotency Architecture: Atomic Lease with In-Transaction Completion
 
 ### The Post-Commit Crash Flaw in Previous Designs
-If an application marks an idempotency record `COMPLETED` *after* the business transaction commits, a crash window exists:
+
+If an application marks an idempotency record `COMPLETED` _after_ the business transaction commits, a crash window exists:
 If the database primary commits the membership and capacity changes, but the Node.js process crashes (or is killed) before executing the post-commit idempotency update, the record remains in `PROCESSING`. Eventually, the 30-second lease expires. When the client retries, the system treats the expired lease as a crashed uncommitted request, reclaims the lease, and **re-executes the business operation a second time**, violating idempotency!
 
 ### The Solution: Fenced Lease Acquisition with In-Transaction Atomic Completion
 
 To achieve mathematical crash-consistency without distributed transactions:
+
 1. **Lease Acquisition Outside Transaction**: Reserve the key with a unique `ownerToken` (UUIDv4) and lease timestamp (`lockedAt: new Date()`).
 2. **Atomic Transition Inside Transaction**: Move the idempotency status from `PROCESSING` to `COMPLETED` **inside the same MongoDB ACID transaction as the business mutations**.
 3. **Lease Ownership Verification**: The conditional update inside the transaction strictly asserts `{ ownerToken, status: "PROCESSING" }`. If a slow worker had its lease reclaimed, the update matches 0 documents and the transaction aborts automatically.
@@ -46,7 +49,7 @@ sequenceDiagram
     participant WS as Socket.IO Hub
 
     Client->>IdempMW: POST /teams/:id/join (Idempotency-Key: K, Payload: P)
-    
+
     rect rgb(240, 248, 255)
     Note over IdempMW,DB_Idemp: Phase 1: Atomic Lease Acquisition (Outside Business Txn)
     IdempMW->>DB_Idemp: findOne({ key: K, userId: U, endpoint: E })
@@ -74,10 +77,10 @@ sequenceDiagram
     Txn->>Txn: 1. Team.findOneAndUpdate({ _id, memberCount < maxCapacity }, { $inc: { memberCount: 1 } })
     Txn->>Txn: 2. Membership.create([{ hackathonId, teamId, userId, status: "ACTIVE" }])
     Txn->>Txn: 3. AuditLog.create([{ action: "MEMBER_JOINED" }])
-    
+
     Note over Txn,DB_Idemp: Atomic In-Transaction Completion with Lease Fencing Check:
     Txn->>DB_Idemp: findOneAndUpdate({ key: K, userId: U, endpoint: E, ownerToken: T1, status: "PROCESSING" }, { status: "COMPLETED", statusCode: 201, responseBody: result })
-    
+
     alt Matched 0 documents (Lease lost to newer worker)
         Txn->>Txn: session.abortTransaction()
         IdempMW-->>Client: 409 Conflict (LEASE_LOST)
@@ -95,6 +98,7 @@ sequenceDiagram
 ## 3. Lease Ownership, Fencing & Crash Recovery Guarantees
 
 ### A. Unique Owner Token & Monotonic Fencing
+
 - Every lease acquisition assigns a cryptographically unique `ownerToken` (UUIDv4) to the lease.
 - When an expired lease is reclaimed, `findOneAndUpdate` atomically replaces `ownerToken` with a new token and resets `lockedAt: new Date()`.
 - **Fencing Stale Workers**: If Worker A stalls (e.g. prolonged GC pause or network partition $> 30\text{ s}$) and Worker B reclaims the lease, Worker A's subsequent in-transaction update:
@@ -108,6 +112,7 @@ sequenceDiagram
   matches **zero documents** because the `ownerToken` in the database is now `workerB_Token`. Worker A detects `matchedCount === 0`, immediately calls `session.abortTransaction()`, and rolls back all business mutations. Stale workers can **never** commit business mutations or corrupt state.
 
 ### B. Scoped Cleanup on Non-Retriable Failures
+
 - If the business transaction fails due to a domain error (e.g., `TEAM_FULL`, `ALREADY_IN_TEAM`) or client validation failure, the application performs cleanup:
   ```typescript
   await IdempotencyRecord.deleteOne({
@@ -115,7 +120,7 @@ sequenceDiagram
     userId,
     endpoint,
     ownerToken: currentOwnerToken,
-    status: "PROCESSING"
+    status: "PROCESSING",
   });
   ```
 - Because cleanup requires `ownerToken: currentOwnerToken`, a stale worker will **never delete or overwrite a newer worker's active lease**.
@@ -149,7 +154,9 @@ We strictly distinguish between four error classes to ensure mathematically corr
 ```
 
 ### Commit Uncertainty Resolution:
+
 If network connectivity between the application server and MongoDB primary drops during `commitTransaction()` and exhausts the commit retry budget:
+
 1. **Preserve Idempotency Record**: The application server does **NOT** delete the idempotency record.
 2. **Safe Discovery on Retry**:
    - If the commit had successfully reached the MongoDB primary before the network dropped, the `idempotencyRecord` was committed as `status: "COMPLETED"` within that same atomic commit. A client retry reads `status: "COMPLETED"` and immediately receives the cached result.
@@ -183,7 +190,7 @@ export async function executeInTransaction<T>(
     try {
       session.startTransaction({
         readConcern: { level: "majority" },
-        writeConcern: { w: "majority", j: true }
+        writeConcern: { w: "majority", j: true },
       });
 
       // 1. Execute business operation callback (includes in-transaction idempotency completion)
@@ -198,9 +205,7 @@ export async function executeInTransaction<T>(
       lastError = error;
 
       // Handle transient write conflicts
-      const isTransient =
-        error.hasErrorLabel?.("TransientTransactionError") ||
-        error.code === 112; // WriteConflict code
+      const isTransient = error.hasErrorLabel?.("TransientTransactionError") || error.code === 112; // WriteConflict code
 
       if (isTransient && attempt < maxRetries) {
         const jitter = Math.random() * 50;
@@ -276,7 +281,7 @@ export async function joinTeamRaceProof(
     const existing = await IdempotencyRecord.findOne({
       key: idempotencyKey,
       userId,
-      endpoint
+      endpoint,
     });
 
     if (existing) {
@@ -308,14 +313,14 @@ export async function joinTeamRaceProof(
             userId,
             endpoint,
             status: "PROCESSING",
-            lockedAt: existing.lockedAt
+            lockedAt: existing.lockedAt,
           },
           {
             $set: {
               ownerToken,
               payloadHash,
-              lockedAt: new Date()
-            }
+              lockedAt: new Date(),
+            },
           },
           { new: true }
         );
@@ -338,7 +343,7 @@ export async function joinTeamRaceProof(
           ownerToken,
           status: "PROCESSING",
           lockedAt: new Date(),
-          expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000)
+          expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000),
         });
       } catch (err: any) {
         if (err.code === 11000) {
@@ -367,7 +372,7 @@ export async function joinTeamRaceProof(
           _id: teamId,
           hackathonId,
           isOpen: true,
-          $expr: { $lt: ["$memberCount", "$maxCapacity"] }
+          $expr: { $lt: ["$memberCount", "$maxCapacity"] },
         },
         { $inc: { memberCount: 1 } },
         { session, new: true }
@@ -376,10 +381,11 @@ export async function joinTeamRaceProof(
       if (!updatedTeam) {
         const teamExists = await Team.findById(teamId).session(session);
         if (!teamExists) throw new AppError("Team not found", "NOT_FOUND", 404);
-        if (!teamExists.isOpen) throw new AppError("Team is closed to new members", "TEAM_CLOSED", 409);
+        if (!teamExists.isOpen)
+          throw new AppError("Team is closed to new members", "TEAM_CLOSED", 409);
         throw new AppError("Team has reached maximum capacity (5/5)", "TEAM_FULL", 409, {
           currentCapacity: teamExists.memberCount,
-          maxCapacity: teamExists.maxCapacity
+          maxCapacity: teamExists.maxCapacity,
         });
       }
 
@@ -393,8 +399,8 @@ export async function joinTeamRaceProof(
               userId,
               role: "MEMBER",
               status: "ACTIVE",
-              joinedAt: new Date()
-            }
+              joinedAt: new Date(),
+            },
           ],
           { session }
         );
@@ -419,10 +425,10 @@ export async function joinTeamRaceProof(
             action: "MEMBER_JOINED",
             metadata: {
               newMemberCount: updatedTeam.memberCount,
-              maxCapacity: updatedTeam.maxCapacity
+              maxCapacity: updatedTeam.maxCapacity,
             },
-            timestamp: new Date()
-          }
+            timestamp: new Date(),
+          },
         ],
         { session }
       );
@@ -433,7 +439,7 @@ export async function joinTeamRaceProof(
         role: "MEMBER",
         memberCount: updatedTeam.memberCount,
         maxCapacity: updatedTeam.maxCapacity,
-        joinedAt: new Date()
+        joinedAt: new Date(),
       };
 
       // 2d. In-Transaction Idempotency Completion & Fencing Verification
@@ -444,16 +450,16 @@ export async function joinTeamRaceProof(
             userId,
             endpoint,
             ownerToken,
-            status: "PROCESSING"
+            status: "PROCESSING",
           },
           {
             $set: {
               status: "COMPLETED",
               statusCode: 201,
               responseBody: payload,
-              completedAt: new Date()
+              completedAt: new Date(),
             },
-            $unset: { lockedAt: 1 }
+            $unset: { lockedAt: 1 },
           },
           { session, new: true }
         );
@@ -473,12 +479,12 @@ export async function joinTeamRaceProof(
         io.to(`hackathon:${hackathonId}`).emit("team:capacity_changed", {
           teamId: updatedTeam._id.toString(),
           memberCount: updatedTeam.memberCount,
-          maxCapacity: updatedTeam.maxCapacity
+          maxCapacity: updatedTeam.maxCapacity,
         });
         io.to(`team:${teamId}`).emit("team:member_joined", {
           teamId: updatedTeam._id.toString(),
           userId,
-          role: "MEMBER"
+          role: "MEMBER",
         });
       });
 
@@ -501,7 +507,7 @@ export async function joinTeamRaceProof(
         userId,
         endpoint,
         ownerToken,
-        status: "PROCESSING"
+        status: "PROCESSING",
       });
     }
     throw error;
@@ -517,10 +523,10 @@ Let $C_t$ be the team's member count at time $t$. Let $M = 5$. Initial count: $C
 
 1. **Storage Serialization**: MongoDB WiredTiger serializes write locks on document $T$.
 2. **First Transaction $T_1$**: Evaluates $C_0 = 4 < 5$. Condition holds true. $T_1$ increments $C \to 5$, creates membership, records audit log, updates idempotency lease to `COMPLETED`, and commits atomically.
-3. **Contending Transactions $T_2 \dots T_{50}$**:
+3. **Contending Transactions $T_2 \dots T\_{50}$**:
    - Catch `TransientTransactionError` during $T_1$'s active write ticket, back off with jitter, and re-attempt.
    - Upon wake-up, evaluate $C = 5 < 5 \implies \text{FALSE}$.
    - Match 0 documents. `findOneAndUpdate` returns `null`.
    - Abort cleanly with `409 Conflict (TEAM_FULL)`.
 4. **Failure Rollback Invariant**: If a candidate already has an active team in Hackathon $H$, the unique compound partial index `{ hackathonId: 1, userId: 1 }` rejects the membership insertion with error code 11000. The transaction aborts, rolling back the increment on document $T$ and the idempotency record. $C$ is restored to 4.
-5. **Crash Invariant**: If the application crashes before `session.commitTransaction()`, the transaction is aborted by MongoDB. If the application crashes *after* `session.commitTransaction()`, the idempotency record is already `COMPLETED` on the database primary. Subsequent retries replay the cached response. Double-execution probability is **strictly 0**.
+5. **Crash Invariant**: If the application crashes before `session.commitTransaction()`, the transaction is aborted by MongoDB. If the application crashes _after_ `session.commitTransaction()`, the idempotency record is already `COMPLETED` on the database primary. Subsequent retries replay the cached response. Double-execution probability is **strictly 0**.

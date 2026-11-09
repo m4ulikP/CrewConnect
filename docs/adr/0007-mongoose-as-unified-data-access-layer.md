@@ -2,7 +2,7 @@
 
 **Date**: 2026-11-09  
 **Status**: accepted  
-**Deciders**: Senior Database Architect, Technical Lead  
+**Deciders**: Senior Database Architect, Technical Lead
 
 ## Context
 
@@ -15,11 +15,13 @@ We standardize on **Mongoose** (v8.x+) as the sole, consistent data-access layer
 ## Alternatives Considered
 
 ### Alternative 1: Direct Native MongoDB Node.js Driver
+
 - **Pros**: Bare-metal execution without ODM abstractions.
 - **Cons**: Requires building custom schema validation, hook lifecycle management, and relationship population logic from scratch.
 - **Why not**: Mongoose 8.x provides robust TypeScript definitions and first-class transaction sessions while retaining full access to low-level collection methods when needed.
 
 ### Alternative 2: Prisma ORM for MongoDB
+
 - **Pros**: Strong type generation.
 - **Cons**: Prisma's MongoDB connector has notable limitations around complex atomic array updates, conditional `$expr` increments, and low-level transaction session control compared to Mongoose.
 - **Why not**: Sub-optimal for race-condition-sensitive atomic operations.
@@ -27,12 +29,15 @@ We standardize on **Mongoose** (v8.x+) as the sole, consistent data-access layer
 ## Consequences
 
 ### Positive
+
 - Unified modeling, validation, and schema definitions across all 8 collections.
 - Clean session propagation via `Model.operation(..., { session })` for transactions.
 - Automated timestamp tracking (`createdAt`, `updatedAt`) and query helpers.
 
 ### Negative
+
 - Minor memory overhead compared to raw driver.
 
 ### Risks
+
 - Accidental omission of `{ session }` in transactional operations. Mitigated by standardized transaction runner (`executeInTransaction`).

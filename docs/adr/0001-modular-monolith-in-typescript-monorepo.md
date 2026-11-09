@@ -2,7 +2,7 @@
 
 **Date**: 2026-11-09  
 **Status**: accepted  
-**Deciders**: Senior Software Architect, Technical Lead  
+**Deciders**: Senior Software Architect, Technical Lead
 
 ## Context
 
@@ -15,11 +15,13 @@ We adopt a **Modular Monolith** architecture housed inside a clean TypeScript mo
 ## Alternatives Considered
 
 ### Alternative 1: Microservices Architecture
+
 - **Pros**: Independent deployability of discovery vs. membership services.
 - **Cons**: Requires distributed transactions (Sagas / 2PC) for race-proof joining, introducing network hops, partition hazards, and eventual consistency delays that jeopardize the hard invariants of PS1.
 - **Why not**: Over-engineering that directly hurts transaction performance and ACID guarantees.
 
 ### Alternative 2: Multi-Repository Setup
+
 - **Pros**: Separate access controls per codebase.
 - **Cons**: Duplicated Zod schemas and TypeScript interfaces; versioning overhead between client and server.
 - **Why not**: Hinders rapid full-stack iteration and increases risk of API drift.
@@ -27,12 +29,15 @@ We adopt a **Modular Monolith** architecture housed inside a clean TypeScript mo
 ## Consequences
 
 ### Positive
+
 - Single-point MongoDB ACID transactions across collections without distributed overhead.
 - Direct code reuse of Zod schemas and domain contracts between frontend and backend via `@crewconnect/shared`.
 - Simplified CI/CD pipeline and single Docker Compose local development setup.
 
 ### Negative
+
 - All backend modules share the same process memory and execution thread pool.
 
 ### Risks
+
 - Domain boundary bleeding if engineers bypass module public APIs. Mitigated by strict module folder structure and lint boundaries.

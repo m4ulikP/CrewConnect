@@ -3,6 +3,7 @@
 GitHub Actions automation for Continuous Integration and Continuous Delivery.
 
 ## Planned Workflows (to be implemented in Phase 2)
+
 - `ci.yml`: Triggers on pull requests and pushes to `main`.
   - Runs linting and code formatting checks.
   - Compiles TypeScript in strict mode.

@@ -2,15 +2,16 @@
 
 **Date**: 2026-11-09  
 **Status**: accepted  
-**Deciders**: Senior API Architect, Technical Lead  
+**Deciders**: Senior API Architect, Technical Lead
 
 ## Context
 
 In high-concurrency hackathons, participants experience network timeouts, retries, and double-clicks.
-An initial two-phase lease design proposed marking the idempotency record `COMPLETED` *after* the business transaction committed. However, this creates a critical crash consistency flaw:
+An initial two-phase lease design proposed marking the idempotency record `COMPLETED` _after_ the business transaction committed. However, this creates a critical crash consistency flaw:
 If the business transaction commits successfully on MongoDB, but the application process crashes or is killed before executing the post-commit update, the record remains in `status: "PROCESSING"`. When the 30-second lease window expires, a subsequent client retry would treat the expired lease as a crashed, uncommitted attempt, reclaim the lease, and **execute the business operation a second time**.
 
 We need an architecture that guarantees:
+
 1. The business mutations and the `COMPLETED` idempotency state become committed and visible **atomically**.
 2. Concurrent duplicate requests are locked and rejected without parallel execution.
 3. Every lease acquisition has a unique `ownerToken` (fencing token).
@@ -47,16 +48,16 @@ We adopt a **Fenced Lease Idempotency Architecture with In-Transaction Atomic Co
          userId,
          endpoint,
          ownerToken,
-         status: "PROCESSING"
+         status: "PROCESSING",
        },
        {
          $set: {
            status: "COMPLETED",
            statusCode: 201,
            responseBody: payload,
-           completedAt: new Date()
+           completedAt: new Date(),
          },
-         $unset: { lockedAt: 1 }
+         $unset: { lockedAt: 1 },
        },
        { session, new: true }
      );
@@ -81,11 +82,13 @@ We adopt a **Fenced Lease Idempotency Architecture with In-Transaction Atomic Co
 ## Alternatives Considered
 
 ### Alternative 1: Post-Commit Idempotency Update (Rejected)
+
 - **Pros**: Slightly simpler code flow.
 - **Cons**: Process crash between transaction commit and idempotency update allows an expired lease to be reclaimed, causing duplicate execution on client retry.
 - **Why not**: Creates an unacceptable idempotency crash window.
 
 ### Alternative 2: Purely In-Transaction Idempotency Creation (Rejected)
+
 - **Pros**: No preliminary lease outside the transaction.
 - **Cons**: Under MongoDB Read Committed/Majority isolation, uncommitted writes are invisible to concurrent transactions. A parallel duplicate request cannot observe an in-flight transaction, triggering redundant execution or write conflicts.
 - **Why not**: Fails to block parallel in-flight requests cleanly.
@@ -93,13 +96,16 @@ We adopt a **Fenced Lease Idempotency Architecture with In-Transaction Atomic Co
 ## Consequences
 
 ### Positive
+
 - Strict atomic visibility: business mutations and completed idempotency results commit simultaneously.
 - Fencing token prevents slow/stalled workers from committing after lease expiration.
 - Scoped cleanup guarantees stale workers cannot interfere with newer leases.
 - Full resilience against client retries, process crashes, and commit network drops.
 
 ### Negative
+
 - Requires a two-step query structure (lease acquisition outside, completion update inside).
 
 ### Risks
+
 - Clock skew during lease timeout calculation. Mitigated by using relative server-side millisecond deltas on a single replica set cluster.

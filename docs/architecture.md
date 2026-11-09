@@ -3,7 +3,7 @@
 **Document:** System Architecture  
 **Author:** Senior Software Architect  
 **Status:** Finalized & Approved  
-**Version:** 1.1.0  
+**Version:** 1.1.0
 
 ---
 
@@ -12,6 +12,7 @@
 CrewConnect is engineered as a **Modular Monolith** deployed inside a type-safe TypeScript monorepo.
 
 ### Approved Core Technology Decisions
+
 - **Package Manager:** **npm** (version >= 10.0.0). Retains the npm workspace configuration and unified `package-lock.json`. No migrations to pnpm.
 - **Data Access Layer:** **Mongoose** (version 8.x+) as the sole, consistent data-access layer. All transactions and atomic updates use session-aware Mongoose operations (`.session(session)`). The native MongoDB driver is avoided unless a specific, documented limitation arises.
 - **Password Hashing:** **Argon2id** using secure production parameters (memory cost: 64 MB, time cost: 3 iterations, parallelism: 1 thread, 16-byte random salt).
@@ -98,6 +99,7 @@ flowchart TD
 ## 3. Layer Responsibilities & Subsystems
 
 ### A. Frontend Single Page Application (`apps/web`)
+
 1. **Authentication Interface**:
    - Secure login and registration forms with client-side Zod validation.
    - Session recovery and automatic refresh via `httpOnly` cookies.
@@ -115,6 +117,7 @@ flowchart TD
    - Toast notifications and counter badges powered by WebSocket events.
 
 ### B. Backend Modular Monolith (`apps/api`)
+
 1. **Authentication Module (`src/modules/auth`)**:
    - Password hashing exclusively using Argon2id with cryptographically secure random salt.
    - Generation and verification of JWT access tokens in `httpOnly`, `SameSite=Lax` cookies.
@@ -162,7 +165,7 @@ sequenceDiagram
     GW->>Router: Forward Request
     Router->>Auth: Validate JWT & Extract User Context
     Auth->>Idemp: Check Scoped Key { key, userId, endpoint }
-    
+
     alt In-Flight Duplicate (Status == PROCESSING)
         Idemp-->>Client: 409 Conflict (REQUEST_IN_PROGRESS)
     else Completed Duplicate (Same Payload Hash)
@@ -171,19 +174,19 @@ sequenceDiagram
         Idemp-->>Client: 409 Conflict (IDEMPOTENCY_KEY_PAYLOAD_MISMATCH)
     else New Request
         Idemp->>Service: Execute joinTeamRaceProof(...)
-        
+
         loop Transaction Retry Loop (max 3 retries on TransientTransactionError)
             Service->>Mongoose: mongoose.startSession() & session.startTransaction()
-            
+
             Note over Service,DB: All 5 Operations in ONE Transaction Session:
             Service->>DB: 1. Team.findOneAndUpdate({ _id, memberCount < maxCapacity }, { $inc: { memberCount: 1 } }, { session })
-            
+
             alt Team returned is null (Capacity reached 5/5)
                 Service->>Mongoose: session.abortTransaction()
                 Service-->>Client: 409 Conflict (TEAM_FULL)
             else Seat Reserved (memberCount: 4 -> 5)
                 Service->>DB: 2. Membership.create([{ hackathonId, teamId, userId, status: 'ACTIVE' }], { session })
-                
+
                 alt Unique Index Violation on { hackathonId, userId }
                     Service->>Mongoose: session.abortTransaction() (Rolls back memberCount increment!)
                     Service-->>Client: 409 Conflict (ALREADY_IN_TEAM)
@@ -191,7 +194,7 @@ sequenceDiagram
                     Service->>DB: 3. AuditLog.create([{ action: 'MEMBER_JOINED' }], { session })
                     Service->>DB: 4. IdempotencyRecord.create([{ status: 'COMPLETED' }], { session })
                     Service->>Mongoose: session.commitTransaction()
-                    
+
                     par Broadcast
                         Service->>WS: Emit "team:capacity_changed" (5/5)
                         WS-->>Client: Live UI Update
@@ -208,9 +211,10 @@ sequenceDiagram
 ## 5. Real-Time Communication Architecture
 
 ### Connection & Authentication Lifecycle
+
 1. **Handshake**: The client initiates a WebSocket connection (`wss://`) passing the JWT access token in the auth payload:
    ```javascript
-   const socket = io({ auth: { token: 'jwt_token_here' } });
+   const socket = io({ auth: { token: "jwt_token_here" } });
    ```
 2. **Authentication Middleware**: The Socket.IO server verifies the token against `JWT_SECRET`. Unauthenticated connections are rejected with `UnauthorizedError`.
 3. **Room Subscription**:
@@ -219,16 +223,17 @@ sequenceDiagram
    - When part of a team, client joins `team:${teamId}`.
 
 ### Real-Time Event Matrix
-| Event Name | Scope / Room | Trigger Condition | Payload Data |
-| :--- | :--- | :--- | :--- |
-| `team:capacity_changed` | `hackathon:${hackathonId}` | Member joins or leaves a team | `{ teamId, memberCount, maxCapacity, isOpen }` |
-| `team:member_joined` | `team:${teamId}` | New member successfully added | `{ teamId, member: { userId, name, role } }` |
-| `team:member_removed` | `team:${teamId}`, `user:${userId}` | Member ejected or leaves | `{ teamId, userId, reason }` |
-| `team:leadership_transferred`| `team:${teamId}` | Leader passes role to member | `{ teamId, previousLeaderId, newLeaderId }` |
-| `team:disbanded` | `team:${teamId}`, `hackathon:${hackathonId}` | Last member leaves or leader disbands | `{ teamId, reason }` |
-| `request:received` | `user:${leaderId}` | Candidate requests to join | `{ requestId, teamId, candidate: { userId, name } }` |
-| `request:resolved` | `user:${candidateId}` | Leader approves or rejects | `{ requestId, teamId, status: "APPROVED" | "REJECTED" }` |
-| `invitation:received` | `user:${targetUserId}` | Leader invites candidate | `{ invitationId, teamId, teamName }` |
+
+| Event Name                    | Scope / Room                                 | Trigger Condition                     | Payload Data                                         |
+| :---------------------------- | :------------------------------------------- | :------------------------------------ | :--------------------------------------------------- |
+| `team:capacity_changed`       | `hackathon:${hackathonId}`                   | Member joins or leaves a team         | `{ teamId, memberCount, maxCapacity, isOpen }`       |
+| `team:member_joined`          | `team:${teamId}`                             | New member successfully added         | `{ teamId, member: { userId, name, role } }`         |
+| `team:member_removed`         | `team:${teamId}`, `user:${userId}`           | Member ejected or leaves              | `{ teamId, userId, reason }`                         |
+| `team:leadership_transferred` | `team:${teamId}`                             | Leader passes role to member          | `{ teamId, previousLeaderId, newLeaderId }`          |
+| `team:disbanded`              | `team:${teamId}`, `hackathon:${hackathonId}` | Last member leaves or leader disbands | `{ teamId, reason }`                                 |
+| `request:received`            | `user:${leaderId}`                           | Candidate requests to join            | `{ requestId, teamId, candidate: { userId, name } }` |
+| `request:resolved`            | `user:${candidateId}`                        | Leader approves or rejects            | `{ requestId, teamId, status: "APPROVED"             | "REJECTED" }` |
+| `invitation:received`         | `user:${targetUserId}`                       | Leader invites candidate              | `{ invitationId, teamId, teamName }`                 |
 
 ---
 
@@ -252,6 +257,7 @@ export class AppError extends Error {
 ```
 
 ### Core Domain Error Code Catalog
+
 - `UNAUTHORIZED` (401): Missing or expired authentication token.
 - `FORBIDDEN` (403): User lacks permission (e.g. non-leader attempting to remove member).
 - `NOT_FOUND` (404): Resource not found (team, user, hackathon, invitation).

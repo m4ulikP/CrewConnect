@@ -2,7 +2,7 @@
 
 **Date**: 2026-11-09  
 **Status**: accepted  
-**Deciders**: Senior DevOps & Database Architect, Technical Lead  
+**Deciders**: Senior DevOps & Database Architect, Technical Lead
 
 ## Context
 
@@ -36,11 +36,13 @@ We standardize on a **containerized MongoDB 7.0 single-node replica set (`rs0`) 
 ## Alternatives Considered
 
 ### Alternative 1: Requiring Local Bare-Metal MongoDB on Windows
+
 - **Pros**: Direct service on host.
 - **Cons**: Requires complex Windows service configuration, manual replica set keyfile initialization, and environment variance across team members.
 - **Why not**: Violates containerized reproducibility principles and creates developer onboarding friction.
 
 ### Alternative 2: In-Memory MongoDB (`mongodb-memory-server`) for Development
+
 - **Pros**: Easy setup in Node.js processes.
 - **Cons**: High memory consumption, slow binary downloads on cold starts, and differences in replica set failover semantics compared to real MongoDB 7.0.
 - **Why not**: Fine for lightweight unit tests, but inadequate for end-to-end load testing and persistent development.
@@ -48,12 +50,15 @@ We standardize on a **containerized MongoDB 7.0 single-node replica set (`rs0`) 
 ## Consequences
 
 ### Positive
+
 - Identical multi-document transaction semantics across local development, CI runners, and production.
 - Zero manual database installation needed on the host OS.
 - Persistent data across container restarts.
 
 ### Negative
+
 - Requires Docker Desktop to be running on the developer workstation.
 
 ### Risks
+
 - Host port conflicts if port 27017 is already in use. Mitigated by configurable `MONGODB_PORT` and automated port availability checks.

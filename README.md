@@ -7,12 +7,14 @@
 
 ## 🎯 Executive Summary & Problem Statement
 
-Hackathon team formation is notoriously prone to concurrency race conditions when registration windows open or team discovery boards get flooded with thousands of active participants. 
+Hackathon team formation is notoriously prone to concurrency race conditions when registration windows open or team discovery boards get flooded with thousands of active participants.
 
 ### The Core Challenge (PS1)
+
 Consider a team with **4 members** and a maximum capacity of **5**. Suppose **50 users** simultaneously click "Join Team" or submit an invitation code within the exact same millisecond window.
 
 **CrewConnect guarantees:**
+
 1. **Strict Seat Invariant**: Exactly **one** user claims the final seat (5/5). The remaining 49 requests fail cleanly with typed `409 Conflict (TEAM_FULL)` error responses after transaction write conflict retries.
 2. **Unified Single-Transaction Consistency**: Capacity check & reservation, capacity increment, active membership insertion, and auditable event logging happen within the **same session-aware MongoDB transaction**. If any step fails, the entire transaction rolls back—preventing permanent orphaned capacity increments.
 3. **Specific Transaction Retry Semantics**: Distinguishes `TransientTransactionError` (retry whole callback with jittered backoff) from `UnknownTransactionCommitResult` (retry only the commit command). Exhausted retries report `409 Conflict (CONCURRENCY_CONFLICT)`, never `TEAM_FULL`. Side effects (WebSockets) dispatch only after confirmed commits.
@@ -44,18 +46,18 @@ CrewConnect Monorepo
 
 ## 🚀 Approved Technology Stack
 
-| Layer | Technology | Key Justification |
-| :--- | :--- | :--- |
-| **Package Manager** | npm (>= 10.0.0) | Standardized package manager across environments; single root `package-lock.json` |
-| **Frontend** | React 18+, TypeScript, Vite, Tailwind CSS | High performance, rapid iteration, strict type safety, responsive component design |
-| **Backend** | Node.js (v20+ LTS), Express, TypeScript | Non-blocking asynchronous I/O, enterprise modular design, type-safe API contracts |
-| **Database** | MongoDB 7.0+ (Replica Set `rs0`) | Multi-document ACID transactions, unique compound indexes, atomic conditional updates |
-| **Data Access Layer** | Mongoose (8.x+) | Primary, consistent data-access layer with session-aware transactional operations |
-| **Security / Auth** | Argon2id + JWT in `httpOnly` cookies | Memory-hard password hashing (RFC 9106), XSS-safe cookie-based JWT sessions |
-| **Real-time** | Socket.IO (WebSockets) | Bi-directional event broadcasting for team capacity changes and join request decisions |
-| **Validation** | Zod | Runtime schema validation shared across frontend and backend packages |
-| **Testing** | Vitest, Supertest, k6 / autocannon | Fast unit & integration testing, robust 50-user race condition verification & 10k seed load testing |
-| **DevOps / CI** | Docker, Docker Compose, GitHub Actions | Multi-container replica set orchestration, automated CI test & lint pipelines |
+| Layer                 | Technology                                | Key Justification                                                                                   |
+| :-------------------- | :---------------------------------------- | :-------------------------------------------------------------------------------------------------- |
+| **Package Manager**   | npm (>= 10.0.0)                           | Standardized package manager across environments; single root `package-lock.json`                   |
+| **Frontend**          | React 18+, TypeScript, Vite, Tailwind CSS | High performance, rapid iteration, strict type safety, responsive component design                  |
+| **Backend**           | Node.js (v20+ LTS), Express, TypeScript   | Non-blocking asynchronous I/O, enterprise modular design, type-safe API contracts                   |
+| **Database**          | MongoDB 7.0+ (Replica Set `rs0`)          | Multi-document ACID transactions, unique compound indexes, atomic conditional updates               |
+| **Data Access Layer** | Mongoose (8.x+)                           | Primary, consistent data-access layer with session-aware transactional operations                   |
+| **Security / Auth**   | Argon2id + JWT in `httpOnly` cookies      | Memory-hard password hashing (RFC 9106), XSS-safe cookie-based JWT sessions                         |
+| **Real-time**         | Socket.IO (WebSockets)                    | Bi-directional event broadcasting for team capacity changes and join request decisions              |
+| **Validation**        | Zod                                       | Runtime schema validation shared across frontend and backend packages                               |
+| **Testing**           | Vitest, Supertest, k6 / autocannon        | Fast unit & integration testing, robust 50-user race condition verification & 10k seed load testing |
+| **DevOps / CI**       | Docker, Docker Compose, GitHub Actions    | Multi-container replica set orchestration, automated CI test & lint pipelines                       |
 
 ---
 
@@ -77,8 +79,8 @@ All engineering specifications, design trade-offs, and architecture decisions ar
 
 ## 🚦 Project Phases & Status
 
-- [x] **Phase 1: Project Foundation, Repository Initialization & System Architecture** *(Current Phase — Complete & Finalized)*
-- [ ] **Phase 2: Project Scaffolding & Infrastructure** *(Pending Approval)*
+- [x] **Phase 1: Project Foundation, Repository Initialization & System Architecture** _(Current Phase — Complete & Finalized)_
+- [ ] **Phase 2: Project Scaffolding & Infrastructure** _(Pending Approval)_
 - [ ] **Phase 3: Database & Authentication**
 - [ ] **Phase 4: Core Team Management**
 - [ ] **Phase 5: Race-Proof Membership & Idempotency**

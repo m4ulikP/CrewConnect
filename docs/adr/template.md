@@ -2,7 +2,7 @@
 
 **Date**: YYYY-MM-DD  
 **Status**: proposed | accepted | deprecated | superseded by ADR-NNNN  
-**Deciders**: [who was involved]  
+**Deciders**: [who was involved]
 
 ## Context
 
@@ -17,11 +17,13 @@ What is the change that we're proposing and/or doing?
 ## Alternatives Considered
 
 ### Alternative 1: [Name]
+
 - **Pros**: [benefits]
 - **Cons**: [drawbacks]
 - **Why not**: [specific reason this was rejected]
 
 ### Alternative 2: [Name]
+
 - **Pros**: [benefits]
 - **Cons**: [drawbacks]
 - **Why not**: [specific reason this was rejected]
@@ -31,12 +33,15 @@ What is the change that we're proposing and/or doing?
 What becomes easier or more difficult to do because of this change?
 
 ### Positive
+
 - [benefit 1]
 - [benefit 2]
 
 ### Negative
+
 - [trade-off 1]
 - [trade-off 2]
 
 ### Risks
+
 - [risk and mitigation]

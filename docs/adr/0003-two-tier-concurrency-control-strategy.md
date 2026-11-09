@@ -2,13 +2,14 @@
 
 **Date**: 2026-11-09  
 **Status**: accepted  
-**Deciders**: Senior Concurrency Architect, Technical Lead  
+**Deciders**: Senior Concurrency Architect, Technical Lead
 
 ## Context
 
 When 50 users simultaneously attempt to join a team with only 1 remaining seat (initial 4, capacity 5), standard read-modify-write patterns result in TOCTOU race conditions and capacity oversaturation. Furthermore, storage-level document locking produces transient write conflicts (`WriteConflict` code 112) across contending transactions.
 
 We need a design that guarantees:
+
 1. Exactly one winner claims the seat; losing transactions fail cleanly.
 2. A failed join never leaves a permanently incremented capacity counter.
 3. Distinction between transient write conflicts and commit confirmation retries.
@@ -39,11 +40,13 @@ We implement a **Unified Session-Aware Transaction Concurrency Strategy** with e
 ## Alternatives Considered
 
 ### Alternative 1: Blindly Rerunning Callback on Unknown Commit Result
+
 - **Pros**: Simple single catch block.
 - **Cons**: If the previous commit actually succeeded on the database primary before the network dropped, rerunning the callback would attempt a second increment and second membership insertion, causing duplicate-key errors or duplicate side effects.
 - **Why not**: Violates transaction correctness principles.
 
 ### Alternative 2: Reporting TEAM_FULL on Retry Exhaustion
+
 - **Pros**: Hides internal concurrency complexity.
 - **Cons**: Factually incorrect. The team may still have seats available, but the transaction timed out due to extreme CPU or lock contention.
 - **Why not**: Misleads users and complicates debugging.
@@ -51,12 +54,15 @@ We implement a **Unified Session-Aware Transaction Concurrency Strategy** with e
 ## Consequences
 
 ### Positive
+
 - Strict mathematical invariant: 1 seat claimed, 49 clean rejections, final count 5.
 - Robust resilience against transient write conflicts.
 - Zero premature or phantom WebSocket notifications.
 
 ### Negative
+
 - Requires maintaining separate retry loops for callback execution vs. commit confirmation.
 
 ### Risks
+
 - High latency during heavy lock contention. Mitigated by bounded retries (3) and jittered backoff.

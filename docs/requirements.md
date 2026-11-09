@@ -5,15 +5,16 @@
 **Problem Statement:** PS1 — Race-proof Team Formation  
 **Author:** Senior Software Architect & Engineering Lead  
 **Status:** Finalized & Approved  
-**Version:** 1.2.0  
+**Version:** 1.2.0
 
 ---
 
 ## 1. Executive Problem Definition
 
-In modern hackathons and competitive engineering team formations, team discovery boards experience intense burst traffic when registration opens or matchmaking deadlines approach. 
+In modern hackathons and competitive engineering team formations, team discovery boards experience intense burst traffic when registration opens or matchmaking deadlines approach.
 
 The canonical concurrency hazard specified in **PS1 (Race-proof Team Formation)** is:
+
 > A team has an initial membership count of $4$ and an immutable capacity ceiling of $5$ (leaving exactly $1$ available seat). Simultaneously, $50$ registered users submit join requests or redeem an invitation code in the same millisecond window.
 >
 > The system must guarantee that **strictly one** user obtains the remaining seat, the other $49$ requests fail cleanly without corrupting state or leaking exceptions, the final team membership count is exactly $5$, and no user belongs to multiple teams within the same hackathon.
@@ -127,45 +128,45 @@ Beyond this core concurrency challenge, the platform must handle the complete li
 
 ### C. Explicit Acceptance Criteria & Metrics
 
-| Criterion | Target Metric | Verification Method |
-| :--- | :--- | :--- |
-| **Seeded Participants** | $\ge 10,000$ valid user records | Automated MongoDB seeding script (`scripts/seed.ts`) |
-| **Seeded Teams** | $\ge 2,000$ team records across hackathons | Automated MongoDB seeding script (`scripts/seed.ts`) |
-| **50-User Concurrency Race** | Exactly 1 success, 49 failures; final count = 5/5 | Automated Vitest / Supertest integration test & k6 script |
-| **Double-Team Race** | User trying to join 2 teams simultaneously succeeds in at most 1 | Automated Vitest integration test |
-| **API Test Suite** | $\ge 20$ comprehensive passing tests | Vitest + Supertest automated test suite |
-| **Load Test Concurrency** | 100 concurrent Virtual Users (VUs) sustained | k6 / autocannon load test script |
-| **Team Board p95 Latency** | $< 200\text{ ms}$ at 100 VUs on seeded database | k6 metrics summary output |
-| **CI Automation** | Automated build, lint, and test on PR & push | GitHub Actions workflow (`.github/workflows/ci.yml`) |
+| Criterion                    | Target Metric                                                    | Verification Method                                       |
+| :--------------------------- | :--------------------------------------------------------------- | :-------------------------------------------------------- |
+| **Seeded Participants**      | $\ge 10,000$ valid user records                                  | Automated MongoDB seeding script (`scripts/seed.ts`)      |
+| **Seeded Teams**             | $\ge 2,000$ team records across hackathons                       | Automated MongoDB seeding script (`scripts/seed.ts`)      |
+| **50-User Concurrency Race** | Exactly 1 success, 49 failures; final count = 5/5                | Automated Vitest / Supertest integration test & k6 script |
+| **Double-Team Race**         | User trying to join 2 teams simultaneously succeeds in at most 1 | Automated Vitest integration test                         |
+| **API Test Suite**           | $\ge 20$ comprehensive passing tests                             | Vitest + Supertest automated test suite                   |
+| **Load Test Concurrency**    | 100 concurrent Virtual Users (VUs) sustained                     | k6 / autocannon load test script                          |
+| **Team Board p95 Latency**   | $< 200\text{ ms}$ at 100 VUs on seeded database                  | k6 metrics summary output                                 |
+| **CI Automation**            | Automated build, lint, and test on PR & push                     | GitHub Actions workflow (`.github/workflows/ci.yml`)      |
 
 ---
 
 ## 3. Requirements Traceability Matrix (RTM)
 
-| Req ID | Description | Priority | Planned Implementation Module | Verification Method | Planned Phase |
-| :--- | :--- | :--- | :--- | :--- | :--- |
-| **FR-AUTH-1** | User registration & Argon2id hashing | Must-have | `apps/api/src/modules/auth` | Vitest API integration tests | Phase 3 |
-| **FR-AUTH-2** | JWT cookie-based session management | Must-have | `apps/api/src/modules/auth` | Supertest auth cookie tests | Phase 3 |
-| **FR-USER-1** | User profile & skills catalog | Must-have | `apps/api/src/modules/users` | Unit & API tests | Phase 3 |
-| **FR-HACK-1** | Hackathon configuration & boundaries | Must-have | `apps/api/src/modules/hackathons` | CRUD integration tests | Phase 3 |
-| **FR-TEAM-1** | Team creation with automatic leader assignment | Must-have | `apps/api/src/modules/teams` | Team creation API tests | Phase 4 |
-| **FR-TEAM-2** | Team profile & tech stack editing | Must-have | `apps/api/src/modules/teams` | RBAC validation tests | Phase 4 |
-| **FR-MEM-1** | Race-proof open seat joining (50 concurrent) | Must-have | `apps/api/src/modules/memberships` | Concurrency stress test (50 VUs) | Phase 5 |
-| **FR-MEM-2** | Single-team-per-hackathon enforcement | Must-have | `apps/api/src/modules/memberships` | Unique index & dual-join tests | Phase 5 |
-| **FR-MEM-3** | Voluntary departure & member removal | Must-have | `apps/api/src/modules/memberships` | Membership lifecycle tests | Phase 4 |
-| **FR-MEM-4** | Atomic leadership transfer | Must-have | `apps/api/src/modules/memberships` | Leadership transfer tests | Phase 4 |
-| **FR-MEM-5** | Disbandment on last member departure | Must-have | `apps/api/src/modules/memberships` | Team lifecycle integration tests | Phase 4 |
-| **FR-INV-1** | Hashed invitation code generation & redemption | Must-have | `apps/api/src/modules/invitations` | Expiry & redemption tests | Phase 4 |
-| **FR-REQ-1** | Join requests & leader approval/rejection | Must-have | `apps/api/src/modules/join-requests` | Request workflow tests | Phase 4 |
-| **FR-DISC-1** | Paginated team discovery board | Must-have | `apps/api/src/modules/teams` | k6 p95 latency benchmark | Phase 4, 7 |
-| **FR-REC-1** | Skill-matching recommendation engine | Should-have| `apps/api/src/modules/recommendations` | Unit tests with test vectors | Phase 4 |
-| **FR-RT-1** | Real-time seat updates & notifications | Should-have| `apps/api/src/modules/notifications` | Socket.IO client mock tests | Phase 6 |
-| **FR-AUDIT-1**| Auditable event logging in transaction | Must-have | `apps/api/src/modules/audit` | Database inspection tests | Phase 4 |
-| **NFR-CONC-1**| 50-to-1 seat race-proof allocation | Must-have | Unified Mongoose Transaction | Automated concurrency test | Phase 5 |
-| **NFR-IDEMP-1**| Two-phase lease `Idempotency-Key` support | Must-have | `apps/api/src/middleware/idempotency` | Duplicate POST retry & conflict tests | Phase 5 |
-| **NFR-PERF-1**| Discovery endpoint p95 $< 200\text{ ms}$ | Must-have | Indexed MongoDB queries | k6 100 VU benchmark | Phase 7 |
-| **NFR-PERF-2**| Seeding 10k users & 2k teams | Must-have | `scripts/seed.ts` | Count verification query | Phase 7 |
-| **NFR-TEST-1**| At least 20 automated API tests | Must-have | `apps/api/tests/**/*.test.ts` | CI pipeline report | Phase 7 |
-| **NFR-CI-1**  | GitHub Actions CI workflow | Must-have | `.github/workflows/ci.yml` | GitHub Actions runner status | Phase 2 |
-| **UI-RESP-1** | Responsive mobile & desktop interface | Must-have | `apps/web/src` | Playwright / visual inspection | Phase 6 |
-| **UI-A11Y-1** | WCAG 2.1 AA keyboard accessibility | Should-have| `apps/web/src` | Lighthouse accessibility audit | Phase 6 |
+| Req ID          | Description                                    | Priority    | Planned Implementation Module          | Verification Method                   | Planned Phase |
+| :-------------- | :--------------------------------------------- | :---------- | :------------------------------------- | :------------------------------------ | :------------ |
+| **FR-AUTH-1**   | User registration & Argon2id hashing           | Must-have   | `apps/api/src/modules/auth`            | Vitest API integration tests          | Phase 3       |
+| **FR-AUTH-2**   | JWT cookie-based session management            | Must-have   | `apps/api/src/modules/auth`            | Supertest auth cookie tests           | Phase 3       |
+| **FR-USER-1**   | User profile & skills catalog                  | Must-have   | `apps/api/src/modules/users`           | Unit & API tests                      | Phase 3       |
+| **FR-HACK-1**   | Hackathon configuration & boundaries           | Must-have   | `apps/api/src/modules/hackathons`      | CRUD integration tests                | Phase 3       |
+| **FR-TEAM-1**   | Team creation with automatic leader assignment | Must-have   | `apps/api/src/modules/teams`           | Team creation API tests               | Phase 4       |
+| **FR-TEAM-2**   | Team profile & tech stack editing              | Must-have   | `apps/api/src/modules/teams`           | RBAC validation tests                 | Phase 4       |
+| **FR-MEM-1**    | Race-proof open seat joining (50 concurrent)   | Must-have   | `apps/api/src/modules/memberships`     | Concurrency stress test (50 VUs)      | Phase 5       |
+| **FR-MEM-2**    | Single-team-per-hackathon enforcement          | Must-have   | `apps/api/src/modules/memberships`     | Unique index & dual-join tests        | Phase 5       |
+| **FR-MEM-3**    | Voluntary departure & member removal           | Must-have   | `apps/api/src/modules/memberships`     | Membership lifecycle tests            | Phase 4       |
+| **FR-MEM-4**    | Atomic leadership transfer                     | Must-have   | `apps/api/src/modules/memberships`     | Leadership transfer tests             | Phase 4       |
+| **FR-MEM-5**    | Disbandment on last member departure           | Must-have   | `apps/api/src/modules/memberships`     | Team lifecycle integration tests      | Phase 4       |
+| **FR-INV-1**    | Hashed invitation code generation & redemption | Must-have   | `apps/api/src/modules/invitations`     | Expiry & redemption tests             | Phase 4       |
+| **FR-REQ-1**    | Join requests & leader approval/rejection      | Must-have   | `apps/api/src/modules/join-requests`   | Request workflow tests                | Phase 4       |
+| **FR-DISC-1**   | Paginated team discovery board                 | Must-have   | `apps/api/src/modules/teams`           | k6 p95 latency benchmark              | Phase 4, 7    |
+| **FR-REC-1**    | Skill-matching recommendation engine           | Should-have | `apps/api/src/modules/recommendations` | Unit tests with test vectors          | Phase 4       |
+| **FR-RT-1**     | Real-time seat updates & notifications         | Should-have | `apps/api/src/modules/notifications`   | Socket.IO client mock tests           | Phase 6       |
+| **FR-AUDIT-1**  | Auditable event logging in transaction         | Must-have   | `apps/api/src/modules/audit`           | Database inspection tests             | Phase 4       |
+| **NFR-CONC-1**  | 50-to-1 seat race-proof allocation             | Must-have   | Unified Mongoose Transaction           | Automated concurrency test            | Phase 5       |
+| **NFR-IDEMP-1** | Two-phase lease `Idempotency-Key` support      | Must-have   | `apps/api/src/middleware/idempotency`  | Duplicate POST retry & conflict tests | Phase 5       |
+| **NFR-PERF-1**  | Discovery endpoint p95 $< 200\text{ ms}$       | Must-have   | Indexed MongoDB queries                | k6 100 VU benchmark                   | Phase 7       |
+| **NFR-PERF-2**  | Seeding 10k users & 2k teams                   | Must-have   | `scripts/seed.ts`                      | Count verification query              | Phase 7       |
+| **NFR-TEST-1**  | At least 20 automated API tests                | Must-have   | `apps/api/tests/**/*.test.ts`          | CI pipeline report                    | Phase 7       |
+| **NFR-CI-1**    | GitHub Actions CI workflow                     | Must-have   | `.github/workflows/ci.yml`             | GitHub Actions runner status          | Phase 2       |
+| **UI-RESP-1**   | Responsive mobile & desktop interface          | Must-have   | `apps/web/src`                         | Playwright / visual inspection        | Phase 6       |
+| **UI-A11Y-1**   | WCAG 2.1 AA keyboard accessibility             | Should-have | `apps/web/src`                         | Lighthouse accessibility audit        | Phase 6       |

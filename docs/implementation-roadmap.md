@@ -3,7 +3,7 @@
 **Document:** Implementation Roadmap & Phase Execution Plan  
 **Author:** Technical Lead & Engineering Project Planner  
 **Status:** Finalized & Approved  
-**Version:** 1.1.0  
+**Version:** 1.1.0
 
 ---
 
@@ -26,7 +26,8 @@ flowchart LR
 
 ## 2. Phase-by-Phase Execution Plan
 
-### Phase 1: Planning, Architecture & Repository Foundation *(Current Phase)*
+### Phase 1: Planning, Architecture & Repository Foundation _(Current Phase)_
+
 - **Scope**:
   - Environment inspection and Git repository initialization.
   - Complete requirements analysis and Requirements Traceability Matrix.
@@ -39,6 +40,7 @@ flowchart LR
 ---
 
 ### Phase 2: Project Scaffolding & Infrastructure
+
 - **Scope**:
   - Monorepo workspace configuration using **npm** (`apps/*`, `packages/*`).
   - TypeScript configurations (`tsconfig.base.json`, strict mode).
@@ -51,6 +53,7 @@ flowchart LR
 ---
 
 ### Phase 3: Database & Authentication
+
 - **Scope**:
   - Mongoose ODM connection setup with replica set connection pooling and transaction support.
   - Schema implementations for `users` and `hackathons`.
@@ -64,6 +67,7 @@ flowchart LR
 ---
 
 ### Phase 4: Core Team Management
+
 - **Scope**:
   - Mongoose models for `teams`, `memberships`, `invitations`, `joinRequests`, `auditLogs`.
   - Enforce leadership invariants: leader must be active member, leader cannot leave without transfer, last-member departure disbands team.
@@ -79,6 +83,7 @@ flowchart LR
 ---
 
 ### Phase 5: Race-Proof Membership Engine & Idempotency
+
 - **Scope**:
   - Implementation of the **Unified Mongoose Transaction Engine** in `apps/api/src/modules/memberships`:
     1. Atomic capacity check and conditional reservation on team document
@@ -86,7 +91,7 @@ flowchart LR
     3. Insert active membership
     4. Insert audit log
     5. Persist idempotency record
-    All within the same session-aware transaction.
+       All within the same session-aware transaction.
   - Transient write conflict retry loop with jittered exponential backoff.
   - Scoped idempotency middleware with in-flight lock and payload hash verification.
   - Concurrency test harness testing 50 simultaneous join requests for 1 vacant seat.
@@ -98,6 +103,7 @@ flowchart LR
 ---
 
 ### Phase 6: Frontend & Real-Time Functionality
+
 - **Scope**:
   - React 18 SPA setup with Vite, Tailwind CSS, and TanStack Query.
   - Authentication flow (Login, Register, Session recovery).
@@ -112,6 +118,7 @@ flowchart LR
 ---
 
 ### Phase 7: Testing, Performance & Deployment
+
 - **Scope**:
   - Seeding script `scripts/seed.ts` populating 10,000 users and 2,000 teams across hackathons.
   - Full test suite execution achieving $\ge 20$ API integration tests and $\ge 80\%$ test coverage.
@@ -123,6 +130,7 @@ flowchart LR
 ---
 
 ### Phase 8: Documentation, Bonus Features & Final Submission
+
 - **Scope**:
   - Final audit of submission deliverables against Hack4Hack 2026 PS1 guidelines.
   - Video walkthrough recording / live demonstration deployment.

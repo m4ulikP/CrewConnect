@@ -3,6 +3,7 @@
 Backend REST API and real-time WebSocket service for the CrewConnect platform.
 
 ## Scope & Architectural Role
+
 - **Runtime**: Node.js v20+ LTS
 - **Framework**: Express with TypeScript
 - **Database Engine**: MongoDB (configured with Replica Set for multi-document ACID transactions)
@@ -10,6 +11,7 @@ Backend REST API and real-time WebSocket service for the CrewConnect platform.
 - **Validation**: Zod (consuming contracts from `@crewconnect/shared`)
 
 ## Module Structure (Planned for Implementation in Phases 2–5)
+
 - `src/modules/auth`: User authentication, password hashing, JWT issue & validation
 - `src/modules/users`: User profile management, skills, preferences
 - `src/modules/hackathons`: Hackathon lifecycle, registration rules, team capacity limits

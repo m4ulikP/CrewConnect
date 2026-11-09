@@ -1,0 +1,47 @@
+services:
+  mongodb:
+    image: mongo:7.0
+    container_name: crewconnect-mongodb
+    restart: unless-stopped
+    command: ["mongod", "--replSet", "rs0", "--bind_ip_all", "--port", "27017"]
+    ports:
+      - "${MONGODB_PORT:-27017}:27017"
+    volumes:
+      - mongo-data:/data/db
+    healthcheck:
+      test: ["CMD-SHELL", "mongosh --port 27017 --eval 'db.adminCommand({ ping: 1 })' --quiet"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 5s
+
+  mongo-init:
+    image: mongo:7.0
+    container_name: crewconnect-mongo-init
+    restart: "no"
+    depends_on:
+      mongodb:
+        condition: service_healthy
+    entrypoint:
+      - mongosh
+      - --host
+      - mongodb:27017
+      - --eval
+      - |
+        try {
+          const status = rs.status();
+          if (status.ok === 1) {
+            print("Replica set rs0 is already initialized and healthy.");
+          }
+        } catch (e) {
+          print("Initializing replica set rs0 for host and container access...");
+          const res = rs.initiate({
+            _id: "rs0",
+            members: [{ _id: 0, host: "localhost:27017" }]
+          });
+          printjson(res);
+        }
+
+volumes:
+  mongo-data:
+    name: crewconnect-mongo-data
