@@ -43,13 +43,32 @@ export function errorHandler(err: unknown, req: Request, res: Response, _next: N
     return;
   }
 
-  // MongoDB TransientTransactionError or WriteConflict
+  // MongoDB UnknownTransactionCommitResult (defense-in-depth)
   const mongoErr = err as {
     code?: number;
     errorLabels?: string[];
     hasErrorLabel?: (l: string) => boolean;
     message?: string;
   };
+  if (
+    mongoErr?.errorLabels?.includes?.("UnknownTransactionCommitResult") ||
+    mongoErr?.hasErrorLabel?.("UnknownTransactionCommitResult")
+  ) {
+    const response: ApiErrorResponse = {
+      success: false,
+      error: {
+        code: ERROR_CODES.TRANSACTION_COMMIT_UNCERTAIN,
+        message:
+          "Transaction commit outcome is uncertain after retries. The operation may have committed or aborted.",
+        timestamp,
+        requestId,
+      },
+    };
+    res.status(503).json(response);
+    return;
+  }
+
+  // MongoDB TransientTransactionError or WriteConflict
   if (
     mongoErr?.code === 112 ||
     mongoErr?.errorLabels?.includes?.("TransientTransactionError") ||

@@ -80,6 +80,13 @@ export class AppError extends Error {
     );
   }
 
+  static commitUncertain(
+    message = "Transaction commit outcome is uncertain after retries. The operation may have committed or aborted.",
+    details?: unknown
+  ): AppError {
+    return new AppError(ERROR_CODES.TRANSACTION_COMMIT_UNCERTAIN, message, 503, details);
+  }
+
   static internal(message = "Internal server error", details?: unknown): AppError {
     return new AppError(ERROR_CODES.INTERNAL_ERROR, message, 500, details);
   }

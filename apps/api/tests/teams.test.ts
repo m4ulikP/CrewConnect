@@ -933,16 +933,67 @@ describe("Team Lifecycle & Management Integration Tests", () => {
 
       const [disbandRes, updateRes] = await Promise.all([disbandReq, updateReq]);
 
+      // Reject unexpected response combinations:
+      // Valid outcomes:
+      // A: disband 200 + update 200 (update committed before disband executed)
+      // B: disband 200 + update 409 (disband committed before or during update; update aborted as conflict/disbanded)
+      // C: disband 409 + update 200 (update committed; disband conflicted)
+      const validCombinations = [
+        disbandRes.status === 200 && updateRes.status === 200,
+        disbandRes.status === 200 && updateRes.status === 409,
+        disbandRes.status === 409 && updateRes.status === 200,
+      ];
+      expect(
+        validCombinations.some(Boolean),
+        `Unexpected response combination: disband=${disbandRes.status}, update=${updateRes.status}`
+      ).toBe(true);
+
       const team = await Team.findById(teamId);
+      expect(team).not.toBeNull();
+
       if (disbandRes.status === 200) {
+        // Disband succeeded: team must be DISBANDED, closed, memberCount 0, zero active memberships
         expect(team?.status).toBe("DISBANDED");
         expect(team?.isOpen).toBe(false);
         expect(team?.memberCount).toBe(0);
 
         const activeMembers = await Membership.find({ teamId, status: "ACTIVE" });
         expect(activeMembers).toHaveLength(0);
+
+        if (updateRes.status === 409) {
+          expect(updateRes.body.error.code).toMatch(/^(TEAM_DISBANDED|CONCURRENCY_CONFLICT)$/);
+        }
       } else {
+        // Disband failed with conflict; update succeeded: team remains ACTIVE with consistent state
+        expect(disbandRes.status).toBe(409);
+        expect(disbandRes.body.error.code).toMatch(/^(CONCURRENCY_CONFLICT|TEAM_DISBANDED)$/);
         expect(updateRes.status).toBe(200);
+
+        expect(team?.status).toBe("ACTIVE");
+        expect(team?.leaderId.toString()).toBe(leaderUser.id);
+        expect(team?.memberCount).toBe(2);
+        expect(team?.tagline).toBe("Updated Concurrent Tagline");
+
+        const activeMembers = await Membership.find({ teamId, status: "ACTIVE" });
+        expect(activeMembers).toHaveLength(2);
+      }
+
+      // Verify audit records correspond ONLY to committed mutations
+      const auditLogs = await AuditLog.find({ teamId });
+      const actions = auditLogs.map((log) => log.action);
+
+      expect(actions).toContain("TEAM_CREATED");
+
+      if (disbandRes.status === 200) {
+        expect(actions).toContain("TEAM_DISBANDED");
+      } else {
+        expect(actions).not.toContain("TEAM_DISBANDED");
+      }
+
+      if (updateRes.status === 200) {
+        expect(actions).toContain("TEAM_UPDATED");
+      } else {
+        expect(actions).not.toContain("TEAM_UPDATED");
       }
     });
 
