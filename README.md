@@ -21,7 +21,7 @@ Consider a team with **4 members** and a maximum capacity of **5**. Suppose **50
 4. **Global Single-Team Invariant**: Enforced by a database-level unique compound index `{ hackathonId: 1, userId: 1 }` on `memberships`, ensuring no user can belong to more than one team within the same hackathon under any race condition.
 5. **Fenced Lease Idempotency with In-Transaction Completion**: Atomic lease acquisition outside the business transaction with unique `ownerToken` fencing, 30s crash recovery, and SHA-256 payload verification. The transition to `COMPLETED` occurs inside the business transaction, guaranteeing that business mutations and the cached result commit atomically.
 6. **Team Leadership Invariants**: The team leader must always be an active member. Leaders cannot leave without transferring leadership, transfers are atomic, and last-member departure disbands the team safely.
-7. **Real-Time Consistency**: Team members receive sub-second Socket.IO WebSocket updates reflecting the exact committed state.
+7. **Real-Time Architecture (Planned for Phase 6)**: Socket.IO WebSocket events dispatched strictly after transaction commit confirmation, ensuring clients observe only confirmed database states without dirty reads or phantom notifications.
 
 ---
 
@@ -54,7 +54,7 @@ CrewConnect Monorepo
 | **Database**          | MongoDB 7.0+ (Replica Set `rs0`)          | Multi-document ACID transactions, unique compound indexes, atomic conditional updates               |
 | **Data Access Layer** | Mongoose (8.x+)                           | Primary, consistent data-access layer with session-aware transactional operations                   |
 | **Security / Auth**   | Argon2id + JWT in `httpOnly` cookies      | Memory-hard password hashing (RFC 9106), XSS-safe cookie-based JWT sessions                         |
-| **Real-time**         | Socket.IO (WebSockets)                    | Bi-directional event broadcasting for team capacity changes and join request decisions              |
+| **Real-time**         | Socket.IO (WebSockets)                    | _(Planned for Phase 6)_ Bi-directional event broadcasting for team capacity updates and responses   |
 | **Validation**        | Zod                                       | Runtime schema validation shared across frontend and backend packages                               |
 | **Testing**           | Vitest, Supertest, k6 / autocannon        | Fast unit & integration testing, robust 50-user race condition verification & 10k seed load testing |
 | **DevOps / CI**       | Docker, Docker Compose, GitHub Actions    | Multi-container replica set orchestration, automated CI test & lint pipelines                       |
@@ -73,17 +73,18 @@ All engineering specifications, design trade-offs, and architecture decisions ar
 6. **[Security Architecture](./docs/security-design.md)**: Argon2id password hashing parameters, JWT session strategy, rate limiting, invite-code hashing, CORS, and auditable event log boundaries.
 7. **[Testing Strategy](./docs/testing-strategy.md)**: Vitest unit & integration suites (20+ tests), k6 concurrency benchmarks, 10k-user seeding, and latency targets.
 8. **[Implementation Roadmap](./docs/implementation-roadmap.md)**: 8-phase execution plan from architecture foundation to production delivery.
-9. **[Architecture Decision Records (ADRs)](./docs/adr/)**: Formal ADRs 0001 through 0009 capturing context, alternatives, and trade-offs for core design decisions.
+9. **[Architecture Decision Records (ADRs)](./docs/adr/)**: Formal ADRs 0001 through 0010 capturing context, alternatives, and trade-offs for core design decisions.
 
 ---
 
 ## 🚦 Project Phases & Status
 
-- [x] **Phase 1: Project Foundation, Repository Initialization & System Architecture** _(Current Phase — Complete & Finalized)_
-- [ ] **Phase 2: Project Scaffolding & Infrastructure** _(Pending Approval)_
-- [ ] **Phase 3: Database & Authentication**
-- [ ] **Phase 4: Core Team Management**
-- [ ] **Phase 5: Race-Proof Membership & Idempotency**
-- [ ] **Phase 6: Frontend & Real-Time Functionality**
-- [ ] **Phase 7: Testing, Performance & Deployment**
-- [ ] **Phase 8: Documentation & Final Submission**
+- [x] **Phase 1: Project Foundation, Repository Initialization & System Architecture** _(Completed & Approved)_
+- [x] **Phase 2: Project Scaffolding & Infrastructure** _(Completed & Approved — Monorepo, Docker Replica Set `rs0`, CI)_
+- [x] **Phase 3: Core Domain Modeling & Authentication Foundation** _(Completed & Approved — Argon2id, JWT Cookies, Domain Models)_
+- [x] **Phase 4: Team Lifecycle and Management** _(Completed & Approved — Invariant Enforcement, Atomic Succession, Disbandment)_
+- [x] **Phase 5: Race-Proof Membership and Idempotency Engine** _(Completed & Approved — 50-Concurrent-Requests Capacity Engine)_
+- [x] **Phase 5.1: Concurrency, Correctness & Consistency Fixes** _(Current Phase — Lease Cleanup, Multi-use Exhaustion, Explicit Statuses, Transactional Audits)_
+- [ ] **Phase 6: Real-Time Event Dispatching, Full Load Testing & Final Delivery** _(Next Phase — Socket.IO Server/Client, 100-User Autocannon/k6 Load Test, Demo Scripts)_
+- [ ] **Phase 7: Production Hardening, Performance Tuning & Deployment Verification**
+- [ ] **Phase 8: Final Submission & Evaluator Handover**

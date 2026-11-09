@@ -69,6 +69,10 @@ export class SeatReservationService {
           throw AppError.conflict(ERROR_CODES.TEAM_DISBANDED, "Cannot join a disbanded team");
         }
 
+        if (team.status === "ARCHIVED") {
+          throw AppError.conflict(ERROR_CODES.TEAM_ARCHIVED, "Cannot join an archived team");
+        }
+
         if (!team.isOpen) {
           throw AppError.conflict(
             ERROR_CODES.TEAM_CLOSED,
@@ -129,6 +133,9 @@ export class SeatReservationService {
           }
           if (currentTeamState.status === "DISBANDED") {
             throw AppError.conflict(ERROR_CODES.TEAM_DISBANDED, "Cannot join a disbanded team");
+          }
+          if (currentTeamState.status === "ARCHIVED") {
+            throw AppError.conflict(ERROR_CODES.TEAM_ARCHIVED, "Cannot join an archived team");
           }
           if (!currentTeamState.isOpen) {
             throw AppError.conflict(

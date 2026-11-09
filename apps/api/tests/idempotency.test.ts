@@ -243,5 +243,69 @@ describe("Idempotency Engine Unit & Integration Tests", () => {
       expect(record).not.toBeNull();
       expect(record?.ownerToken).toBe("new-owner-token");
     });
+
+    it("uncertain commit preserves the PROCESSING record and does not release it", async () => {
+      const key = `test-idemp-uncertain-${Date.now()}`;
+      const userId = new Types.ObjectId().toString();
+      const endpoint = "POST /api/v1/teams/join";
+      const hash = IdempotencyService.generatePayloadHash(endpoint, {}, {});
+
+      const lease = await IdempotencyService.acquireLease(key, userId, endpoint, hash);
+      expect(lease.acquired).toBe(true);
+
+      // Verify the record is in PROCESSING status
+      let record = await IdempotencyRecord.findById(lease.record._id);
+      expect(record?.status).toBe("PROCESSING");
+
+      // An uncertain commit error should preserve PROCESSING and NOT call releaseLease
+      const uncertainErr = AppError.conflict(
+        ERROR_CODES.TRANSACTION_COMMIT_UNCERTAIN,
+        "Transaction commit outcome uncertain"
+      );
+      expect(uncertainErr.code).toBe(ERROR_CODES.TRANSACTION_COMMIT_UNCERTAIN);
+
+      // Verify record is preserved
+      record = await IdempotencyRecord.findById(lease.record._id);
+      expect(record).not.toBeNull();
+      expect(record?.status).toBe("PROCESSING");
+    });
+
+    it("completed operations replay cached response on subsequent requests", async () => {
+      const key = `test-idemp-complete-${Date.now()}`;
+      const userId = new Types.ObjectId().toString();
+      const endpoint = "POST /api/v1/teams/join";
+      const body = { teamId: "team-123" };
+      const hash = IdempotencyService.generatePayloadHash(endpoint, {}, body);
+
+      const lease = await IdempotencyService.acquireLease(key, userId, endpoint, hash);
+      expect(lease.acquired).toBe(true);
+
+      // Complete inside transaction
+      const session = await mongoose.startSession();
+      session.startTransaction();
+      try {
+        await IdempotencyService.completeLeaseInTransaction(
+          lease.record._id,
+          lease.ownerToken,
+          hash,
+          201,
+          { success: true, teamId: "team-123", memberCount: 5 },
+          session
+        );
+        await session.commitTransaction();
+      } finally {
+        await session.endSession();
+      }
+
+      // Re-acquire with same key and payload
+      const replay = await IdempotencyService.acquireLease(key, userId, endpoint, hash);
+      expect(replay.acquired).toBe(false);
+      expect(replay.cachedResponse.statusCode).toBe(201);
+      expect(replay.cachedResponse.body).toEqual({
+        success: true,
+        teamId: "team-123",
+        memberCount: 5,
+      });
+    });
   });
 });

@@ -270,6 +270,7 @@ export class IdempotencyService {
    */
   static async releaseLease(recordId: Types.ObjectId | string, ownerToken: string): Promise<void> {
     try {
+      if (!Types.ObjectId.isValid(recordId)) return;
       await IdempotencyRecord.deleteOne({
         _id: new Types.ObjectId(recordId),
         ownerToken,

@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach, afterAll } from "vitest";
+import { describe, it, expect, beforeEach, afterAll, vi } from "vitest";
 import request from "supertest";
 import mongoose, { Types } from "mongoose";
 import { app } from "../src/app.js";
@@ -649,6 +649,498 @@ describe("Phase 5: Race-Proof Membership Engine & Concurrency Verification", () 
 
       expect(res.status).toBe(400);
       expect(res.body.error.code).toBe(ERROR_CODES.INVITATION_REVOKED);
+    });
+
+    it("handles multi-use invitation with maxUses = 2 under concurrent redemptions", async () => {
+      const team = await Team.create({
+        hackathonId: new Types.ObjectId(testHackathonId),
+        leaderId: leaderUser._id,
+        name: `MultiUse Test Team ${Date.now()}`,
+        memberCount: 1,
+        maxCapacity: 5,
+        isOpen: true,
+        status: "ACTIVE",
+      });
+
+      await Membership.create({
+        hackathonId: new Types.ObjectId(testHackathonId),
+        teamId: team._id,
+        userId: leaderUser._id,
+        role: "LEADER",
+        status: "ACTIVE",
+        joinedAt: new Date(),
+      });
+
+      // 1. Create multi-use invitation with maxUses = 2
+      const createRes = await request(app)
+        .post(`/api/v1/teams/${team._id}/invitations`)
+        .set("Authorization", `Bearer ${leaderToken}`)
+        .send({ maxUses: 2, expiresInHours: 24 });
+
+      expect(createRes.status).toBe(201);
+      const rawToken = createRes.body.data.token;
+      const invId = createRes.body.data.invitation.id;
+
+      // Prepare 3 distinct users
+      const userA = await User.create({
+        email: `multi-a-${Date.now()}@test-race.com`,
+        passwordHash,
+        displayName: "User A",
+        skills: ["Go"],
+        status: "ACTIVE",
+      });
+      const tokenA = AuthService.generateToken(userA);
+
+      const userB = await User.create({
+        email: `multi-b-${Date.now()}@test-race.com`,
+        passwordHash,
+        displayName: "User B",
+        skills: ["Rust"],
+        status: "ACTIVE",
+      });
+      const tokenB = AuthService.generateToken(userB);
+
+      const userC = await User.create({
+        email: `multi-c-${Date.now()}@test-race.com`,
+        passwordHash,
+        displayName: "User C",
+        skills: ["Python"],
+        status: "ACTIVE",
+      });
+      const tokenC = AuthService.generateToken(userC);
+
+      // 2. Start two concurrent valid redemptions
+      const [resA, resB] = await Promise.all([
+        request(app)
+          .post("/api/v1/invitations/accept")
+          .set("Authorization", `Bearer ${tokenA}`)
+          .set("Idempotency-Key", `idemp-multi-a-${Date.now()}`)
+          .send({ token: rawToken }),
+        request(app)
+          .post("/api/v1/invitations/accept")
+          .set("Authorization", `Bearer ${tokenB}`)
+          .set("Idempotency-Key", `idemp-multi-b-${Date.now()}`)
+          .send({ token: rawToken }),
+      ]);
+
+      // Both must succeed
+      expect(resA.status).toBe(201);
+      expect(resB.status).toBe(201);
+
+      // Verify DB invitation state: usesCount === 2 and status === EXHAUSTED
+      const dbInv = await Invitation.findById(invId);
+      expect(dbInv?.usesCount).toBe(2);
+      expect(dbInv?.status).toBe("EXHAUSTED");
+
+      // Verify team member count is 3 (1 leader + 2 new members)
+      const updatedTeam = await Team.findById(team._id);
+      expect(updatedTeam?.memberCount).toBe(3);
+
+      const activeMembers = await Membership.find({ teamId: team._id, status: "ACTIVE" });
+      expect(activeMembers).toHaveLength(3);
+
+      // 3. Third redemption attempt must fail with INVITATION_EXHAUSTED
+      const resC = await request(app)
+        .post("/api/v1/invitations/accept")
+        .set("Authorization", `Bearer ${tokenC}`)
+        .set("Idempotency-Key", `idemp-multi-c-${Date.now()}`)
+        .send({ token: rawToken });
+
+      expect(resC.status).toBe(400);
+      expect(resC.body.error.code).toBe(ERROR_CODES.INVITATION_EXHAUSTED);
+
+      // Verify team count remained 3
+      const finalTeam = await Team.findById(team._id);
+      expect(finalTeam?.memberCount).toBe(3);
+    });
+
+    it("handles single-use invitation (maxUses = 1) under concurrent redemptions", async () => {
+      const team = await Team.create({
+        hackathonId: new Types.ObjectId(testHackathonId),
+        leaderId: leaderUser._id,
+        name: `SingleUse Race Team ${Date.now()}`,
+        memberCount: 1,
+        maxCapacity: 5,
+        isOpen: true,
+        status: "ACTIVE",
+      });
+
+      await Membership.create({
+        hackathonId: new Types.ObjectId(testHackathonId),
+        teamId: team._id,
+        userId: leaderUser._id,
+        role: "LEADER",
+        status: "ACTIVE",
+        joinedAt: new Date(),
+      });
+
+      const createRes = await request(app)
+        .post(`/api/v1/teams/${team._id}/invitations`)
+        .set("Authorization", `Bearer ${leaderToken}`)
+        .send({ maxUses: 1, expiresInHours: 24 });
+      const rawToken = createRes.body.data.token;
+      const invId = createRes.body.data.invitation.id;
+
+      const user1 = await User.create({
+        email: `single-1-${Date.now()}@test-race.com`,
+        passwordHash,
+        displayName: "Single 1",
+        skills: ["Go"],
+        status: "ACTIVE",
+      });
+      const token1 = AuthService.generateToken(user1);
+
+      const user2 = await User.create({
+        email: `single-2-${Date.now()}@test-race.com`,
+        passwordHash,
+        displayName: "Single 2",
+        skills: ["Rust"],
+        status: "ACTIVE",
+      });
+      const token2 = AuthService.generateToken(user2);
+
+      // Concurrently redeem single-use token
+      const [res1, res2] = await Promise.all([
+        request(app)
+          .post("/api/v1/invitations/accept")
+          .set("Authorization", `Bearer ${token1}`)
+          .set("Idempotency-Key", `idemp-single-1-${Date.now()}`)
+          .send({ token: rawToken }),
+        request(app)
+          .post("/api/v1/invitations/accept")
+          .set("Authorization", `Bearer ${token2}`)
+          .set("Idempotency-Key", `idemp-single-2-${Date.now()}`)
+          .send({ token: rawToken }),
+      ]);
+
+      const statuses = [res1.status, res2.status].sort();
+      expect(statuses).toEqual([201, 400]);
+
+      const failedRes = res1.status === 400 ? res1 : res2;
+      expect(failedRes.body.error.code).toBe(ERROR_CODES.INVITATION_EXHAUSTED);
+
+      const dbInv = await Invitation.findById(invId);
+      expect(dbInv?.usesCount).toBe(1);
+      expect(dbInv?.status).toBe("EXHAUSTED");
+
+      const dbTeam = await Team.findById(team._id);
+      expect(dbTeam?.memberCount).toBe(2);
+    });
+  });
+
+  // --------------------------------------------------------------------------
+  // 5. Team & Hackathon Status Eligibility
+  // --------------------------------------------------------------------------
+  describe("Team & Hackathon Status Invariants", () => {
+    it("rejects joining an ARCHIVED team with TEAM_ARCHIVED", async () => {
+      const archivedTeam = await Team.create({
+        hackathonId: new Types.ObjectId(testHackathonId),
+        leaderId: leaderUser._id,
+        name: `Archived Team ${Date.now()}`,
+        memberCount: 1,
+        maxCapacity: 5,
+        isOpen: true,
+        status: "ARCHIVED",
+      });
+
+      const candidate = await User.create({
+        email: `candidate-archived-${Date.now()}@test-race.com`,
+        passwordHash,
+        displayName: "Candidate",
+        skills: ["Ruby"],
+        status: "ACTIVE",
+      });
+      const candidateToken = AuthService.generateToken(candidate);
+
+      const joinRes = await request(app)
+        .post(`/api/v1/teams/${archivedTeam._id}/join`)
+        .set("Authorization", `Bearer ${candidateToken}`)
+        .set("Idempotency-Key", `idemp-archived-join-${Date.now()}`);
+
+      expect(joinRes.status).toBe(409);
+      expect(joinRes.body.error.code).toBe(ERROR_CODES.TEAM_ARCHIVED);
+
+      // Join request also rejected
+      const reqRes = await request(app)
+        .post(`/api/v1/teams/${archivedTeam._id}/join-requests`)
+        .set("Authorization", `Bearer ${candidateToken}`)
+        .send({ message: "Hello" });
+
+      expect(reqRes.status).toBe(409);
+      expect(reqRes.body.error.code).toBe(ERROR_CODES.TEAM_ARCHIVED);
+
+      // Creating invitation on archived team rejected
+      const invRes = await request(app)
+        .post(`/api/v1/teams/${archivedTeam._id}/invitations`)
+        .set("Authorization", `Bearer ${leaderToken}`)
+        .send({ maxUses: 1 });
+
+      expect(invRes.status).toBe(409);
+      expect(invRes.body.error.code).toBe(ERROR_CODES.TEAM_ARCHIVED);
+    });
+
+    it("rejects joining a DISBANDED team with TEAM_DISBANDED", async () => {
+      const disbandedTeam = await Team.create({
+        hackathonId: new Types.ObjectId(testHackathonId),
+        leaderId: leaderUser._id,
+        name: `Disbanded Team ${Date.now()}`,
+        memberCount: 0,
+        maxCapacity: 5,
+        isOpen: false,
+        status: "DISBANDED",
+      });
+
+      const candidate = await User.create({
+        email: `candidate-disbanded-${Date.now()}@test-race.com`,
+        passwordHash,
+        displayName: "Candidate",
+        skills: ["Ruby"],
+        status: "ACTIVE",
+      });
+      const candidateToken = AuthService.generateToken(candidate);
+
+      const joinRes = await request(app)
+        .post(`/api/v1/teams/${disbandedTeam._id}/join`)
+        .set("Authorization", `Bearer ${candidateToken}`)
+        .set("Idempotency-Key", `idemp-disbanded-join-${Date.now()}`);
+
+      expect(joinRes.status).toBe(409);
+      expect(joinRes.body.error.code).toBe(ERROR_CODES.TEAM_DISBANDED);
+    });
+
+    it("rejects joining in a COMPLETED hackathon with HACKATHON_NOT_ACTIVE", async () => {
+      const completedHackathon = await Hackathon.create({
+        slug: `completed-hackathon-${Date.now()}`,
+        title: "Completed Hackathon",
+        description: "Already ended",
+        minTeamSize: 1,
+        maxTeamSize: 5,
+        status: "COMPLETED",
+        startDate: new Date(Date.now() - 14 * 86400000),
+        endDate: new Date(Date.now() - 7 * 86400000),
+      });
+
+      const teamInCompleted = await Team.create({
+        hackathonId: completedHackathon._id,
+        leaderId: leaderUser._id,
+        name: `Completed Team ${Date.now()}`,
+        memberCount: 1,
+        maxCapacity: 5,
+        isOpen: true,
+        status: "ACTIVE",
+      });
+
+      const candidate = await User.create({
+        email: `candidate-completed-${Date.now()}@test-race.com`,
+        passwordHash,
+        displayName: "Candidate",
+        skills: ["Java"],
+        status: "ACTIVE",
+      });
+      const candidateToken = AuthService.generateToken(candidate);
+
+      const joinRes = await request(app)
+        .post(`/api/v1/teams/${teamInCompleted._id}/join`)
+        .set("Authorization", `Bearer ${candidateToken}`)
+        .set("Idempotency-Key", `idemp-completed-hack-${Date.now()}`);
+
+      expect(joinRes.status).toBe(400);
+      expect(joinRes.body.error.code).toBe(ERROR_CODES.HACKATHON_NOT_ACTIVE);
+    });
+
+    it("permits joining teams during UPCOMING hackathons", async () => {
+      const upcomingHackathon = await Hackathon.create({
+        slug: `upcoming-hackathon-${Date.now()}`,
+        title: "Upcoming Hackathon",
+        description: "Not started yet, registration open",
+        minTeamSize: 1,
+        maxTeamSize: 5,
+        status: "UPCOMING",
+        startDate: new Date(Date.now() + 7 * 86400000),
+        endDate: new Date(Date.now() + 14 * 86400000),
+      });
+
+      const teamInUpcoming = await Team.create({
+        hackathonId: upcomingHackathon._id,
+        leaderId: leaderUser._id,
+        name: `Upcoming Team ${Date.now()}`,
+        memberCount: 1,
+        maxCapacity: 5,
+        isOpen: true,
+        status: "ACTIVE",
+      });
+
+      const candidate = await User.create({
+        email: `candidate-upcoming-${Date.now()}@test-race.com`,
+        passwordHash,
+        displayName: "Candidate",
+        skills: ["Go"],
+        status: "ACTIVE",
+      });
+      const candidateToken = AuthService.generateToken(candidate);
+
+      const joinRes = await request(app)
+        .post(`/api/v1/teams/${teamInUpcoming._id}/join`)
+        .set("Authorization", `Bearer ${candidateToken}`)
+        .set("Idempotency-Key", `idemp-upcoming-hack-${Date.now()}`);
+
+      expect(joinRes.status).toBe(201);
+      expect(joinRes.body.data.currentMemberCount).toBe(2);
+    });
+  });
+
+  // --------------------------------------------------------------------------
+  // 6. Idempotency Early Failure Lease Cleanup via HTTP
+  // --------------------------------------------------------------------------
+  describe("Idempotency Early Lease Cleanup via HTTP", () => {
+    it("releases idempotency lease on early deterministic failure and allows immediate retry", async () => {
+      const key = `idemp-early-fail-${Date.now()}`;
+
+      // 1. Send request with missing token in body -> 400 INVITATION_INVALID
+      const failRes = await request(app)
+        .post("/api/v1/invitations/accept")
+        .set("Authorization", `Bearer ${memberToken}`)
+        .set("Idempotency-Key", key)
+        .send({}); // missing token!
+
+      expect(failRes.status).toBe(400);
+      expect(failRes.body.error.code).toBe(ERROR_CODES.INVITATION_INVALID);
+
+      // Verify the lease record was released and does NOT exist in DB
+      const record = await IdempotencyRecord.findOne({ key });
+      expect(record).toBeNull();
+
+      // 2. Immediate retry with same key does NOT return REQUEST_IN_PROGRESS (409)
+      const retryRes = await request(app)
+        .post("/api/v1/invitations/accept")
+        .set("Authorization", `Bearer ${memberToken}`)
+        .set("Idempotency-Key", key)
+        .send({});
+
+      expect(retryRes.status).toBe(400);
+      expect(retryRes.body.error.code).toBe(ERROR_CODES.INVITATION_INVALID);
+    });
+
+    it("releases lease when targeted invitation is rejected for wrong account", async () => {
+      const team = await Team.create({
+        hackathonId: new Types.ObjectId(testHackathonId),
+        leaderId: leaderUser._id,
+        name: `Wrong Account Team ${Date.now()}`,
+        memberCount: 1,
+        maxCapacity: 5,
+        isOpen: true,
+        status: "ACTIVE",
+      });
+
+      const targetUser = await User.create({
+        email: `target-${Date.now()}@test-race.com`,
+        passwordHash,
+        displayName: "Target User",
+        skills: ["TS"],
+        status: "ACTIVE",
+      });
+
+      const invRes = await request(app)
+        .post(`/api/v1/teams/${team._id}/invitations`)
+        .set("Authorization", `Bearer ${leaderToken}`)
+        .send({ inviteeId: targetUser._id.toString(), maxUses: 1 });
+      const rawToken = invRes.body.data.token;
+
+      const wrongUser = await User.create({
+        email: `wrong-user-${Date.now()}@test-race.com`,
+        passwordHash,
+        displayName: "Wrong User",
+        skills: ["TS"],
+        status: "ACTIVE",
+      });
+      const wrongToken = AuthService.generateToken(wrongUser);
+
+      const key = `idemp-wrong-acct-${Date.now()}`;
+      const wrongRes = await request(app)
+        .post("/api/v1/invitations/accept")
+        .set("Authorization", `Bearer ${wrongToken}`)
+        .set("Idempotency-Key", key)
+        .send({ token: rawToken });
+
+      expect(wrongRes.status).toBe(403);
+      expect(wrongRes.body.error.code).toBe(ERROR_CODES.INVITATION_WRONG_ACCOUNT);
+
+      // Lease record should be released
+      const record = await IdempotencyRecord.findOne({ key });
+      expect(record).toBeNull();
+    });
+  });
+
+  // --------------------------------------------------------------------------
+  // 7. Transactional Audit Log Consistency Failure-Path Verification
+  // --------------------------------------------------------------------------
+  describe("Transactional Audit Consistency Failure-Path Verification", () => {
+    it("rolls back invitation creation when audit log write fails", async () => {
+      const team = await Team.create({
+        hackathonId: new Types.ObjectId(testHackathonId),
+        leaderId: leaderUser._id,
+        name: `Audit Rollback Team ${Date.now()}`,
+        memberCount: 1,
+        maxCapacity: 5,
+        isOpen: true,
+        status: "ACTIVE",
+      });
+
+      // Spy on AuditLog.create to simulate database failure during audit write
+      const auditSpy = vi
+        .spyOn(AuditLog, "create")
+        .mockRejectedValueOnce(new Error("Simulated Audit Write Failure"));
+
+      try {
+        await request(app)
+          .post(`/api/v1/teams/${team._id}/invitations`)
+          .set("Authorization", `Bearer ${leaderToken}`)
+          .send({ maxUses: 1 });
+      } finally {
+        auditSpy.mockRestore();
+      }
+
+      // Verify that NO invitation document was persisted in MongoDB (transaction rolled back!)
+      const invitations = await Invitation.find({ teamId: team._id });
+      expect(invitations).toHaveLength(0);
+    });
+
+    it("rolls back join request creation when audit log write fails", async () => {
+      const team = await Team.create({
+        hackathonId: new Types.ObjectId(testHackathonId),
+        leaderId: leaderUser._id,
+        name: `JoinReq Audit Rollback Team ${Date.now()}`,
+        memberCount: 1,
+        maxCapacity: 5,
+        isOpen: true,
+        status: "ACTIVE",
+      });
+
+      const applicant = await User.create({
+        email: `applicant-fail-${Date.now()}@test-race.com`,
+        passwordHash,
+        displayName: "Applicant",
+        skills: ["Go"],
+        status: "ACTIVE",
+      });
+      const applicantToken = AuthService.generateToken(applicant);
+
+      const auditSpy = vi
+        .spyOn(AuditLog, "create")
+        .mockRejectedValueOnce(new Error("Simulated Audit Write Failure"));
+
+      try {
+        await request(app)
+          .post(`/api/v1/teams/${team._id}/join-requests`)
+          .set("Authorization", `Bearer ${applicantToken}`)
+          .send({ message: "Should be rolled back" });
+      } finally {
+        auditSpy.mockRestore();
+      }
+
+      // Verify NO join request document was persisted in MongoDB
+      const requests = await JoinRequest.find({ teamId: team._id, userId: applicant._id });
+      expect(requests).toHaveLength(0);
     });
   });
 });

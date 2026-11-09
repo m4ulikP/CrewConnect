@@ -1,11 +1,41 @@
 import type { Request, Response, NextFunction } from "express";
 import { ZodError } from "zod";
 import { AppError } from "../errors/AppError.js";
+import { IdempotencyService } from "../services/idempotency.service.js";
 import { ERROR_CODES, type ApiErrorResponse } from "@crewconnect/shared";
 
-export function errorHandler(err: unknown, req: Request, res: Response, _next: NextFunction): void {
+export async function errorHandler(
+  err: unknown,
+  req: Request,
+  res: Response,
+  _next: NextFunction
+): Promise<void> {
   const requestId = (req.headers["x-request-id"] as string) || undefined;
   const timestamp = new Date().toISOString();
+
+  const mongoErr = err as {
+    code?: number;
+    errorLabels?: string[];
+    hasErrorLabel?: (l: string) => boolean;
+    message?: string;
+  };
+
+  // Check if error is an uncertain transaction commit
+  const isUncertainCommit =
+    (err instanceof AppError && err.code === ERROR_CODES.TRANSACTION_COMMIT_UNCERTAIN) ||
+    Boolean(
+      mongoErr?.errorLabels?.includes?.("UnknownTransactionCommitResult") ||
+      mongoErr?.hasErrorLabel?.("UnknownTransactionCommitResult")
+    );
+
+  // Release acquired idempotency lease on deterministic early failures (NEVER on uncertain commit)
+  if (req.idempotency && !isUncertainCommit) {
+    try {
+      await IdempotencyService.releaseLease(req.idempotency.recordId, req.idempotency.ownerToken);
+    } catch {
+      // Defensive: ignore release errors so client still receives actual failure response
+    }
+  }
 
   // Known AppError
   if (err instanceof AppError) {
@@ -44,12 +74,6 @@ export function errorHandler(err: unknown, req: Request, res: Response, _next: N
   }
 
   // MongoDB UnknownTransactionCommitResult (defense-in-depth)
-  const mongoErr = err as {
-    code?: number;
-    errorLabels?: string[];
-    hasErrorLabel?: (l: string) => boolean;
-    message?: string;
-  };
   if (
     mongoErr?.errorLabels?.includes?.("UnknownTransactionCommitResult") ||
     mongoErr?.hasErrorLabel?.("UnknownTransactionCommitResult")
