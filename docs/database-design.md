@@ -3,7 +3,7 @@
 **Document:** Database Design & Data Modeling  
 **Author:** Senior Database Architect  
 **Status:** Finalized & Approved  
-**Version:** 1.2.0  
+**Version:** 1.3.0  
 
 ---
 
@@ -135,8 +135,10 @@ erDiagram
         ObjectId userId FK
         string endpoint
         string payloadHash
+        string ownerToken
         string status
         date lockedAt
+        date completedAt
         int statusCode
         object responseBody
         date expiresAt
@@ -298,14 +300,16 @@ Operational event log providing chronological auditability for all team state tr
 ---
 
 ### 8. `idempotencyRecords`
-Manages atomic lease acquisition, in-flight locks, and response caching for mutating HTTP requests.
+Manages atomic lease acquisition, fencing tokens, in-flight locks, and response caching for mutating HTTP requests.
 - `_id`: `ObjectId` (Primary Key)
 - `key`: `String` (Required, UUIDv4 sent in `Idempotency-Key` header)
 - `userId`: `ObjectId` (Required, References `users._id`)
 - `endpoint`: `String` (Required, e.g. `"POST /api/v1/teams/:id/join"`)
 - `payloadHash`: `String` (Required, SHA-256 fingerprint of the request payload)
+- `ownerToken`: `String` (Required, UUIDv4 fencing token assigned to the current lease holder)
 - `status`: `String` (Required, enum: `["PROCESSING", "COMPLETED", "FAILED"]`, default `"PROCESSING"`)
-- `lockedAt`: `Date` (Required when status is `PROCESSING`, tracks lease timeout)
+- `lockedAt`: `Date` (Optional, tracks lease timeout; unset on completion)
+- `completedAt`: `Date` (Optional, timestamp when transaction successfully committed)
 - `statusCode`: `Number` (Optional, populated on completion, e.g. `201`, `409`)
 - `responseBody`: `Object` (Optional, exact JSON response payload returned)
 - `createdAt`: `Date` (Required, default `now`)
@@ -313,10 +317,11 @@ Manages atomic lease acquisition, in-flight locks, and response caching for muta
 
 **Idempotency Mechanics:**
 1. **Scoped Unique Constraint**: Scoped to `{ key: 1, userId: 1, endpoint: 1 }` (unique: true).
-2. **Atomic Lease Acquisition**: Handled outside the business transaction. An incoming request atomically inserts or checks the key.
-3. **In-Flight Lock & Crash Recovery**: `status == "PROCESSING"` with `lockedAt` timestamp. Concurrent requests within 30 seconds receive `409 Conflict (REQUEST_IN_PROGRESS)`. If older than 30 seconds (crash recovery), the lease is reclaimed.
-4. **Cleanup on Failure**: If the business transaction fails, the in-flight lease is deleted so that failed transactions never leave false success records.
-5. **TTL Role**: The TTL index is purely for **eventual storage reclamation** (24 hours), not application correctness.
+2. **Atomic Lease Acquisition**: Handled outside the business transaction. An incoming request atomically inserts or checks the key, acquiring an `ownerToken`.
+3. **In-Flight Lock & Crash Recovery**: `status == "PROCESSING"` with `lockedAt` timestamp. Concurrent requests within 30 seconds receive `409 Conflict (REQUEST_IN_PROGRESS)`. If older than 30 seconds (crash recovery), the lease is reclaimed with a new `ownerToken`.
+4. **In-Transaction Atomic Completion**: Status transition from `PROCESSING` to `COMPLETED` happens **inside the business transaction**, conditioned on `{ ownerToken, status: "PROCESSING" }`. If a slow worker was fenced, the update matches 0 documents and the transaction aborts.
+5. **Scoped Cleanup on Failure**: If the business transaction fails, the in-flight lease is deleted only if `ownerToken: currentOwnerToken`. A stale worker cannot delete a newer worker's active lease.
+6. **TTL Role**: The TTL index is purely for **eventual storage reclamation** (24 hours), not application correctness.
 
 **Indexes:**
 - `{ key: 1, userId: 1, endpoint: 1 }` (unique: true — Scoped idempotency constraint)

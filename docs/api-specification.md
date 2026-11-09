@@ -171,6 +171,7 @@ All API responses adhere to standard envelopes:
   - `409 Conflict`: `ALREADY_IN_TEAM` ("User is already a member of a team in this hackathon.")
   - `409 Conflict`: `REQUEST_IN_PROGRESS` ("A request with this idempotency key is currently processing.")
   - `409 Conflict`: `IDEMPOTENCY_KEY_PAYLOAD_MISMATCH` ("Idempotency key reused with different request payload.")
+  - `409 Conflict`: `LEASE_LOST` ("Idempotency lease ownership lost during execution. Transaction aborted.")
   - `409 Conflict`: `CONCURRENCY_CONFLICT` ("Operation failed due to concurrent write contention. Please retry.")
 
 ### 2. `POST /teams/:id/leave` (Voluntary Departure)

@@ -3,23 +3,25 @@
 **Document:** Testing & Verification Strategy  
 **Author:** Senior Quality & Performance Engineer  
 **Status:** Finalized & Approved  
-**Version:** 1.2.0  
+**Version:** 1.3.0  
 
 ---
 
 ## 1. Testing Pyramid & Verification Philosophy
 
-CrewConnect enforces a multi-tier testing strategy specifically tailored to verify concurrency invariants, high-throughput discovery latency, and domain business rules:
+CrewConnect enforces a multi-tier testing strategy specifically tailored to verify concurrency invariants, crash consistency, high-throughput discovery latency, and domain business rules:
 
 ```mermaid
 flowchart TD
     LT["Load & Stress Tests (k6 / autocannon)\n100 VUs, 10k users, 2k teams, p95 < 200ms"]
-    CT["Concurrency Race Tests (Vitest + Supertest)\n50 simultaneous users -> 1 seat, Dual-team race, Idempotency lease lock"]
+    CT["Concurrency Race Tests (Vitest + Supertest)\n50 simultaneous users -> 1 seat, Dual-team race"]
     IT["Integration Tests (Supertest + Mongoose Replica Set)\nAuth, Team CRUD, Invites, Join Requests, Leadership Invariants (20+ tests)"]
+    IDEMP["Idempotency & Crash-Consistency Suite (9 Scenarios)\nAtomic commit, crash windows, fencing tokens, UnknownCommit"]
     UT["Unit Tests (Vitest)\nBusiness logic, Zod validation, Argon2id params, Recommendation math"]
 
     LT --> CT
-    CT --> IT
+    CT --> IDEMP
+    IDEMP --> IT
     IT --> UT
 ```
 
@@ -56,11 +58,30 @@ Minimum $\ge 20$ comprehensive passing tests against a local MongoDB Replica Set
 17. `test_member_removal_by_leader`: Leader kicks member, counter decrements.
 18. `test_leadership_transfer_atomic`: Transfers leadership, updates roles and `team.leaderId`.
 19. `test_leadership_transfer_invalid_target`: Transfer to non-member fails with 400.
-20. `test_idempotency_duplicate_replay`: Replays request with identical key and payload, returns cached response.
-21. `test_idempotency_payload_mismatch`: Reuses key with different payload, returns 409 Conflict.
-22. `test_auditable_event_log_generation`: Confirms auditable log entries written within transaction.
+20. `test_auditable_event_log_generation`: Confirms auditable log entries written within transaction.
 
-### C. Concurrency Race Tests (`apps/api/tests/concurrency/**/*.test.ts`)
+---
+
+## 3. Dedicated Idempotency & Crash-Consistency Test Suite (`apps/api/tests/idempotency/**/*.test.ts`)
+
+To ensure crash-resilience and correct lease-fencing semantics, nine explicit scenarios are specified:
+
+| Test ID | Test Scenario | Execution Description | Expected Invariant & Assertion |
+| :--- | :--- | :--- | :--- |
+| **IDEMP-01** | **Successful Operation & In-Txn Completion** | Execute join request with valid `Idempotency-Key`. | Business mutation commits AND `idempotencyRecord` transitions to `COMPLETED` atomically with status 201. Subsequent request with same key returns cached 201 (`X-Cache: HIT`). |
+| **IDEMP-02** | **App Crash Before Transaction Commit** | Simulate process termination/failure prior to `session.commitTransaction()`. | MongoDB coordinator rolls back transaction. Business mutation is discarded. Record remains in `PROCESSING`. After lease expiry (30s), a retry reclaims the lease and executes cleanly without partial state. |
+| **IDEMP-03** | **App Crash After Transaction Commit** | Simulate crash immediately after `session.commitTransaction()` succeeds. | Because completion happened inside the transaction, the record is ALREADY `status: "COMPLETED"` in the database. When client retries, it immediately receives cached 201 response. Zero re-execution! |
+| **IDEMP-04** | **Lease Expiry and Reclamation** | Worker A acquires lease with `ownerToken_A`, then halts/stalls for $> 30\text{ s}$. | Worker B detects expired lease (`lockedAt < now - 30s`), atomically updates `ownerToken_B` and resets `lockedAt`. Worker B successfully executes and commits. |
+| **IDEMP-05** | **Fenced Stale Worker Commit Rejection** | Worker A stalls, Worker B reclaims lease. Worker A resumes and attempts to commit its transaction. | Worker A's conditional update `{ ownerToken: ownerToken_A }` matches 0 documents. Worker A detects `matchedCount === 0`, aborts its transaction, and rolls back all business mutations. Stale worker is completely fenced! |
+| **IDEMP-06** | **Concurrent Duplicate Key Requests** | Two identical requests with same `Idempotency-Key` fire concurrently. | One request acquires the lease (`status: PROCESSING`); the second request catches unique constraint / lease lock and is rejected with `409 Conflict (REQUEST_IN_PROGRESS)`. |
+| **IDEMP-07** | **Same Key with Different Payloads** | Client sends request with Key $K$ and Body $B_1$, then sends Key $K$ with Body $B_2$. | System detects `SHA-256(B_1) !== SHA-256(B_2)` and immediately returns `409 Conflict (IDEMPOTENCY_KEY_PAYLOAD_MISMATCH)`. |
+| **IDEMP-08** | **UnknownTransactionCommitResult Handling** | Mock commit network failure returning `UnknownTransactionCommitResult`. | Runner retries ONLY `commitTransaction()`. If unresolved, idempotency record is preserved (never deleted). Client retry discovers whether record is `COMPLETED` or `PROCESSING` without double-execution. |
+| **IDEMP-09** | **Transaction Failure Without False COMPLETED** | Inject a business failure (e.g. `TEAM_FULL`) during transaction. | Transaction aborts. Scoped cleanup deletes the lease with `ownerToken`. Record is NEVER marked `COMPLETED`. Next attempt can retry fresh. |
+
+---
+
+## 4. Concurrency Race Tests (`apps/api/tests/concurrency/**/*.test.ts`)
+
 1. **The 50-Simultaneous-Users Race for 1 Seat**:
    - **Setup**: Team with `memberCount: 4`, `maxCapacity: 5`.
    - **Execution**: 50 distinct registered user tokens issue `POST /teams/:id/join` simultaneously via `Promise.all()`.
@@ -76,14 +97,13 @@ Minimum $\ge 20$ comprehensive passing tests against a local MongoDB Replica Set
 3. **Transaction Rollback on Secondary Failure**:
    - Inject a failure after capacity increment (e.g. simulated unique index conflict).
    - **Assertion**: Transaction aborts completely; `team.memberCount` remains at original value (no permanent orphaned increment).
-4. **In-Flight Concurrent Idempotency Race**:
-   - 2 concurrent requests arrive with the same key simultaneously.
-   - **Assertion**: 1 acquires the lease (`status: PROCESSING`); the other is rejected with `409 REQUEST_IN_PROGRESS`.
-5. **Transient Write Conflict vs Retry Exhaustion**:
+4. **Transient Write Conflict vs Retry Exhaustion**:
    - Verify that transactions experiencing `WriteConflict` back off and retry.
    - If retries are artificially exhausted, verify that the API returns `409 CONCURRENCY_CONFLICT`, not `TEAM_FULL`.
 
-### D. Load & Performance Testing (`scripts/k6/load-test.js`)
+---
+
+## 5. Load & Performance Testing (`scripts/k6/load-test.js`)
 - **Dataset**: $10,000$ participants, $2,000$ teams.
 - **Concurrency**: 100 concurrent Virtual Users (VUs) over 3 minutes.
 - **Threshold**: Discovery Board p95 latency $< 200\text{ ms}$. Error rate $< 0.1\%$.
