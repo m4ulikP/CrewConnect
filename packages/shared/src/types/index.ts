@@ -1,4 +1,5 @@
 import type {
+  UserStatus,
   TeamRole,
   MembershipStatus,
   TeamStatus,
@@ -45,11 +46,14 @@ export interface UserDTO {
   displayName: string;
   bio?: string;
   skills: string[];
+  timeZone?: string;
   experienceLevel?: "BEGINNER" | "INTERMEDIATE" | "ADVANCED";
   githubUrl?: string;
   linkedinUrl?: string;
   portfolioUrl?: string;
+  status: UserStatus;
   createdAt: string;
+  updatedAt?: string;
 }
 
 export interface HackathonDTO {

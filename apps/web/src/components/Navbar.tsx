@@ -1,9 +1,11 @@
 import React from "react";
 import { Link, useLocation } from "react-router-dom";
-import { ShieldCheck, Users, Activity } from "lucide-react";
+import { ShieldCheck, Users, Activity, LogOut, LogIn, UserPlus } from "lucide-react";
+import { useAuth } from "../context/AuthContext";
 
 export const Navbar: React.FC = () => {
   const location = useLocation();
+  const { user, logout, isLoading } = useAuth();
 
   const isActive = (path: string) => location.pathname === path;
 
@@ -39,9 +41,9 @@ export const Navbar: React.FC = () => {
             </span>
           </Link>
           <Link
-            to="/teams"
+            to="/teams-preview"
             className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
-              isActive("/teams")
+              isActive("/teams-preview")
                 ? "bg-slate-800 text-white shadow-sm"
                 : "text-slate-400 hover:text-slate-200 hover:bg-slate-900"
             }`}
@@ -54,19 +56,49 @@ export const Navbar: React.FC = () => {
         </nav>
 
         <div className="flex items-center space-x-3">
-          <div className="hidden md:flex items-center space-x-2 px-2.5 py-1 rounded-full bg-slate-900 border border-slate-800 text-xs text-slate-300">
-            <span className="relative flex h-2 w-2">
-              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
-              <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
-            </span>
-            <span className="font-mono">Replica Set Ready</span>
-          </div>
-          <button
-            type="button"
-            className="px-3.5 py-1.5 rounded-lg text-xs font-semibold bg-indigo-600 hover:bg-indigo-500 text-white shadow-sm transition-all focus:outline-none focus:ring-2 focus:ring-indigo-400"
-          >
-            Enter Hackathon
-          </button>
+          {isLoading ? (
+            <div className="w-6 h-6 border-2 border-emerald-500 border-t-transparent rounded-full animate-spin" />
+          ) : user ? (
+            <div className="flex items-center space-x-3">
+              <Link
+                to="/profile"
+                className="flex items-center space-x-2 px-3 py-1.5 rounded-lg bg-slate-900 border border-slate-800 hover:border-slate-700 transition-colors group"
+              >
+                <div className="w-6 h-6 rounded-full bg-emerald-500/20 text-emerald-400 flex items-center justify-center text-xs font-bold">
+                  {user.displayName.charAt(0).toUpperCase()}
+                </div>
+                <span className="text-xs font-medium text-slate-200 group-hover:text-white">
+                  {user.displayName}
+                </span>
+              </Link>
+              <button
+                type="button"
+                onClick={() => logout()}
+                aria-label="Sign out"
+                className="p-1.5 rounded-lg text-slate-400 hover:text-rose-400 hover:bg-slate-900 transition-colors"
+                title="Sign Out"
+              >
+                <LogOut className="w-4 h-4" />
+              </button>
+            </div>
+          ) : (
+            <div className="flex items-center space-x-2">
+              <Link
+                to="/login"
+                className="flex items-center space-x-1 px-3 py-1.5 rounded-lg text-xs font-semibold text-slate-300 hover:text-white hover:bg-slate-900 transition-colors"
+              >
+                <LogIn className="w-3.5 h-3.5" />
+                <span>Sign In</span>
+              </Link>
+              <Link
+                to="/register"
+                className="flex items-center space-x-1 px-3.5 py-1.5 rounded-lg text-xs font-semibold bg-emerald-500 hover:bg-emerald-400 text-slate-950 shadow-sm transition-all focus:outline-none focus:ring-2 focus:ring-emerald-400"
+              >
+                <UserPlus className="w-3.5 h-3.5" />
+                <span>Register</span>
+              </Link>
+            </div>
+          )}
         </div>
       </div>
     </header>

@@ -1,4 +1,10 @@
-import type { ApiResponse, ApiErrorResponse } from "@crewconnect/shared";
+import type {
+  ApiResponse,
+  ApiErrorResponse,
+  UserDTO,
+  RegisterInput,
+  LoginInput,
+} from "@crewconnect/shared";
 
 const BASE_URL = import.meta.env.VITE_API_URL || "/api/v1";
 
@@ -55,4 +61,30 @@ export async function fetchHealth(): Promise<{
   const res = await fetch(url);
   if (!res.ok) throw new Error("Health check failed");
   return res.json();
+}
+
+export async function apiRegister(data: RegisterInput): Promise<{ user: UserDTO; token: string }> {
+  return apiRequest<{ user: UserDTO; token: string }>("/auth/register", {
+    method: "POST",
+    body: JSON.stringify(data),
+  });
+}
+
+export async function apiLogin(data: LoginInput): Promise<{ user: UserDTO; token: string }> {
+  return apiRequest<{ user: UserDTO; token: string }>("/auth/login", {
+    method: "POST",
+    body: JSON.stringify(data),
+  });
+}
+
+export async function apiGetMe(): Promise<{ user: UserDTO }> {
+  return apiRequest<{ user: UserDTO }>("/auth/me", {
+    method: "GET",
+  });
+}
+
+export async function apiLogout(): Promise<void> {
+  await apiRequest<{ message: string }>("/auth/logout", {
+    method: "POST",
+  });
 }

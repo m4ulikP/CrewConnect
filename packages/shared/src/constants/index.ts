@@ -1,3 +1,6 @@
+export const USER_STATUS = ["ACTIVE", "SUSPENDED"] as const;
+export type UserStatus = (typeof USER_STATUS)[number];
+
 export const TEAM_ROLES = ["LEADER", "MEMBER"] as const;
 export type TeamRole = (typeof TEAM_ROLES)[number];
 

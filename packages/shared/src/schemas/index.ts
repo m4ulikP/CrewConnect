@@ -13,6 +13,8 @@ export const RegisterSchema = z.object({
     .max(50, "Display name must not exceed 50 characters")
     .trim(),
   skills: z.array(z.string().trim().min(1)).min(1, "At least one skill is required").max(20),
+  timeZone: z.string().trim().optional().default("UTC"),
+  bio: z.string().max(500).optional(),
 });
 export type RegisterInput = z.infer<typeof RegisterSchema>;
 
