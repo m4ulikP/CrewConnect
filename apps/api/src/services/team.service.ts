@@ -4,12 +4,14 @@ import {
   Membership,
   Hackathon,
   AuditLog,
+  User,
   type ITeam,
   type IMembership,
 } from "../models/index.js";
 import { AppError } from "../errors/AppError.js";
 import { ERROR_CODES, type CreateTeamInput, type UpdateTeamInput } from "@crewconnect/shared";
 import { withTransactionRetry } from "../db/transaction.js";
+import { EventDispatcher } from "../realtime/index.js";
 
 export interface TeamWithLeader {
   id: string;
@@ -150,28 +152,44 @@ export class TeamService {
       );
 
       return { team: newTeam, membership: leaderMembership };
-    }).catch((error: unknown) => {
-      const mongoErr = error as {
-        code?: number;
-        keyPattern?: Record<string, number>;
-        message?: string;
-      };
-      if (mongoErr.code === 11000) {
-        if (mongoErr.keyPattern?.name || mongoErr.message?.includes("name_1")) {
-          throw AppError.conflict(
-            ERROR_CODES.TEAM_NAME_TAKEN,
-            "A team with this name already exists in this hackathon"
-          );
+    })
+      .then((res) => {
+        try {
+          EventDispatcher.dispatchCapacityUpdated({
+            teamId: res.team._id.toString(),
+            hackathonId: res.team.hackathonId.toString(),
+            memberCount: res.team.memberCount,
+            maxCapacity: res.team.maxCapacity,
+            isOpen: res.team.isOpen,
+            timestamp: new Date().toISOString(),
+          });
+        } catch (err) {
+          console.warn("Real-time event dispatch warning:", err);
         }
-        if (mongoErr.keyPattern?.userId || mongoErr.message?.includes("userId_1")) {
-          throw AppError.conflict(
-            ERROR_CODES.ALREADY_IN_TEAM,
-            "User is already an active member of a team in this hackathon"
-          );
+        return res;
+      })
+      .catch((error: unknown) => {
+        const mongoErr = error as {
+          code?: number;
+          keyPattern?: Record<string, number>;
+          message?: string;
+        };
+        if (mongoErr.code === 11000) {
+          if (mongoErr.keyPattern?.name || mongoErr.message?.includes("name_1")) {
+            throw AppError.conflict(
+              ERROR_CODES.TEAM_NAME_TAKEN,
+              "A team with this name already exists in this hackathon"
+            );
+          }
+          if (mongoErr.keyPattern?.userId || mongoErr.message?.includes("userId_1")) {
+            throw AppError.conflict(
+              ERROR_CODES.ALREADY_IN_TEAM,
+              "User is already an active member of a team in this hackathon"
+            );
+          }
         }
-      }
-      throw error;
-    });
+        throw error;
+      });
   }
 
   /**
@@ -227,7 +245,7 @@ export class TeamService {
       hasVacancies?: boolean;
       skills?: string[];
     } = {}
-  ): Promise<{ teams: ITeam[]; total: number; page: number; limit: number }> {
+  ): Promise<{ teams: Record<string, unknown>[]; total: number; page: number; limit: number }> {
     if (!Types.ObjectId.isValid(hackathonId)) {
       throw AppError.validation("Invalid hackathon ID format");
     }
@@ -243,7 +261,6 @@ export class TeamService {
 
     if (options.hasVacancies) {
       query.isOpen = true;
-      query.$expr = { $lt: ["$memberCount", "$maxCapacity"] };
     }
 
     if (options.search) {
@@ -258,16 +275,53 @@ export class TeamService {
       query.skillsNeeded = { $in: options.skills };
     }
 
+    const findQuery: Record<string, unknown> = { ...query };
+    if (options.hasVacancies) {
+      findQuery.$expr = { $lt: ["$memberCount", "$maxCapacity"] };
+    }
+
     const [teams, total] = await Promise.all([
-      Team.find(query)
-        .populate("leaderId", "displayName email skills")
-        .sort({ createdAt: -1 })
-        .skip(skip)
-        .limit(limit),
-      Team.countDocuments(query),
+      Team.collection
+        .aggregate([
+          { $match: findQuery },
+          { $sort: { createdAt: -1 } },
+          { $skip: skip },
+          { $limit: limit },
+          {
+            $lookup: {
+              from: "users",
+              localField: "leaderId",
+              foreignField: "_id",
+              pipeline: [
+                {
+                  $project: {
+                    _id: 0,
+                    id: { $toString: "$_id" },
+                    displayName: 1,
+                    email: 1,
+                    skills: 1,
+                  },
+                },
+              ],
+              as: "leaderArr",
+            },
+          },
+          {
+            $addFields: {
+              id: { $toString: "$_id" },
+              hackathonId: { $toString: "$hackathonId" },
+              leaderId: {
+                $ifNull: [{ $arrayElemAt: ["$leaderArr", 0] }, { $toString: "$leaderId" }],
+              },
+            },
+          },
+          { $project: { _id: 0, __v: 0, leaderArr: 0 } },
+        ])
+        .toArray(),
+      Team.collection.countDocuments(query),
     ]);
 
-    return { teams, total, page, limit };
+    return { teams: teams as Record<string, unknown>[], total, page, limit };
   }
 
   /**
@@ -372,7 +426,7 @@ export class TeamService {
     }
 
     // Execute update and audit log in a single transaction with retry
-    return await withTransactionRetry(async (session) => {
+    const updatedTeam = await withTransactionRetry(async (session) => {
       const updateFilter: Record<string, unknown> = {
         _id: teamId,
         leaderId: new Types.ObjectId(userId),
@@ -382,13 +436,13 @@ export class TeamService {
         updateFilter.memberCount = { $lte: input.maxCapacity };
       }
 
-      const updatedTeam = await Team.findOneAndUpdate(
+      const teamDoc = await Team.findOneAndUpdate(
         updateFilter,
         { $set: updateFields },
         { session, new: true }
       );
 
-      if (!updatedTeam) {
+      if (!teamDoc) {
         throw AppError.conflict(
           ERROR_CODES.CONCURRENCY_CONFLICT,
           "Failed to update team: state conflict or team is no longer active"
@@ -409,8 +463,27 @@ export class TeamService {
         { session }
       );
 
-      return updatedTeam;
+      return teamDoc;
     });
+
+    try {
+      EventDispatcher.dispatchTeamUpdated({
+        teamId: updatedTeam._id.toString(),
+        hackathonId: updatedTeam.hackathonId.toString(),
+        name: updatedTeam.name,
+        tagline: updatedTeam.tagline,
+        description: updatedTeam.description,
+        skillsNeeded: updatedTeam.skillsNeeded,
+        isOpen: updatedTeam.isOpen,
+        maxCapacity: updatedTeam.maxCapacity,
+        memberCount: updatedTeam.memberCount,
+        timestamp: new Date().toISOString(),
+      });
+    } catch (err) {
+      console.warn("Real-time event dispatch warning:", err);
+    }
+
+    return updatedTeam;
   }
 
   /**
@@ -457,7 +530,7 @@ export class TeamService {
       }
     }
 
-    return await withTransactionRetry(async (session) => {
+    const updatedTeam = await withTransactionRetry(async (session) => {
       const openFilter: Record<string, unknown> = {
         _id: teamId,
         leaderId: new Types.ObjectId(userId),
@@ -467,13 +540,13 @@ export class TeamService {
         openFilter.$expr = { $lt: ["$memberCount", "$maxCapacity"] };
       }
 
-      const updatedTeam = await Team.findOneAndUpdate(
+      const teamDoc = await Team.findOneAndUpdate(
         openFilter,
         { $set: { isOpen } },
         { session, new: true }
       );
 
-      if (!updatedTeam) {
+      if (!teamDoc) {
         throw AppError.conflict(
           ERROR_CODES.CONCURRENCY_CONFLICT,
           "Failed to update team visibility: team is not active, user is not leader, or team is full"
@@ -494,8 +567,23 @@ export class TeamService {
         { session }
       );
 
-      return updatedTeam;
+      return teamDoc;
     });
+
+    try {
+      EventDispatcher.dispatchCapacityUpdated({
+        teamId: updatedTeam._id.toString(),
+        hackathonId: updatedTeam.hackathonId.toString(),
+        memberCount: updatedTeam.memberCount,
+        maxCapacity: updatedTeam.maxCapacity,
+        isOpen: updatedTeam.isOpen,
+        timestamp: new Date().toISOString(),
+      });
+    } catch (err) {
+      console.warn("Real-time event dispatch warning:", err);
+    }
+
+    return updatedTeam;
   }
 
   /**
@@ -552,7 +640,7 @@ export class TeamService {
       );
     }
 
-    return await withTransactionRetry(async (session) => {
+    const updatedTeam = await withTransactionRetry(async (session) => {
       // 1. Demote current leader to MEMBER
       const demoted = await Membership.findOneAndUpdate(
         {
@@ -627,6 +715,22 @@ export class TeamService {
 
       return updatedTeam;
     });
+
+    try {
+      const newLeader = await User.findById(newLeaderId);
+      EventDispatcher.dispatchLeadershipTransferred({
+        teamId: updatedTeam._id.toString(),
+        hackathonId: updatedTeam.hackathonId.toString(),
+        previousLeaderId: currentLeaderId,
+        newLeaderId,
+        newLeaderDisplayName: newLeader?.displayName || "New Leader",
+        timestamp: new Date().toISOString(),
+      });
+    } catch (err) {
+      console.warn("Real-time event dispatch warning:", err);
+    }
+
+    return updatedTeam;
   }
 
   /**
@@ -670,7 +774,7 @@ export class TeamService {
       }
 
       // Sole remaining member leaves -> Disband team atomically
-      return await withTransactionRetry(async (session) => {
+      const res = await withTransactionRetry(async (session) => {
         const updatedMembership = await Membership.findOneAndUpdate(
           { _id: membership._id, status: "ACTIVE" },
           { status: "LEFT", leftAt: new Date() },
@@ -722,10 +826,23 @@ export class TeamService {
 
         return { disbanded: true, team: disbandedTeam };
       });
+
+      try {
+        EventDispatcher.dispatchTeamDisbanded({
+          teamId: res.team._id.toString(),
+          hackathonId: res.team.hackathonId.toString(),
+          disbandedBy: userId,
+          timestamp: new Date().toISOString(),
+        });
+      } catch (err) {
+        console.warn("Real-time event dispatch warning:", err);
+      }
+
+      return res;
     }
 
     // Regular non-leader member departure
-    return await withTransactionRetry(async (session) => {
+    const res = await withTransactionRetry(async (session) => {
       const updatedMembership = await Membership.findOneAndUpdate(
         { _id: membership._id, status: "ACTIVE" },
         { status: "LEFT", leftAt: new Date() },
@@ -766,6 +883,23 @@ export class TeamService {
 
       return { disbanded: false, team: updatedTeam };
     });
+
+    try {
+      EventDispatcher.dispatchMemberLeft({
+        teamId: res.team._id.toString(),
+        hackathonId: res.team.hackathonId.toString(),
+        userId,
+        reason: "LEFT",
+        memberCount: res.team.memberCount,
+        maxCapacity: res.team.maxCapacity,
+        isOpen: res.team.isOpen,
+        timestamp: new Date().toISOString(),
+      });
+    } catch (err) {
+      console.warn("Real-time event dispatch warning:", err);
+    }
+
+    return res;
   }
 
   /**
@@ -825,7 +959,7 @@ export class TeamService {
       throw AppError.badRequest("Cannot remove the team leader", ERROR_CODES.CANNOT_REMOVE_SELF);
     }
 
-    return await withTransactionRetry(async (session) => {
+    const updatedTeam = await withTransactionRetry(async (session) => {
       // 1. Mark target membership as REMOVED
       const removedMembership = await Membership.findOneAndUpdate(
         {
@@ -844,7 +978,7 @@ export class TeamService {
       }
 
       // 2. Decrement memberCount
-      const updatedTeam = await Team.findOneAndUpdate(
+      const teamDoc = await Team.findOneAndUpdate(
         {
           _id: teamId,
           status: "ACTIVE",
@@ -854,7 +988,7 @@ export class TeamService {
         { $inc: { memberCount: -1 } },
         { session, new: true }
       );
-      if (!updatedTeam) {
+      if (!teamDoc) {
         throw AppError.conflict(
           ERROR_CODES.CONCURRENCY_CONFLICT,
           "Failed to decrement member count: caller is no longer leader or team is no longer active"
@@ -872,7 +1006,7 @@ export class TeamService {
             action: "MEMBER_REMOVED",
             metadata: {
               removedBy: callerUserId,
-              remainingMemberCount: updatedTeam.memberCount,
+              remainingMemberCount: teamDoc.memberCount,
             },
             timestamp: new Date(),
           },
@@ -880,8 +1014,25 @@ export class TeamService {
         { session }
       );
 
-      return updatedTeam;
+      return teamDoc;
     });
+
+    try {
+      EventDispatcher.dispatchMemberLeft({
+        teamId: updatedTeam._id.toString(),
+        hackathonId: updatedTeam.hackathonId.toString(),
+        userId: targetUserId,
+        reason: "REMOVED",
+        memberCount: updatedTeam.memberCount,
+        maxCapacity: updatedTeam.maxCapacity,
+        isOpen: updatedTeam.isOpen,
+        timestamp: new Date().toISOString(),
+      });
+    } catch (err) {
+      console.warn("Real-time event dispatch warning:", err);
+    }
+
+    return updatedTeam;
   }
 
   /**
@@ -908,9 +1059,9 @@ export class TeamService {
       );
     }
 
-    return await withTransactionRetry(async (session) => {
+    const disbandedTeam = await withTransactionRetry(async (session) => {
       // 1. Mark team DISBANDED conditionally
-      const disbandedTeam = await Team.findOneAndUpdate(
+      const teamDoc = await Team.findOneAndUpdate(
         {
           _id: teamId,
           status: "ACTIVE",
@@ -924,7 +1075,7 @@ export class TeamService {
         { session, new: true }
       );
 
-      if (!disbandedTeam) {
+      if (!teamDoc) {
         throw AppError.conflict(
           ERROR_CODES.TEAM_DISBANDED,
           "Team is already disbanded or not active"
@@ -953,8 +1104,21 @@ export class TeamService {
         { session }
       );
 
-      return disbandedTeam;
+      return teamDoc;
     });
+
+    try {
+      EventDispatcher.dispatchTeamDisbanded({
+        teamId: disbandedTeam._id.toString(),
+        hackathonId: disbandedTeam.hackathonId.toString(),
+        disbandedBy: callerUserId,
+        timestamp: new Date().toISOString(),
+      });
+    } catch (err) {
+      console.warn("Real-time event dispatch warning:", err);
+    }
+
+    return disbandedTeam;
   }
 
   /**

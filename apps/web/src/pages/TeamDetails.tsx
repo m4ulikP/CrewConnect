@@ -1,5 +1,16 @@
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback, useRef } from "react";
 import { useParams, useNavigate, Link } from "react-router-dom";
+import {
+  REALTIME_EVENTS,
+  type TeamMemberJoinedPayload,
+  type TeamMemberLeftPayload,
+  type TeamUpdatedPayload,
+  type TeamCapacityUpdatedPayload,
+  type TeamDisbandedPayload,
+  type LeadershipTransferredPayload,
+  type JoinRequestSubmittedPayload,
+  type JoinRequestResolvedPayload,
+} from "@crewconnect/shared";
 import {
   Users,
   Shield,
@@ -46,6 +57,7 @@ import {
   type InvitationRecord,
 } from "../lib/api";
 import { useAuth } from "../context/AuthContext";
+import { useSocket } from "../context/SocketContext";
 import { EditTeamModal } from "../components/EditTeamModal";
 import { TransferLeadershipModal } from "../components/TransferLeadershipModal";
 import { JoinRequestModal } from "../components/JoinRequestModal";
@@ -56,6 +68,15 @@ export const TeamDetails: React.FC = () => {
   const { teamId } = useParams<{ teamId: string }>();
   const navigate = useNavigate();
   const { user } = useAuth();
+  const {
+    socket,
+    connectionState,
+    joinTeamRoom,
+    leaveTeamRoom,
+    joinHackathonRoom,
+    leaveHackathonRoom,
+  } = useSocket();
+  const wasDisconnectedRef = useRef(false);
 
   const [team, setTeam] = useState<TeamRecord | null>(null);
   const [roster, setRoster] = useState<TeamMemberRecord[]>([]);
@@ -90,58 +111,225 @@ export const TeamDetails: React.FC = () => {
   );
   const [approveKeys, setApproveKeys] = useState<Record<string, string>>({});
 
-  const fetchTeamData = useCallback(async () => {
-    if (!teamId) return;
-    setLoading(true);
-    setError(null);
-    try {
-      const [teamData, rosterData] = await Promise.all([
-        apiGetTeam(teamId),
-        apiGetTeamRoster(teamId),
-      ]);
-      setTeam(teamData);
-      setRoster(rosterData);
-
-      // Fetch audit logs if permitted
-      try {
-        const logs = await apiGetTeamAuditLogs(teamId);
-        setAuditLogs(logs);
-      } catch {
-        // Non-members cannot view audit logs
+  const fetchTeamData = useCallback(
+    async (silent = false) => {
+      if (!teamId) return;
+      if (!silent) {
+        setLoading(true);
+        setError(null);
       }
+      try {
+        const [teamData, rosterData] = await Promise.all([
+          apiGetTeam(teamId),
+          apiGetTeamRoster(teamId),
+        ]);
+        setTeam(teamData);
+        setRoster(rosterData);
 
-      // If user is leader, fetch join requests and invitations
-      const leaderId =
-        typeof teamData.leaderId === "object" && teamData.leaderId !== null
-          ? teamData.leaderId.id
-          : String(teamData.leaderId);
-
-      if (user && leaderId === user.id) {
+        // Fetch audit logs if permitted
         try {
-          const [reqs, invites] = await Promise.all([
-            apiGetJoinRequests(teamId),
-            apiGetInvitations(teamId),
-          ]);
-          setJoinRequests(reqs);
-          setInvitations(invites);
+          const logs = await apiGetTeamAuditLogs(teamId);
+          setAuditLogs(logs);
         } catch {
-          // Ignore
+          // Non-members cannot view audit logs
+        }
+
+        // If user is leader, fetch join requests and invitations
+        const leaderId =
+          typeof teamData.leaderId === "object" && teamData.leaderId !== null
+            ? teamData.leaderId.id
+            : String(teamData.leaderId);
+
+        if (user && leaderId === user.id) {
+          try {
+            const [reqs, invites] = await Promise.all([
+              apiGetJoinRequests(teamId),
+              apiGetInvitations(teamId),
+            ]);
+            setJoinRequests(reqs);
+            setInvitations(invites);
+          } catch {
+            // Ignore
+          }
+        }
+      } catch (err) {
+        if (!silent) {
+          if (err instanceof ApiClientError) {
+            setError(err.message);
+          } else {
+            setError("Failed to load team details.");
+          }
+        }
+      } finally {
+        if (!silent) {
+          setLoading(false);
         }
       }
-    } catch (err) {
-      if (err instanceof ApiClientError) {
-        setError(err.message);
-      } else {
-        setError("Failed to load team details.");
-      }
-    } finally {
-      setLoading(false);
-    }
-  }, [teamId, user]);
+    },
+    [teamId, user]
+  );
 
   useEffect(() => {
     fetchTeamData();
   }, [fetchTeamData]);
+
+  // Join Hackathon & Team rooms when eligible
+  useEffect(() => {
+    if (!user || !team) return;
+    const hId = team.hackathonId;
+    if (hId) {
+      joinHackathonRoom(hId);
+    }
+
+    const userIsMember = roster.some((m) => {
+      const memUserId = typeof m.userId === "object" ? m.userId.id : m.userId;
+      return memUserId === user.id && m.status === "ACTIVE";
+    });
+
+    if (userIsMember && teamId) {
+      joinTeamRoom(teamId);
+    }
+
+    return () => {
+      if (hId) leaveHackathonRoom(hId);
+      if (teamId) leaveTeamRoom(teamId);
+    };
+  }, [
+    user,
+    team?.hackathonId,
+    teamId,
+    roster,
+    joinHackathonRoom,
+    leaveHackathonRoom,
+    joinTeamRoom,
+    leaveTeamRoom,
+  ]);
+
+  // Resync from REST API after Socket reconnects (REST remains source of truth)
+  useEffect(() => {
+    if (connectionState === "reconnecting" || connectionState === "disconnected") {
+      wasDisconnectedRef.current = true;
+    } else if (connectionState === "connected" && wasDisconnectedRef.current && teamId) {
+      wasDisconnectedRef.current = false;
+      fetchTeamData(true);
+    }
+  }, [connectionState, teamId, fetchTeamData]);
+
+  // Real-time Socket Listeners
+  useEffect(() => {
+    if (!socket || !teamId) return;
+
+    const handleMemberJoined = (payload: TeamMemberJoinedPayload) => {
+      if (payload.teamId !== teamId) return;
+      setTeam((prev) =>
+        prev
+          ? {
+              ...prev,
+              memberCount: payload.memberCount,
+              maxCapacity: payload.maxCapacity,
+              isOpen: payload.isOpen,
+            }
+          : prev
+      );
+      fetchTeamData(true);
+    };
+
+    const handleMemberLeft = (payload: TeamMemberLeftPayload) => {
+      if (payload.teamId !== teamId) return;
+      setTeam((prev) =>
+        prev
+          ? {
+              ...prev,
+              memberCount: payload.memberCount,
+              maxCapacity: payload.maxCapacity,
+              isOpen: payload.isOpen,
+            }
+          : prev
+      );
+      fetchTeamData(true);
+    };
+
+    const handleTeamUpdated = (payload: TeamUpdatedPayload) => {
+      if (payload.teamId !== teamId) return;
+      setTeam((prev) =>
+        prev
+          ? {
+              ...prev,
+              name: payload.name,
+              tagline: payload.tagline,
+              description: payload.description,
+              skillsNeeded: payload.skillsNeeded,
+              isOpen: payload.isOpen,
+              maxCapacity: payload.maxCapacity,
+              memberCount: payload.memberCount,
+            }
+          : prev
+      );
+    };
+
+    const handleCapacityUpdated = (payload: TeamCapacityUpdatedPayload) => {
+      if (payload.teamId !== teamId) return;
+      setTeam((prev) =>
+        prev
+          ? {
+              ...prev,
+              memberCount: payload.memberCount,
+              maxCapacity: payload.maxCapacity,
+              isOpen: payload.isOpen,
+            }
+          : prev
+      );
+    };
+
+    const handleLeadershipTransferred = (payload: LeadershipTransferredPayload) => {
+      if (payload.teamId !== teamId) return;
+      fetchTeamData(true);
+    };
+
+    const handleTeamDisbanded = (payload: TeamDisbandedPayload) => {
+      if (payload.teamId !== teamId) return;
+      setTeam((prev) =>
+        prev ? { ...prev, status: "DISBANDED", isOpen: false, memberCount: 0 } : prev
+      );
+      setRoster([]);
+      setSuccessMessage("This team has been disbanded by its leader.");
+    };
+
+    const handleJoinRequestSubmitted = (payload: JoinRequestSubmittedPayload) => {
+      if (payload.teamId !== teamId) return;
+      fetchTeamData(true);
+    };
+
+    const handleJoinRequestResolved = (payload: JoinRequestResolvedPayload) => {
+      if (payload.teamId !== teamId) return;
+      if (payload.status === "APPROVED") {
+        setSuccessMessage("Your join request was approved! Welcome to the team.");
+      }
+      fetchTeamData(true);
+    };
+
+    socket.on(REALTIME_EVENTS.TEAM_MEMBER_JOINED, handleMemberJoined);
+    socket.on(REALTIME_EVENTS.TEAM_MEMBER_LEFT, handleMemberLeft);
+    socket.on(REALTIME_EVENTS.TEAM_UPDATED, handleTeamUpdated);
+    socket.on(REALTIME_EVENTS.TEAM_CAPACITY_UPDATED, handleCapacityUpdated);
+    socket.on(REALTIME_EVENTS.LEADERSHIP_TRANSFERRED, handleLeadershipTransferred);
+    socket.on(REALTIME_EVENTS.TEAM_DISBANDED, handleTeamDisbanded);
+    socket.on(REALTIME_EVENTS.JOIN_REQUEST_SUBMITTED, handleJoinRequestSubmitted);
+    socket.on(REALTIME_EVENTS.JOIN_REQUEST_APPROVED, handleJoinRequestResolved);
+    socket.on(REALTIME_EVENTS.JOIN_REQUEST_REJECTED, handleJoinRequestResolved);
+
+    return () => {
+      socket.off(REALTIME_EVENTS.TEAM_MEMBER_JOINED, handleMemberJoined);
+      socket.off(REALTIME_EVENTS.TEAM_MEMBER_LEFT, handleMemberLeft);
+      socket.off(REALTIME_EVENTS.TEAM_UPDATED, handleTeamUpdated);
+      socket.off(REALTIME_EVENTS.TEAM_CAPACITY_UPDATED, handleCapacityUpdated);
+      socket.off(REALTIME_EVENTS.LEADERSHIP_TRANSFERRED, handleLeadershipTransferred);
+      socket.off(REALTIME_EVENTS.TEAM_DISBANDED, handleTeamDisbanded);
+      socket.off(REALTIME_EVENTS.JOIN_REQUEST_SUBMITTED, handleJoinRequestSubmitted);
+      socket.off(REALTIME_EVENTS.JOIN_REQUEST_APPROVED, handleJoinRequestResolved);
+      socket.off(REALTIME_EVENTS.JOIN_REQUEST_REJECTED, handleJoinRequestResolved);
+    };
+  }, [socket, teamId, fetchTeamData]);
 
   if (loading) {
     return (

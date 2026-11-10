@@ -47,3 +47,16 @@ export const DEFAULT_MIN_TEAM_SIZE = 1;
 export const DEFAULT_MAX_TEAM_SIZE = 5;
 export const IDEMPOTENCY_LEASE_TIMEOUT_MS = 30_000; // 30 seconds lease window
 export const IDEMPOTENCY_TTL_SECONDS = 86_400; // 24 hours TTL
+
+export const REALTIME_EVENTS = {
+  TEAM_MEMBER_JOINED: "team:member_joined",
+  TEAM_MEMBER_LEFT: "team:member_left",
+  TEAM_UPDATED: "team:updated",
+  TEAM_DISBANDED: "team:disbanded",
+  LEADERSHIP_TRANSFERRED: "team:leadership_transferred",
+  JOIN_REQUEST_SUBMITTED: "team:join_request_submitted",
+  JOIN_REQUEST_APPROVED: "team:join_request_approved",
+  JOIN_REQUEST_REJECTED: "team:join_request_rejected",
+  TEAM_CAPACITY_UPDATED: "team:capacity_updated",
+} as const;
+export type RealtimeEventName = (typeof REALTIME_EVENTS)[keyof typeof REALTIME_EVENTS];

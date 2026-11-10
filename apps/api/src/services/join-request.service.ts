@@ -5,12 +5,14 @@ import {
   Hackathon,
   Membership,
   AuditLog,
+  User,
   type IJoinRequest,
 } from "../models/index.js";
 import { AppError } from "../errors/AppError.js";
 import { ERROR_CODES } from "@crewconnect/shared";
 import { withTransactionRetry } from "../db/transaction.js";
 import { SeatReservationService, type ReserveSeatResult } from "./seat-reservation.service.js";
+import { EventDispatcher } from "../realtime/index.js";
 
 export class JoinRequestService {
   /**
@@ -28,7 +30,7 @@ export class JoinRequestService {
       throw AppError.validation("Invalid user ID format");
     }
 
-    return await withTransactionRetry(async (session) => {
+    const newRequest = await withTransactionRetry(async (session) => {
       const team = await Team.findById(teamId).session(session);
       if (!team) {
         throw AppError.notFound("Team not found", ERROR_CODES.TEAM_NOT_FOUND);
@@ -137,6 +139,29 @@ export class JoinRequestService {
         throw err;
       }
     });
+
+    try {
+      const applicant = await User.findById(userId);
+      const team = await Team.findById(teamId);
+      if (team) {
+        EventDispatcher.dispatchJoinRequestSubmitted(team.leaderId.toString(), {
+          requestId: newRequest._id.toString(),
+          teamId,
+          hackathonId: team.hackathonId.toString(),
+          user: {
+            id: userId,
+            displayName: applicant?.displayName || "Applicant",
+            skills: applicant?.skills || [],
+          },
+          message: newRequest.message,
+          timestamp: new Date().toISOString(),
+        });
+      }
+    } catch (err) {
+      console.warn("Real-time event dispatch warning:", err);
+    }
+
+    return newRequest;
   }
 
   /**
@@ -240,7 +265,7 @@ export class JoinRequestService {
       );
     }
 
-    return await SeatReservationService.reserveSeatAndJoin({
+    const result = await SeatReservationService.reserveSeatAndJoin({
       teamId,
       userId: request.userId.toString(),
       action: "JOIN_REQUEST_APPROVED",
@@ -274,6 +299,21 @@ export class JoinRequestService {
         }
       },
     });
+
+    try {
+      EventDispatcher.dispatchJoinRequestResolved(request!.userId.toString(), {
+        requestId,
+        teamId,
+        hackathonId: team!.hackathonId.toString(),
+        userId: request!.userId.toString(),
+        status: "APPROVED",
+        timestamp: new Date().toISOString(),
+      });
+    } catch (err) {
+      console.warn("Real-time event dispatch warning:", err);
+    }
+
+    return result;
   }
 
   /**
@@ -288,7 +328,7 @@ export class JoinRequestService {
       throw AppError.validation("Invalid ID format");
     }
 
-    return await withTransactionRetry(async (session) => {
+    const rejectedRequest = await withTransactionRetry(async (session) => {
       const team = await Team.findById(teamId).session(session);
       if (!team) {
         throw AppError.notFound("Team not found", ERROR_CODES.TEAM_NOT_FOUND);
@@ -355,6 +395,21 @@ export class JoinRequestService {
 
       return updated;
     });
+
+    try {
+      EventDispatcher.dispatchJoinRequestResolved(rejectedRequest.userId.toString(), {
+        requestId,
+        teamId,
+        hackathonId: rejectedRequest.hackathonId.toString(),
+        userId: rejectedRequest.userId.toString(),
+        status: "REJECTED",
+        timestamp: new Date().toISOString(),
+      });
+    } catch (err) {
+      console.warn("Real-time event dispatch warning:", err);
+    }
+
+    return rejectedRequest;
   }
 
   /**

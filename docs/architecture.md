@@ -216,28 +216,29 @@ sequenceDiagram
 
 ### Connection & Authentication Lifecycle
 
-1. **Handshake**: The client initiates a WebSocket connection (`wss://`) passing the JWT access token in the auth payload:
-   ```javascript
-   const socket = io({ auth: { token: "jwt_token_here" } });
-   ```
-2. **Authentication Middleware**: The Socket.IO server verifies the token against `JWT_SECRET`. Unauthenticated connections are rejected with `UnauthorizedError`.
-3. **Room Subscription**:
-   - Each connected socket automatically joins a private user room: `user:${userId}`.
-   - When viewing a hackathon dashboard, client joins `hackathon:${hackathonId}`.
-   - When part of a team, client joins `team:${teamId}`.
+1. **Handshake**: The client initiates a WebSocket / HTTP long-polling connection (`io({ withCredentials: true })`) sending the signed session cookie (`token`), `Authorization: Bearer <token>`, or `handshake.auth.token`.
+2. **Authentication Middleware (`apps/api/src/realtime/socket.ts`)**: The Socket.IO server verifies the JWT against `JWT_SECRET`, loads the user, confirms the account is `ACTIVE` (not `SUSPENDED`), and checks `payload.tokenVersion === user.tokenVersion`. Unauthenticated or revoked connections are rejected cleanly before joining any rooms.
+3. **Least-Privilege Room Subscription**:
+   - Each authenticated socket automatically joins a private user room: `user:${userId}`.
+   - Joining `team:${teamId}` (`join:team`) queries `Membership.exists({ teamId, userId, status: "ACTIVE" })` and rejects non-members with `FORBIDDEN`.
+   - Joining `hackathon:${hackathonId}` (`join:hackathon`) validates hackathon existence (`Hackathon.exists(...)`) before permitting directory capacity updates.
+4. **Post-Commit Dispatch Invariant**:
+   - Real-time notifications (`EventDispatcher`) are strictly executed **only after** `withTransactionRetry()` confirms `commitTransaction()` succeeded.
+   - Aborted, rolled back, or uncertain commits (`TRANSACTION_COMMIT_UNCERTAIN`) **never** emit socket events. Transient retries inside `withTransactionRetry()` never produce duplicate events.
 
 ### Real-Time Event Matrix
 
-| Event Name                    | Scope / Room                                 | Trigger Condition                     | Payload Data                                         |
-| :---------------------------- | :------------------------------------------- | :------------------------------------ | :--------------------------------------------------- |
-| `team:capacity_changed`       | `hackathon:${hackathonId}`                   | Member joins or leaves a team         | `{ teamId, memberCount, maxCapacity, isOpen }`       |
-| `team:member_joined`          | `team:${teamId}`                             | New member successfully added         | `{ teamId, member: { userId, name, role } }`         |
-| `team:member_removed`         | `team:${teamId}`, `user:${userId}`           | Member ejected or leaves              | `{ teamId, userId, reason }`                         |
-| `team:leadership_transferred` | `team:${teamId}`                             | Leader passes role to member          | `{ teamId, previousLeaderId, newLeaderId }`          |
-| `team:disbanded`              | `team:${teamId}`, `hackathon:${hackathonId}` | Last member leaves or leader disbands | `{ teamId, reason }`                                 |
-| `request:received`            | `user:${leaderId}`                           | Candidate requests to join            | `{ requestId, teamId, candidate: { userId, name } }` |
-| `request:resolved`            | `user:${candidateId}`                        | Leader approves or rejects            | `{ requestId, teamId, status: "APPROVED"             | "REJECTED" }` |
-| `invitation:received`         | `user:${targetUserId}`                       | Leader invites candidate              | `{ invitationId, teamId, teamName }`                 |
+| Event Name                    | Scope / Room                                 | Trigger Condition                            | Payload Summary                                                                                       |
+| :---------------------------- | :------------------------------------------- | :------------------------------------------- | :---------------------------------------------------------------------------------------------------- |
+| `team:capacity_updated`       | `hackathon:${hackathonId}`                   | Team created, visibility toggled, join/leave | `{ teamId, hackathonId, memberCount, maxCapacity, isOpen }`                                           |
+| `team:member_joined`          | `team:${teamId}`                             | New member atomically committed              | `{ teamId, hackathonId, member: { userId, displayName, role }, memberCount, maxCapacity, isOpen }`    |
+| `team:member_left`            | `team:${teamId}`, `user:${userId}`           | Member leaves or is removed                  | `{ teamId, hackathonId, userId, reason, memberCount, maxCapacity, isOpen }`                           |
+| `team:updated`                | `team:${teamId}`, `hackathon:${hackathonId}` | Team profile edited by leader                | `{ teamId, hackathonId, name, tagline, description, skillsNeeded, isOpen, maxCapacity, memberCount }` |
+| `team:leadership_transferred` | `team:${teamId}`                             | Leader transfers role to active member       | `{ teamId, hackathonId, previousLeaderId, newLeaderId, newLeaderDisplayName }`                        |
+| `team:disbanded`              | `team:${teamId}`, `hackathon:${hackathonId}` | Last member leaves or leader disbands        | `{ teamId, hackathonId, disbandedBy }`                                                                |
+| `team:join_request_submitted` | `user:${leaderId}`                           | Candidate submits join request               | `{ requestId, teamId, hackathonId, user: { id, displayName, skills }, message }`                      |
+| `team:join_request_approved`  | `user:${candidateId}`                        | Leader approves join request                 | `{ requestId, teamId, hackathonId, userId, status: "APPROVED" }`                                      |
+| `team:join_request_rejected`  | `user:${candidateId}`                        | Leader rejects join request                  | `{ requestId, teamId, hackathonId, userId, status: "REJECTED" }`                                      |
 
 ---
 

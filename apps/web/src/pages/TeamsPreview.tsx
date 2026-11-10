@@ -1,6 +1,12 @@
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback, useRef } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { Users, Filter, Search, Plus, ExternalLink, ArrowRight } from "lucide-react";
+import {
+  REALTIME_EVENTS,
+  type TeamCapacityUpdatedPayload,
+  type TeamUpdatedPayload,
+  type TeamDisbandedPayload,
+} from "@crewconnect/shared";
 import {
   apiGetHackathons,
   apiGetHackathonTeams,
@@ -9,10 +15,12 @@ import {
   type TeamRecord,
 } from "../lib/api";
 import { useAuth } from "../context/AuthContext";
+import { useSocket } from "../context/SocketContext";
 import { CreateTeamModal } from "../components/CreateTeamModal";
 
 export const TeamsPreview: React.FC = () => {
   const { user } = useAuth();
+  const { socket, connectionState, joinHackathonRoom, leaveHackathonRoom } = useSocket();
   const navigate = useNavigate();
 
   const [hackathons, setHackathons] = useState<HackathonRecord[]>([]);
@@ -23,6 +31,7 @@ export const TeamsPreview: React.FC = () => {
   const [search, setSearch] = useState("");
   const [hasVacancies, setHasVacancies] = useState(false);
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
+  const wasDisconnectedRef = useRef(false);
 
   // Initial load: fetch hackathons
   useEffect(() => {
@@ -68,6 +77,90 @@ export const TeamsPreview: React.FC = () => {
       loadTeams();
     }
   }, [loadTeams, selectedHackathonId]);
+
+  // Real-time room subscription & REST resync on reconnect
+  useEffect(() => {
+    if (!selectedHackathonId || !user) return;
+    joinHackathonRoom(selectedHackathonId);
+    return () => {
+      leaveHackathonRoom(selectedHackathonId);
+    };
+  }, [selectedHackathonId, user, joinHackathonRoom, leaveHackathonRoom]);
+
+  useEffect(() => {
+    if (connectionState === "reconnecting" || connectionState === "disconnected") {
+      wasDisconnectedRef.current = true;
+    } else if (
+      connectionState === "connected" &&
+      wasDisconnectedRef.current &&
+      selectedHackathonId
+    ) {
+      wasDisconnectedRef.current = false;
+      loadTeams();
+    }
+  }, [connectionState, selectedHackathonId, loadTeams]);
+
+  useEffect(() => {
+    if (!socket || !selectedHackathonId) return;
+
+    const handleCapacityUpdated = (payload: TeamCapacityUpdatedPayload) => {
+      if (payload.hackathonId !== selectedHackathonId) return;
+      setTeams((prev) => {
+        const exists = prev.some((t) => t.id === payload.teamId);
+        if (!exists) {
+          // A newly created team appeared in this hackathon — re-sync via REST
+          loadTeams();
+          return prev;
+        }
+        return prev.map((t) =>
+          t.id === payload.teamId
+            ? {
+                ...t,
+                memberCount: payload.memberCount,
+                maxCapacity: payload.maxCapacity,
+                isOpen: payload.isOpen,
+              }
+            : t
+        );
+      });
+    };
+
+    const handleTeamUpdated = (payload: TeamUpdatedPayload) => {
+      if (payload.hackathonId !== selectedHackathonId) return;
+      setTeams((prev) =>
+        prev.map((t) =>
+          t.id === payload.teamId
+            ? {
+                ...t,
+                name: payload.name,
+                tagline: payload.tagline,
+                description: payload.description,
+                skillsNeeded: payload.skillsNeeded,
+                isOpen: payload.isOpen,
+                maxCapacity: payload.maxCapacity,
+                memberCount: payload.memberCount,
+              }
+            : t
+        )
+      );
+    };
+
+    const handleTeamDisbanded = (payload: TeamDisbandedPayload) => {
+      if (payload.hackathonId !== selectedHackathonId) return;
+      setTeams((prev) => prev.filter((t) => t.id !== payload.teamId));
+      setMyTeam((prev) => (prev && prev.team.id === payload.teamId ? null : prev));
+    };
+
+    socket.on(REALTIME_EVENTS.TEAM_CAPACITY_UPDATED, handleCapacityUpdated);
+    socket.on(REALTIME_EVENTS.TEAM_UPDATED, handleTeamUpdated);
+    socket.on(REALTIME_EVENTS.TEAM_DISBANDED, handleTeamDisbanded);
+
+    return () => {
+      socket.off(REALTIME_EVENTS.TEAM_CAPACITY_UPDATED, handleCapacityUpdated);
+      socket.off(REALTIME_EVENTS.TEAM_UPDATED, handleTeamUpdated);
+      socket.off(REALTIME_EVENTS.TEAM_DISBANDED, handleTeamDisbanded);
+    };
+  }, [socket, selectedHackathonId, loadTeams]);
 
   const handleCreateTeamClick = () => {
     if (!user) {

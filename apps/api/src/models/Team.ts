@@ -106,8 +106,10 @@ const TeamSchema = new Schema<ITeam>(
   }
 );
 
-// Indexes specified in docs/database-design.md
+// Indexes specified in docs/database-design.md + compound sort indexes for discovery latency
 TeamSchema.index({ hackathonId: 1, status: 1, isOpen: 1, memberCount: 1 });
+TeamSchema.index({ hackathonId: 1, status: 1, isOpen: 1, createdAt: -1 });
+TeamSchema.index({ hackathonId: 1, status: 1, createdAt: -1 });
 TeamSchema.index({ hackathonId: 1, name: 1 }, { unique: true });
 TeamSchema.index({ hackathonId: 1, skillsNeeded: 1 });
 

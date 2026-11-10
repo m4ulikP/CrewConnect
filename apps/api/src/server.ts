@@ -2,8 +2,10 @@ import http from "http";
 import { app } from "./app.js";
 import { env } from "./config/env.js";
 import { connectToDatabase, disconnectDatabase } from "./db/connection.js";
+import { initSocketServer, closeSocketServer } from "./realtime/index.js";
 
 const server = http.createServer(app);
+const io = initSocketServer(server);
 
 async function startServer(): Promise<void> {
   try {
@@ -36,6 +38,8 @@ async function gracefulShutdown(signal: string): Promise<void> {
     server.close(async () => {
       console.log("HTTP server closed.");
       try {
+        await closeSocketServer();
+        console.log("Socket server closed.");
         await disconnectDatabase();
         console.log("Database connection closed.");
         resolve();
@@ -62,4 +66,4 @@ if (process.env.NODE_ENV !== "test") {
   startServer();
 }
 
-export { server, startServer, gracefulShutdown };
+export { server, io, startServer, gracefulShutdown };

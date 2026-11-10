@@ -168,3 +168,90 @@ export interface IdempotencyRecordDTO {
   responseBody?: unknown;
   expiresAt: string;
 }
+
+// Real-Time Event Payloads
+export interface TeamMemberJoinedPayload {
+  teamId: string;
+  hackathonId: string;
+  member: {
+    userId: string;
+    displayName: string;
+    role: TeamRole;
+    joinedAt: string;
+  };
+  memberCount: number;
+  maxCapacity: number;
+  isOpen: boolean;
+  timestamp: string;
+}
+
+export interface TeamMemberLeftPayload {
+  teamId: string;
+  hackathonId: string;
+  userId: string;
+  reason: "LEFT" | "REMOVED";
+  memberCount: number;
+  maxCapacity: number;
+  isOpen: boolean;
+  timestamp: string;
+}
+
+export interface TeamUpdatedPayload {
+  teamId: string;
+  hackathonId: string;
+  name: string;
+  tagline?: string;
+  description?: string;
+  skillsNeeded: string[];
+  isOpen: boolean;
+  maxCapacity: number;
+  memberCount: number;
+  timestamp: string;
+}
+
+export interface TeamDisbandedPayload {
+  teamId: string;
+  hackathonId: string;
+  disbandedBy: string;
+  timestamp: string;
+}
+
+export interface LeadershipTransferredPayload {
+  teamId: string;
+  hackathonId: string;
+  previousLeaderId: string;
+  newLeaderId: string;
+  newLeaderDisplayName: string;
+  timestamp: string;
+}
+
+export interface JoinRequestSubmittedPayload {
+  requestId: string;
+  teamId: string;
+  hackathonId: string;
+  user: {
+    id: string;
+    displayName: string;
+    skills: string[];
+  };
+  message?: string;
+  timestamp: string;
+}
+
+export interface JoinRequestResolvedPayload {
+  requestId: string;
+  teamId: string;
+  hackathonId: string;
+  userId: string;
+  status: "APPROVED" | "REJECTED";
+  timestamp: string;
+}
+
+export interface TeamCapacityUpdatedPayload {
+  teamId: string;
+  hackathonId: string;
+  memberCount: number;
+  maxCapacity: number;
+  isOpen: boolean;
+  timestamp: string;
+}

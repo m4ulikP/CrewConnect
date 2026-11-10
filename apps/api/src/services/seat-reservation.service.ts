@@ -4,6 +4,7 @@ import {
   Membership,
   Hackathon,
   AuditLog,
+  User,
   type ITeam,
   type IMembership,
 } from "../models/index.js";
@@ -11,6 +12,7 @@ import { AppError } from "../errors/AppError.js";
 import { ERROR_CODES, type AuditAction } from "@crewconnect/shared";
 import { withTransactionRetry } from "../db/transaction.js";
 import { IdempotencyService } from "./idempotency.service.js";
+import { EventDispatcher } from "../realtime/index.js";
 
 export interface ReserveSeatParams {
   teamId: string;
@@ -57,8 +59,9 @@ export class SeatReservationService {
       throw AppError.validation("Invalid user ID format");
     }
 
+    let committedResult: ReserveSeatResult;
     try {
-      return await withTransactionRetry(async (session: ClientSession) => {
+      committedResult = await withTransactionRetry(async (session: ClientSession) => {
         // Step 1: Pre-validation of Team & Hackathon within session
         const team = await Team.findById(teamId).session(session);
         if (!team) {
@@ -269,5 +272,29 @@ export class SeatReservationService {
 
       throw error;
     }
+
+    // POST-COMMIT REAL-TIME EVENT DISPATCH
+    // Invariant: This is strictly executed ONLY after withTransactionRetry confirms commit
+    try {
+      const candidate = await User.findById(userId);
+      EventDispatcher.dispatchMemberJoined({
+        teamId: committedResult.team._id.toString(),
+        hackathonId: committedResult.team.hackathonId.toString(),
+        member: {
+          userId: committedResult.membership.userId.toString(),
+          displayName: candidate?.displayName || "Participant",
+          role: committedResult.membership.role,
+          joinedAt: committedResult.membership.joinedAt.toISOString(),
+        },
+        memberCount: committedResult.team.memberCount,
+        maxCapacity: committedResult.team.maxCapacity,
+        isOpen: committedResult.team.isOpen,
+        timestamp: new Date().toISOString(),
+      });
+    } catch (dispatchErr) {
+      console.warn("Real-time event dispatch warning:", dispatchErr);
+    }
+
+    return committedResult;
   }
 }
