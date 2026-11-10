@@ -38,15 +38,15 @@ export const DashboardHeader: React.FC<DashboardHeaderProps> = ({
   const isCompleted = selectedHackathon?.status === "COMPLETED";
 
   let statusSentence = "Loading your hackathon team-formation status...";
+  const hackathonLabel = selectedHackathon?.title || "the selected hackathon";
   if (!loadingTeam) {
     if (myTeam) {
       const roleLabel = myTeam.role === "LEADER" ? "leading" : "contributing on";
-      statusSentence = `You are currently ${roleLabel} ${myTeam.team.name} (${myTeam.team.memberCount} of ${myTeam.team.maxCapacity} seats filled).`;
+      statusSentence = `You are currently ${roleLabel} ${myTeam.team.name} in ${hackathonLabel} (${myTeam.team.memberCount} of ${myTeam.team.maxCapacity} seats filled).`;
     } else if (isCompleted) {
-      statusSentence = "This hackathon window has closed and team formation is read-only.";
+      statusSentence = `${hackathonLabel} has completed and team formation is read-only.`;
     } else {
-      statusSentence =
-        "You are not yet committed to a squad in this hackathon. Join an open crew or launch your own.";
+      statusSentence = `You do not have an active squad in ${hackathonLabel}. Switch hackathon scope below or form a team.`;
     }
   }
 
@@ -114,17 +114,24 @@ export const DashboardHeader: React.FC<DashboardHeaderProps> = ({
         </div>
       </div>
 
-      {/* Event Context Bar */}
+      {/* Event Scope Switcher & Readout */}
       {selectedHackathon && (
-        <div className="flex flex-wrap items-center justify-between gap-3 pt-1 text-xs">
+        <div
+          aria-label="Selected hackathon scope"
+          className="flex flex-wrap items-center justify-between gap-3 pt-1 text-xs"
+        >
           <div className="flex flex-wrap items-center gap-2.5">
             {hackathons.length > 1 ? (
-              <div className="flex items-center gap-2">
-                <label htmlFor="dashboard-hackathon-select" className="text-ink-muted font-medium">
-                  Event scope:
+              <div className="flex flex-wrap items-center gap-2">
+                <label
+                  htmlFor="dashboard-hackathon-select"
+                  className="text-ink-secondary font-medium"
+                >
+                  Hackathon scope:
                 </label>
                 <select
                   id="dashboard-hackathon-select"
+                  aria-label="Hackathon scope"
                   value={selectedHackathon.id}
                   onChange={(e) => onSelectHackathon(e.target.value)}
                   className="form-input !h-8 !w-auto !py-0 !px-2.5 text-xs font-medium bg-surface"
@@ -137,9 +144,12 @@ export const DashboardHeader: React.FC<DashboardHeaderProps> = ({
                 </select>
               </div>
             ) : (
-              <span className="inline-flex items-center gap-2 px-2.5 py-1 rounded-sm bg-surface-tonal border border-border-subtle text-ink-primary font-medium">
-                <span>{selectedHackathon.title}</span>
-              </span>
+              <div className="flex items-center gap-2">
+                <span className="text-ink-secondary font-medium">Hackathon scope:</span>
+                <span className="inline-flex items-center gap-2 px-2.5 py-1 rounded-sm bg-surface-tonal border border-border-subtle text-ink-primary font-medium">
+                  <span>{selectedHackathon.title}</span>
+                </span>
+              </div>
             )}
 
             <span

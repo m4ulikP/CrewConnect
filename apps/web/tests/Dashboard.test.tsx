@@ -207,6 +207,10 @@ describe("Phase 4 — Authenticated Dashboard", () => {
 
     await waitFor(() => {
       expect(screen.getByRole("heading", { level: 1, name: /Alice Lin/i })).toBeInTheDocument();
+      expect(
+        screen.getByRole("heading", { level: 2, name: /Incoming Join Requests/i })
+      ).toBeInTheDocument();
+      expect(screen.getByText("Scope: Spring Systems 2026")).toBeInTheDocument();
       expect(screen.getByText("LockFree Guild")).toBeInTheDocument();
       expect(screen.getByText("Team Leader")).toBeInTheDocument();
       expect(screen.getByText("Charlie Gomez")).toBeInTheDocument();
@@ -221,7 +225,37 @@ describe("Phase 4 — Authenticated Dashboard", () => {
     );
   });
 
-  it("renders empty My Squads state cleanly when user has no active membership", async () => {
+  it("renders Incoming Join Requests empty and error/retry states cleanly", async () => {
+    vi.spyOn(apiModule, "apiGetHackathons").mockResolvedValue(mockHackathons);
+    vi.spyOn(apiModule, "apiGetMyTeam").mockResolvedValue({ team: aliceTeam, role: "LEADER" });
+    vi.spyOn(apiModule, "apiGetTeamRoster").mockResolvedValue(aliceRoster);
+    vi.spyOn(apiModule, "apiGetTeamAuditLogs").mockResolvedValue(mockAuditLogs);
+    vi.spyOn(apiModule, "apiGetHackathonTeams").mockResolvedValue([]);
+    const reqSpy = vi
+      .spyOn(apiModule, "apiGetJoinRequests")
+      .mockRejectedValueOnce(new Error("Incoming queue unavailable"))
+      .mockResolvedValueOnce([]);
+
+    renderDashboardWithUser(userAlice);
+
+    await waitFor(() => {
+      expect(
+        screen.getByRole("heading", { level: 2, name: /Incoming Join Requests/i })
+      ).toBeInTheDocument();
+      expect(screen.getByText("Incoming queue unavailable")).toBeInTheDocument();
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: /Retry loading incoming join requests/i }));
+
+    await waitFor(() => {
+      expect(reqSpy).toHaveBeenCalledTimes(2);
+      expect(
+        screen.getByText(/No incoming join requests awaiting your review for LockFree Guild/i)
+      ).toBeInTheDocument();
+    });
+  });
+
+  it("renders hackathon-scoped empty state without implying user has no squads globally", async () => {
     vi.spyOn(apiModule, "apiGetHackathons").mockResolvedValue(mockHackathons);
     vi.spyOn(apiModule, "apiGetMyTeam").mockResolvedValue(null);
     vi.spyOn(apiModule, "apiGetHackathonTeams").mockResolvedValue([aliceTeam]);
@@ -232,13 +266,64 @@ describe("Phase 4 — Authenticated Dashboard", () => {
     renderDashboardWithUser(userBob);
 
     await waitFor(() => {
-      expect(screen.getByText("No active squad in this hackathon")).toBeInTheDocument();
+      expect(screen.getByText("No active squad in Spring Systems 2026")).toBeInTheDocument();
+      expect(
+        screen.getByText(/Memberships are queried one hackathon at a time/i)
+      ).toBeInTheDocument();
       expect(screen.getByRole("link", { name: /Discover Open Squads/i })).toBeInTheDocument();
     });
 
     // Must not call leader/member-only endpoints when user has no team
     expect(auditSpy).not.toHaveBeenCalled();
     expect(joinReqSpy).not.toHaveBeenCalled();
+  });
+
+  it("switches hackathons without leaking previous hackathon squad or request data", async () => {
+    const secondHackathon: apiModule.HackathonRecord = {
+      id: "hack-2",
+      slug: "fall-ai-sprint",
+      title: "Fall AI Sprint",
+      description: "Autumn challenge",
+      minTeamSize: 1,
+      maxTeamSize: 4,
+      status: "UPCOMING",
+      startDate: new Date().toISOString(),
+      endDate: new Date().toISOString(),
+    };
+
+    vi.spyOn(apiModule, "apiGetHackathons").mockResolvedValue([mockHackathons[0], secondHackathon]);
+    const myTeamSpy = vi.spyOn(apiModule, "apiGetMyTeam").mockImplementation(async (hId) => {
+      if (hId === "hack-1") return { team: aliceTeam, role: "LEADER" };
+      return null;
+    });
+    vi.spyOn(apiModule, "apiGetTeamRoster").mockResolvedValue(aliceRoster);
+    vi.spyOn(apiModule, "apiGetJoinRequests").mockResolvedValue([pendingReq]);
+    vi.spyOn(apiModule, "apiGetTeamAuditLogs").mockResolvedValue(mockAuditLogs);
+    vi.spyOn(apiModule, "apiGetHackathonTeams").mockResolvedValue([]);
+
+    renderDashboardWithUser(userAlice);
+
+    await waitFor(() => {
+      expect(screen.getByText("LockFree Guild")).toBeInTheDocument();
+      expect(screen.getByText("Charlie Gomez")).toBeInTheDocument();
+      expect(screen.getByLabelText("Hackathon scope")).toHaveValue("hack-1");
+    });
+
+    // Initial load calls myTeam once for selected hackathon (no N+1 across all hackathons)
+    expect(myTeamSpy).toHaveBeenCalledTimes(1);
+    expect(myTeamSpy).toHaveBeenCalledWith("hack-1");
+
+    fireEvent.change(screen.getByLabelText("Hackathon scope"), { target: { value: "hack-2" } });
+
+    await waitFor(() => {
+      expect(screen.getByText("Scope: Fall AI Sprint")).toBeInTheDocument();
+      expect(screen.getByText("No active squad in Fall AI Sprint")).toBeInTheDocument();
+    });
+
+    expect(screen.queryByText("LockFree Guild")).toBeNull();
+    expect(screen.queryByText("Charlie Gomez")).toBeNull();
+    expect(myTeamSpy).toHaveBeenCalledTimes(2);
+    expect(myTeamSpy).toHaveBeenLastCalledWith("hack-2");
   });
 
   it("prevents duplicate approve submissions, sends Idempotency-Key, and reconciles state", async () => {
@@ -387,7 +472,7 @@ describe("Phase 4 — Authenticated Dashboard", () => {
 
     await waitFor(() => {
       expect(screen.getByRole("heading", { level: 1, name: /Bob Diaz/i })).toBeInTheDocument();
-      expect(screen.getByText("No active squad in this hackathon")).toBeInTheDocument();
+      expect(screen.getByText("No active squad in Spring Systems 2026")).toBeInTheDocument();
     });
 
     expect(myTeamSpy).toHaveBeenCalledTimes(2);

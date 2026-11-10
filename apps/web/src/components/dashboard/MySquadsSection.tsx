@@ -49,11 +49,13 @@ export const MySquadsSection: React.FC<MySquadsSectionProps> = ({
 
   return (
     <section aria-labelledby="my-squads-heading" className="space-y-4">
-      <div className="flex items-center justify-between gap-2">
+      <div className="flex flex-wrap items-center justify-between gap-2">
         <h2 id="my-squads-heading" className="text-base font-semibold text-ink-primary">
           My Squads
         </h2>
-        <span className="text-xs text-ink-muted">Active membership · Single-hackathon scope</span>
+        <span className="text-xs text-ink-muted">
+          {selectedHackathon ? `Scope: ${selectedHackathon.title}` : "Single-hackathon scope"}
+        </span>
       </div>
 
       {loadingTeam ? (
@@ -91,8 +93,16 @@ export const MySquadsSection: React.FC<MySquadsSectionProps> = ({
       ) : (
         <DashboardEmptyState
           icon={Users}
-          title="No active squad in this hackathon"
-          description="You do not have an active team membership for the selected event yet. Explore squads with open seats, start your own team, or redeem an invitation token."
+          title={
+            selectedHackathon
+              ? `No active squad in ${selectedHackathon.title}`
+              : "No active squad in this hackathon"
+          }
+          description={
+            selectedHackathon
+              ? `You do not hold an active membership in ${selectedHackathon.title}. Memberships are queried one hackathon at a time — use Hackathon scope above to check other events, or find a squad here.`
+              : "You do not hold an active team membership for the selected event yet. Explore squads with open seats, start your own team, or redeem an invitation token."
+          }
         >
           <Link
             to={

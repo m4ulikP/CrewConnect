@@ -32,12 +32,12 @@ export const PendingRequestsSection: React.FC<PendingRequestsSectionProps> = ({
 
   return (
     <section
-      aria-labelledby="pending-requests-heading"
+      aria-labelledby="incoming-requests-heading"
       className="bg-surface border border-border-subtle rounded-lg p-5 space-y-4"
     >
       <div className="flex items-center justify-between gap-2">
-        <h2 id="pending-requests-heading" className="text-base font-semibold text-ink-primary">
-          Join Requests
+        <h2 id="incoming-requests-heading" className="text-base font-semibold text-ink-primary">
+          Incoming Join Requests
         </h2>
         {isLeader && (
           <span className="text-xs font-medium px-2 py-0.5 rounded-sm bg-surface-tonal border border-border-subtle text-ink-secondary tabular">
@@ -65,10 +65,10 @@ export const PendingRequestsSection: React.FC<PendingRequestsSectionProps> = ({
       )}
 
       {/* Leader Incoming Request Queue */}
-      {isLeader && myTeam && (
+      {isLeader && myTeam ? (
         <div className="space-y-2.5">
           <div className="flex items-center justify-between text-xs text-ink-secondary">
-            <span>Incoming applications for {myTeam.team.name}</span>
+            <span>Incoming requests to join {myTeam.team.name}</span>
             <Link
               to={`/teams/${myTeam.team.id}`}
               className="font-semibold text-accent hover:underline"
@@ -78,7 +78,7 @@ export const PendingRequestsSection: React.FC<PendingRequestsSectionProps> = ({
           </div>
 
           {loading ? (
-            <DashboardSectionSkeleton rows={2} label="Loading team join requests" />
+            <DashboardSectionSkeleton rows={2} label="Loading incoming join requests" />
           ) : error ? (
             <div
               role="alert"
@@ -88,6 +88,7 @@ export const PendingRequestsSection: React.FC<PendingRequestsSectionProps> = ({
               <button
                 type="button"
                 onClick={onRetry}
+                aria-label="Retry loading incoming join requests"
                 className="inline-flex items-center gap-1 font-semibold text-accent hover:underline cursor-pointer"
               >
                 <RefreshCw className="w-3 h-3" aria-hidden="true" />
@@ -96,7 +97,7 @@ export const PendingRequestsSection: React.FC<PendingRequestsSectionProps> = ({
             </div>
           ) : pendingOnly.length === 0 ? (
             <p className="text-xs text-ink-muted py-2">
-              No pending applicant requests awaiting review for your squad.
+              No incoming join requests awaiting your review for {myTeam.team.name}.
             </p>
           ) : (
             <div className="divide-y divide-border-subtle">
@@ -153,23 +154,24 @@ export const PendingRequestsSection: React.FC<PendingRequestsSectionProps> = ({
             </div>
           )}
         </div>
+      ) : (
+        <p className="text-xs text-ink-muted py-1">
+          Incoming request review appears here when you lead a squad in the selected hackathon.
+        </p>
       )}
 
-      {/* Personal Outbound Requests Backend Boundary Note */}
+      {/* Sent Applications Backend Boundary Note */}
       <div className="rounded-md border border-border-subtle bg-surface-tonal/70 p-3.5 flex items-start gap-2.5 text-xs text-ink-secondary">
         <Clock className="w-4 h-4 text-ink-muted flex-shrink-0 mt-0.5" aria-hidden="true" />
         <div className="space-y-1 leading-relaxed">
-          <p className="font-semibold text-ink-primary">Your Outbound Applications</p>
+          <p className="font-semibold text-ink-primary">Submitted Applications Not Shown Here</p>
           <p>
-            A global endpoint to list your own sent join requests across squads (
+            This panel displays incoming requests received by squads you lead. Tracking applications
+            you submitted to other squads requires a dedicated{" "}
             <code className="bg-surface px-1 py-0.5 rounded border border-border-subtle">
               GET /api/v1/me/join-requests
-            </code>
-            ) is not currently provided by the API. Use{" "}
-            <Link to="/teams-preview" className="font-semibold text-accent hover:underline">
-              Team Discovery
-            </Link>{" "}
-            to inspect squads or check seat availability.
+            </code>{" "}
+            endpoint, which is not yet exposed by the API.
           </p>
         </div>
       </div>

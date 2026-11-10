@@ -419,7 +419,7 @@ export const AuthenticatedDashboard: React.FC = () => {
             loading={Boolean(activeTeamId && isLeader) && joinRequestsQuery.isLoading}
             error={
               joinRequestsQuery.isError
-                ? getErrorMessage(joinRequestsQuery.error, "Unable to load join requests.")
+                ? getErrorMessage(joinRequestsQuery.error, "Unable to load incoming join requests.")
                 : null
             }
             onRetry={() => joinRequestsQuery.refetch()}
