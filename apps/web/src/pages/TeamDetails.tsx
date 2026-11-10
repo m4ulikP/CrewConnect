@@ -12,17 +12,15 @@ import {
   type JoinRequestResolvedPayload,
 } from "@crewconnect/shared";
 import {
-  Edit,
-  DoorOpen,
-  DoorClosed,
-  Trash2,
-  LogOut,
   CheckCircle,
   AlertTriangle,
   ArrowLeft,
+  LayoutDashboard,
+  Users,
+  Inbox,
   Key,
-  Ticket,
-  Send,
+  History,
+  Settings,
 } from "lucide-react";
 import {
   apiGetTeam,
@@ -49,13 +47,17 @@ import {
 } from "../lib/api";
 import { useAuth } from "../context/AuthContext";
 import { useSocket } from "../context/SocketContext";
-import { EditTeamModal } from "../components/EditTeamModal";
-import { TransferLeadershipModal } from "../components/TransferLeadershipModal";
-import { JoinRequestModal } from "../components/JoinRequestModal";
-import { CreateInvitationModal } from "../components/CreateInvitationModal";
-import { RedeemInvitationModal } from "../components/RedeemInvitationModal";
-import { Avatar } from "../components/Avatar";
-import { CapacityBadge } from "../components/CapacityBadge";
+import { WorkspaceHeader, type WorkspaceUserRole } from "../components/workspace/WorkspaceHeader";
+import { WorkspaceOverviewTab } from "../components/workspace/WorkspaceOverviewTab";
+import { WorkspaceRosterTab } from "../components/workspace/WorkspaceRosterTab";
+import { WorkspaceRequestsTab } from "../components/workspace/WorkspaceRequestsTab";
+import { WorkspaceInvitationsTab } from "../components/workspace/WorkspaceInvitationsTab";
+import { WorkspaceActivityTab } from "../components/workspace/WorkspaceActivityTab";
+import { WorkspaceSettingsTab } from "../components/workspace/WorkspaceSettingsTab";
+import { WorkspaceModals } from "../components/workspace/WorkspaceModals";
+
+export type WorkspaceTab =
+  "overview" | "roster" | "requests" | "invitations" | "activity" | "settings";
 
 export const TeamDetails: React.FC = () => {
   const { teamId } = useParams<{ teamId: string }>();
@@ -71,21 +73,21 @@ export const TeamDetails: React.FC = () => {
   } = useSocket();
   const wasDisconnectedRef = useRef(false);
 
+  // Core squad state
   const [team, setTeam] = useState<TeamRecord | null>(null);
   const [roster, setRoster] = useState<TeamMemberRecord[]>([]);
   const [auditLogs, setAuditLogs] = useState<AuditLogRecord[]>([]);
   const [joinRequests, setJoinRequests] = useState<JoinRequestRecord[]>([]);
   const [invitations, setInvitations] = useState<InvitationRecord[]>([]);
 
+  // Loading & notification states
   const [loading, setLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
 
-  // Tabs state
-  const [activeTab, setActiveTab] = useState<
-    "roster" | "requests" | "invitations" | "history" | "settings"
-  >("roster");
+  // Tab navigation
+  const [activeTab, setActiveTab] = useState<WorkspaceTab>("overview");
 
   // Modals state
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
@@ -98,12 +100,34 @@ export const TeamDetails: React.FC = () => {
   const [confirmDisband, setConfirmDisband] = useState(false);
   const [confirmLeave, setConfirmLeave] = useState(false);
 
-  // Idempotency keys (stable per user action)
+  // Idempotency keys for mutations
   const [joinIdempotencyKey, setJoinIdempotencyKey] = useState<string>(() =>
     generateIdempotencyKey()
   );
   const [approveKeys, setApproveKeys] = useState<Record<string, string>>({});
 
+  // Determine user role
+  const leaderIdStr =
+    team?.leaderId && typeof team.leaderId === "object"
+      ? team.leaderId.id
+      : String(team?.leaderId || "");
+
+  const currentUserIdStr = user?.id || "";
+  const isLeader = Boolean(user && leaderIdStr && leaderIdStr === currentUserIdStr);
+  const isMember = roster.some((m) => {
+    const memUserId = typeof m.userId === "object" ? m.userId.id : m.userId;
+    return memUserId === currentUserIdStr && m.status === "ACTIVE";
+  });
+
+  const userRole: WorkspaceUserRole = !user
+    ? "unauthenticated"
+    : isLeader
+      ? "leader"
+      : isMember
+        ? "member"
+        : "non-member";
+
+  // Data fetching
   const fetchTeamData = useCallback(
     async (silent = false) => {
       if (!teamId) return;
@@ -119,21 +143,21 @@ export const TeamDetails: React.FC = () => {
         setTeam(teamData);
         setRoster(rosterData);
 
-        // Fetch audit logs if permitted
+        // Fetch audit logs if user is confirmed member
         try {
           const logs = await apiGetTeamAuditLogs(teamId);
           setAuditLogs(logs);
         } catch {
-          // Non-members cannot view audit logs
+          // Non-members receive 403 Forbidden on audit logs
         }
 
-        // If user is leader, fetch join requests and invitations
-        const leaderId =
+        // Fetch join requests & invitations if user is squad leader
+        const effectiveLeaderId =
           typeof teamData.leaderId === "object" && teamData.leaderId !== null
             ? teamData.leaderId.id
             : String(teamData.leaderId);
 
-        if (user && leaderId === user.id) {
+        if (user && effectiveLeaderId === user.id) {
           try {
             const [reqs, invites] = await Promise.all([
               apiGetJoinRequests(teamId),
@@ -142,7 +166,7 @@ export const TeamDetails: React.FC = () => {
             setJoinRequests(reqs);
             setInvitations(invites);
           } catch {
-            // Ignore
+            // Non-leaders are rejected
           }
         }
       } catch (err) {
@@ -150,7 +174,7 @@ export const TeamDetails: React.FC = () => {
           if (err instanceof ApiClientError) {
             setError(err.message);
           } else {
-            setError("Failed to load team details.");
+            setError("Failed to load team workspace.");
           }
         }
       } finally {
@@ -166,7 +190,7 @@ export const TeamDetails: React.FC = () => {
     fetchTeamData();
   }, [fetchTeamData]);
 
-  // Join Hackathon & Team rooms when eligible
+  // Join Hackathon & Team socket rooms when eligible
   useEffect(() => {
     if (!user || !team) return;
     const hId = team.hackathonId;
@@ -289,7 +313,7 @@ export const TeamDetails: React.FC = () => {
         prev ? { ...prev, status: "DISBANDED", isOpen: false, memberCount: 0 } : prev
       );
       setRoster([]);
-      setSuccessMessage("This team has been disbanded by its leader.");
+      setSuccessMessage("This squad has been disbanded by its leader.");
     };
 
     const handleJoinRequestSubmitted = (payload: JoinRequestSubmittedPayload) => {
@@ -328,27 +352,29 @@ export const TeamDetails: React.FC = () => {
     };
   }, [socket, teamId, user?.id, leaveTeamRoom, fetchTeamData]);
 
+  // Loading skeleton
   if (loading) {
     return (
-      <div className="py-20 text-center space-y-4 max-w-5xl mx-auto px-4">
+      <div className="py-24 text-center space-y-4 max-w-5xl mx-auto px-4">
         <div className="animate-spin w-8 h-8 border-2 border-accent border-t-transparent rounded-full mx-auto" />
         <p className="text-xs text-ink-secondary">Loading squad workspace...</p>
       </div>
     );
   }
 
+  // Not found or network error state
   if (error && !team) {
     return (
-      <div className="py-20 text-center space-y-4 max-w-md mx-auto px-4">
+      <div className="py-24 text-center space-y-4 max-w-md mx-auto px-4">
         <div className="p-4 bg-danger-bg border border-[#FCA5A5] rounded text-danger text-sm">
-          {error || "Team not found."}
+          {error || "Squad workspace not found."}
         </div>
         <Link
           to="/teams-preview"
-          className="inline-flex items-center gap-1.5 text-xs font-semibold text-accent hover:underline"
+          className="inline-flex items-center gap-1.5 text-xs font-semibold text-accent hover:underline focus-visible:outline-2 focus-visible:outline-accent"
         >
           <ArrowLeft className="w-4 h-4" />
-          <span>Back to Teams</span>
+          <span>Back to Teams Directory</span>
         </Link>
       </div>
     );
@@ -356,32 +382,19 @@ export const TeamDetails: React.FC = () => {
 
   if (!team) return null;
 
-  const leaderIdStr =
-    typeof team.leaderId === "object" && team.leaderId !== null
-      ? team.leaderId.id
-      : String(team.leaderId);
-
-  const currentUserIdStr = user?.id || "";
-  const isLeader = leaderIdStr === currentUserIdStr;
-  const isMember = roster.some((m) => {
-    const memUserId = typeof m.userId === "object" ? m.userId.id : m.userId;
-    return memUserId === currentUserIdStr && m.status === "ACTIVE";
-  });
-
-  const isDisbanded = team.status === "DISBANDED";
   const hasAvailableSeats = team.memberCount < team.maxCapacity;
 
-  // Direct join handler (uses stable idempotency key)
+  // Mutation Handlers
   const handleDirectJoin = async () => {
     if (!user) {
-      navigate("/login");
+      navigate("/login", { state: { from: `/teams/${team.id}` } });
       return;
     }
     setActionLoading(true);
     setError(null);
     try {
       await apiJoinTeam(team.id, joinIdempotencyKey);
-      setSuccessMessage("Joined team successfully! Welcome to the crew.");
+      setSuccessMessage("Joined squad successfully! Welcome to the crew.");
       setJoinIdempotencyKey(generateIdempotencyKey());
       await fetchTeamData();
     } catch (err) {
@@ -391,7 +404,7 @@ export const TeamDetails: React.FC = () => {
           await fetchTeamData(true);
         }
       } else {
-        setError("Failed to join team.");
+        setError("Failed to join squad.");
       }
     } finally {
       setActionLoading(false);
@@ -408,11 +421,17 @@ export const TeamDetails: React.FC = () => {
         setApproveKeys((prev) => ({ ...prev, [requestId]: key }));
       }
       await apiApproveJoinRequest(team.id, requestId, key);
-      setSuccessMessage("Join request approved! Member added to the team.");
+      setSuccessMessage("Join application approved! Candidate admitted to the roster.");
       await fetchTeamData();
     } catch (err) {
-      if (err instanceof ApiClientError) setError(err.message);
-      else setError("Failed to approve join request.");
+      if (err instanceof ApiClientError) {
+        setError(err.message);
+        if (err.statusCode === 409) {
+          await fetchTeamData(true);
+        }
+      } else {
+        setError("Failed to approve join request.");
+      }
     } finally {
       setActionLoading(false);
     }
@@ -423,7 +442,7 @@ export const TeamDetails: React.FC = () => {
     setError(null);
     try {
       await apiRejectJoinRequest(team.id, requestId);
-      setSuccessMessage("Join request rejected.");
+      setSuccessMessage("Join application declined.");
       await fetchTeamData();
     } catch (err) {
       if (err instanceof ApiClientError) setError(err.message);
@@ -438,7 +457,7 @@ export const TeamDetails: React.FC = () => {
     setError(null);
     try {
       await apiRevokeInvitation(team.id, invitationId);
-      setSuccessMessage("Invitation revoked.");
+      setSuccessMessage("Invitation token revoked.");
       await fetchTeamData();
     } catch (err) {
       if (err instanceof ApiClientError) setError(err.message);
@@ -455,15 +474,15 @@ export const TeamDetails: React.FC = () => {
       if (team.isOpen) {
         const updated = await apiCloseTeam(team.id);
         setTeam(updated);
-        setSuccessMessage("Team closed from accepting new members.");
+        setSuccessMessage("Squad recruitment closed. Direct joins paused.");
       } else {
         const updated = await apiOpenTeam(team.id);
         setTeam(updated);
-        setSuccessMessage("Team is now open for new members!");
+        setSuccessMessage("Squad recruitment opened! Teammates may now join.");
       }
     } catch (err) {
       if (err instanceof ApiClientError) setError(err.message);
-      else setError("Failed to update open status.");
+      else setError("Failed to update recruitment status.");
     } finally {
       setActionLoading(false);
     }
@@ -475,7 +494,7 @@ export const TeamDetails: React.FC = () => {
     setError(null);
     try {
       await apiRemoveMember(team.id, memberToRemove.id);
-      setSuccessMessage(`Removed ${memberToRemove.name} from the team.`);
+      setSuccessMessage(`Removed ${memberToRemove.name} from the squad.`);
       setMemberToRemove(null);
       await fetchTeamData();
     } catch (err) {
@@ -492,15 +511,15 @@ export const TeamDetails: React.FC = () => {
     try {
       const result = await apiLeaveTeam(team.id);
       if (result.disbanded) {
-        setSuccessMessage("You left the team. As the sole member, the team was disbanded.");
+        setSuccessMessage("You left the squad. As the sole member, the squad was disbanded.");
         navigate("/teams-preview");
       } else {
-        setSuccessMessage("You have left the team.");
+        setSuccessMessage("You have left the squad.");
         navigate("/teams-preview");
       }
     } catch (err) {
       if (err instanceof ApiClientError) setError(err.message);
-      else setError("Failed to leave team.");
+      else setError("Failed to leave squad.");
     } finally {
       setActionLoading(false);
       setConfirmLeave(false);
@@ -512,12 +531,12 @@ export const TeamDetails: React.FC = () => {
     setError(null);
     try {
       await apiDisbandTeam(team.id);
-      setSuccessMessage("Team has been successfully disbanded.");
+      setSuccessMessage("Squad has been successfully disbanded.");
       setConfirmDisband(false);
       await fetchTeamData();
     } catch (err) {
       if (err instanceof ApiClientError) setError(err.message);
-      else setError("Failed to disband team.");
+      else setError("Failed to disband squad.");
     } finally {
       setActionLoading(false);
     }
@@ -525,17 +544,6 @@ export const TeamDetails: React.FC = () => {
 
   return (
     <div className="max-w-6xl mx-auto py-10 px-4 sm:px-6 lg:px-8 space-y-8 pane-enter">
-      {/* Top Directory Backlink */}
-      <div>
-        <Link
-          to="/teams-preview"
-          className="inline-flex items-center gap-1.5 text-xs font-semibold text-ink-secondary hover:text-ink-primary transition-colors"
-        >
-          <ArrowLeft className="w-3.5 h-3.5" />
-          <span>Back to Teams Directory</span>
-        </Link>
-      </div>
-
       {/* Notifications */}
       {successMessage && (
         <div className="p-3.5 bg-positive-bg border border-[#BBF7D0] rounded flex items-center justify-between text-positive text-xs">
@@ -567,200 +575,78 @@ export const TeamDetails: React.FC = () => {
         </div>
       )}
 
-      {/* Team Header Dossier Banner */}
-      <div className="bg-surface border border-border-strong rounded-lg p-6 sm:p-8 space-y-6 shadow-xs">
-        <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-4">
-          <div className="space-y-2">
-            <div className="flex flex-wrap items-center gap-2.5">
-              <h1 className="text-3xl sm:text-4xl font-serif font-medium text-ink-primary tracking-tight">
-                {team.name}
-              </h1>
-              {isDisbanded ? (
-                <span className="status-label status-danger">DISBANDED</span>
-              ) : (
-                <span className="status-label status-open">ACTIVE</span>
-              )}
-              {!isDisbanded && (
-                <span className={`status-label ${team.isOpen ? "status-open" : "status-full"}`}>
-                  {team.isOpen ? "RECRUITING" : "CLOSED"}
-                </span>
-              )}
-            </div>
+      {/* Dossier Header */}
+      <WorkspaceHeader
+        team={team}
+        roster={roster}
+        userRole={userRole}
+        actionLoading={actionLoading}
+        connectionState={connectionState}
+        onEditTeam={() => setIsEditModalOpen(true)}
+        onToggleOpenStatus={handleToggleOpenStatus}
+        onCreateInvite={() => setIsCreateInviteModalOpen(true)}
+        onDirectJoin={handleDirectJoin}
+        onRequestJoin={() => {
+          if (!user) {
+            navigate("/login", { state: { from: `/teams/${team.id}` } });
+            return;
+          }
+          setIsJoinRequestModalOpen(true);
+        }}
+        onRedeemToken={() => {
+          if (!user) {
+            navigate("/login", { state: { from: `/teams/${team.id}` } });
+            return;
+          }
+          setIsRedeemModalOpen(true);
+        }}
+        onLeaveTeam={() => setConfirmLeave(true)}
+        onDisbandTeam={() => setConfirmDisband(true)}
+      />
 
-            {team.tagline && (
-              <p className="text-sm text-ink-secondary font-medium">{team.tagline}</p>
-            )}
-            {team.description && (
-              <p className="text-xs text-ink-secondary max-w-3xl leading-relaxed pt-1">
-                {team.description}
-              </p>
-            )}
-            {team.skillsNeeded && team.skillsNeeded.length > 0 && (
-              <div className="flex flex-wrap items-center gap-1.5 pt-2">
-                {team.skillsNeeded.map((skill) => (
-                  <span
-                    key={skill}
-                    className="text-[11px] font-medium px-2 py-0.5 rounded-sm bg-surface-tonal border border-border-subtle text-ink-secondary"
-                  >
-                    {skill}
-                  </span>
-                ))}
-              </div>
-            )}
-          </div>
+      {/* Workspace Tabs Navigation Bar */}
+      <div className="flex items-center gap-6 border-b border-border-subtle overflow-x-auto text-sm font-medium scrollbar-none">
+        <button
+          onClick={() => setActiveTab("overview")}
+          className={`pb-3 border-b-2 transition-colors cursor-pointer whitespace-nowrap inline-flex items-center gap-1.5 ${
+            activeTab === "overview"
+              ? "border-accent text-ink-primary font-semibold"
+              : "border-transparent text-ink-secondary hover:text-ink-primary"
+          }`}
+        >
+          <LayoutDashboard className="w-4 h-4" />
+          <span>Overview</span>
+        </button>
 
-          <div className="flex flex-col items-start sm:items-end gap-2 flex-shrink-0">
-            <CapacityBadge
-              memberCount={team.memberCount}
-              maxCapacity={team.maxCapacity}
-              isOpen={team.isOpen}
-              variant="indicator"
-            />
-            {isLeader && (
-              <span className="text-[11px] font-semibold text-accent bg-accent-tint px-2 py-0.5 rounded">
-                Leader permissions active
-              </span>
-            )}
-          </div>
-        </div>
-
-        {/* Action Toolbar for Members / Leaders */}
-        {!isDisbanded && (
-          <div className="pt-4 border-t border-border-subtle flex flex-wrap items-center justify-between gap-3">
-            <div className="flex flex-wrap items-center gap-2">
-              {isLeader && (
-                <>
-                  <button
-                    onClick={() => setIsEditModalOpen(true)}
-                    className="btn btn-secondary text-xs h-9 px-3.5 cursor-pointer"
-                  >
-                    <Edit className="w-3.5 h-3.5" />
-                    <span>Edit Team</span>
-                  </button>
-
-                  <button
-                    onClick={handleToggleOpenStatus}
-                    disabled={
-                      actionLoading || (team.memberCount >= team.maxCapacity && !team.isOpen)
-                    }
-                    className="btn btn-secondary text-xs h-9 px-3.5 cursor-pointer"
-                  >
-                    {team.isOpen ? (
-                      <>
-                        <DoorClosed className="w-3.5 h-3.5" />
-                        <span>Close Recruiting</span>
-                      </>
-                    ) : (
-                      <>
-                        <DoorOpen className="w-3.5 h-3.5" />
-                        <span>Open Recruiting</span>
-                      </>
-                    )}
-                  </button>
-
-                  <button
-                    onClick={() => setIsCreateInviteModalOpen(true)}
-                    className="btn btn-primary text-xs h-9 px-3.5 cursor-pointer"
-                  >
-                    <Key className="w-3.5 h-3.5" />
-                    <span>Create Invite Link</span>
-                  </button>
-                </>
-              )}
-
-              {!isMember && (
-                <>
-                  <button
-                    onClick={handleDirectJoin}
-                    disabled={actionLoading || !team.isOpen || !hasAvailableSeats}
-                    className="btn btn-primary text-xs h-9 px-4 cursor-pointer"
-                  >
-                    {actionLoading ? "Claiming seat..." : "Instant direct join"}
-                  </button>
-
-                  <button
-                    onClick={() => {
-                      if (!user) {
-                        navigate("/login", { state: { from: `/teams/${team.id}` } });
-                        return;
-                      }
-                      setIsJoinRequestModalOpen(true);
-                    }}
-                    disabled={actionLoading || !team.isOpen || !hasAvailableSeats}
-                    className="btn btn-secondary text-xs h-9 px-4 cursor-pointer"
-                  >
-                    <Send className="w-3.5 h-3.5" />
-                    <span>Request to join</span>
-                  </button>
-
-                  <button
-                    onClick={() => {
-                      if (!user) {
-                        navigate("/login", { state: { from: `/teams/${team.id}` } });
-                        return;
-                      }
-                      setIsRedeemModalOpen(true);
-                    }}
-                    className="btn btn-ghost text-xs h-9 px-3 cursor-pointer"
-                  >
-                    <Ticket className="w-3.5 h-3.5" />
-                    <span>Redeem token</span>
-                  </button>
-                </>
-              )}
-            </div>
-
-            <div className="flex items-center gap-2">
-              {isMember && !isLeader && (
-                <button
-                  onClick={() => setConfirmLeave(true)}
-                  className="btn btn-secondary text-xs h-9 px-3.5 cursor-pointer text-danger hover:border-danger hover:text-danger"
-                >
-                  <LogOut className="w-3.5 h-3.5" />
-                  <span>Leave Team</span>
-                </button>
-              )}
-
-              {isLeader && (
-                <button
-                  onClick={() => setConfirmDisband(true)}
-                  className="btn btn-secondary text-xs h-9 px-3.5 cursor-pointer text-danger hover:border-danger hover:text-danger"
-                >
-                  <Trash2 className="w-3.5 h-3.5" />
-                  <span>Disband Squad</span>
-                </button>
-              )}
-            </div>
-          </div>
-        )}
-      </div>
-
-      {/* Tabs Navigation */}
-      <div className="flex items-center gap-6 border-b border-border-subtle overflow-x-auto text-sm font-medium">
         <button
           onClick={() => setActiveTab("roster")}
-          className={`pb-3 border-b-2 transition-colors cursor-pointer whitespace-nowrap ${
+          className={`pb-3 border-b-2 transition-colors cursor-pointer whitespace-nowrap inline-flex items-center gap-1.5 ${
             activeTab === "roster"
               ? "border-accent text-ink-primary font-semibold"
               : "border-transparent text-ink-secondary hover:text-ink-primary"
           }`}
         >
-          Roster & Mission
+          <Users className="w-4 h-4" />
+          <span>Roster</span>
+          <span className="text-[10px] bg-surface-tonal text-ink-secondary px-1.5 py-0.2 rounded-full tabular">
+            {roster.length}/{team.maxCapacity}
+          </span>
         </button>
 
         {isLeader && (
           <>
             <button
               onClick={() => setActiveTab("requests")}
-              className={`pb-3 border-b-2 transition-colors cursor-pointer whitespace-nowrap flex items-center gap-1.5 ${
+              className={`pb-3 border-b-2 transition-colors cursor-pointer whitespace-nowrap inline-flex items-center gap-1.5 ${
                 activeTab === "requests"
                   ? "border-accent text-ink-primary font-semibold"
                   : "border-transparent text-ink-secondary hover:text-ink-primary"
               }`}
             >
+              <Inbox className="w-4 h-4" />
               <span>Join Requests</span>
               {joinRequests.length > 0 && (
-                <span className="text-[10px] bg-accent-tint text-accent px-1.5 py-0.2 rounded-full tabular">
+                <span className="text-[10px] bg-accent-tint text-accent font-semibold px-1.5 py-0.2 rounded-full tabular">
                   {joinRequests.length}
                 </span>
               )}
@@ -768,12 +654,13 @@ export const TeamDetails: React.FC = () => {
 
             <button
               onClick={() => setActiveTab("invitations")}
-              className={`pb-3 border-b-2 transition-colors cursor-pointer whitespace-nowrap flex items-center gap-1.5 ${
+              className={`pb-3 border-b-2 transition-colors cursor-pointer whitespace-nowrap inline-flex items-center gap-1.5 ${
                 activeTab === "invitations"
                   ? "border-accent text-ink-primary font-semibold"
                   : "border-transparent text-ink-secondary hover:text-ink-primary"
               }`}
             >
+              <Key className="w-4 h-4" />
               <span>Invitations</span>
               {invitations.length > 0 && (
                 <span className="text-[10px] bg-surface-tonal text-ink-secondary px-1.5 py-0.2 rounded-full tabular">
@@ -785,521 +672,158 @@ export const TeamDetails: React.FC = () => {
         )}
 
         <button
-          onClick={() => setActiveTab("history")}
-          className={`pb-3 border-b-2 transition-colors cursor-pointer whitespace-nowrap ${
-            activeTab === "history"
+          onClick={() => setActiveTab("activity")}
+          className={`pb-3 border-b-2 transition-colors cursor-pointer whitespace-nowrap inline-flex items-center gap-1.5 ${
+            activeTab === "activity"
               ? "border-accent text-ink-primary font-semibold"
               : "border-transparent text-ink-secondary hover:text-ink-primary"
           }`}
         >
-          Activity History
+          <History className="w-4 h-4" />
+          <span>Audit Log</span>
+          {auditLogs.length > 0 && (
+            <span className="text-[10px] bg-surface-tonal text-ink-muted px-1.5 py-0.2 rounded-full tabular">
+              {auditLogs.length}
+            </span>
+          )}
         </button>
 
         {isLeader && (
           <button
             onClick={() => setActiveTab("settings")}
-            className={`pb-3 border-b-2 transition-colors cursor-pointer whitespace-nowrap ${
+            className={`pb-3 border-b-2 transition-colors cursor-pointer whitespace-nowrap inline-flex items-center gap-1.5 ${
               activeTab === "settings"
                 ? "border-accent text-ink-primary font-semibold"
                 : "border-transparent text-ink-secondary hover:text-ink-primary"
             }`}
           >
-            Settings
+            <Settings className="w-4 h-4" />
+            <span>Settings</span>
           </button>
         )}
       </div>
 
-      {/* Tab Panels */}
-      {activeTab === "roster" && (
-        <div className="space-y-6 pane-enter">
-          <div className="bg-surface border border-border-subtle rounded-lg p-6 space-y-4">
-            <div className="flex items-center justify-between pb-3 border-b border-border-subtle">
-              <h2 className="text-base font-serif font-medium text-ink-primary">
-                Squad Members ({roster.length} / {team.maxCapacity})
-              </h2>
-              {isLeader && hasAvailableSeats && (
-                <button
-                  onClick={() => setIsCreateInviteModalOpen(true)}
-                  className="btn btn-secondary text-xs h-8 px-3 cursor-pointer"
-                >
-                  <Key className="w-3 h-3" />
-                  <span>Create invite link</span>
-                </button>
-              )}
-            </div>
-
-            <div className="divide-y divide-border-subtle">
-              {roster.map((member) => {
-                const mUser = typeof member.userId === "object" ? member.userId : null;
-                const mId = mUser ? mUser.id : String(member.userId);
-                const mName = mUser ? mUser.displayName : "Member";
-                const isMemberLeader = member.role === "LEADER";
-
-                return (
-                  <div
-                    key={member.id}
-                    className="py-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3"
-                  >
-                    <div className="flex items-center gap-3.5">
-                      <Avatar name={mName} size="md" />
-                      <div>
-                        <div className="flex items-center gap-2">
-                          <span className="font-semibold text-sm text-ink-primary">{mName}</span>
-                          {isMemberLeader && (
-                            <span className="text-[10px] font-semibold text-accent bg-accent-tint px-2 py-0.5 rounded">
-                              Leader
-                            </span>
-                          )}
-                        </div>
-                        <div className="text-xs text-ink-secondary mt-0.5">
-                          {mUser?.skills && mUser.skills.length > 0 ? (
-                            <span>{mUser.skills.join(", ")}</span>
-                          ) : (
-                            <span className="text-ink-muted italic">No public skills listed</span>
-                          )}
-                        </div>
-                      </div>
-                    </div>
-
-                    <div className="flex items-center gap-3 self-end sm:self-auto">
-                      <span className="text-xs text-ink-muted tabular">
-                        Joined {new Date(member.joinedAt).toLocaleDateString()}
-                      </span>
-
-                      {isLeader && !isMemberLeader && (
-                        <div className="flex items-center gap-2">
-                          <button
-                            onClick={() => setIsTransferModalOpen(true)}
-                            className="text-xs text-ink-secondary hover:text-accent font-medium cursor-pointer"
-                          >
-                            Transfer leadership
-                          </button>
-                          <button
-                            onClick={() => setMemberToRemove({ id: mId, name: mName })}
-                            className="text-xs text-danger hover:underline font-medium cursor-pointer"
-                          >
-                            Remove
-                          </button>
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-
-            {/* Vacancy Callout */}
-            {hasAvailableSeats && !isDisbanded && (
-              <div className="p-4 rounded border border-dashed border-border-control bg-ground/60 flex flex-col sm:flex-row sm:items-center justify-between gap-3 mt-4">
-                <div>
-                  <span className="text-xs font-semibold text-accent block">
-                    Open Seat {roster.length + 1} — Seeking Collaborator
-                  </span>
-                  <p className="text-[11px] text-ink-secondary mt-0.5">
-                    Share an invite token or open direct join to allow teammates to claim this
-                    vacancy.
-                  </p>
-                </div>
-                {isLeader && (
-                  <button
-                    onClick={() => setIsCreateInviteModalOpen(true)}
-                    className="btn btn-primary text-xs h-8 px-3 cursor-pointer shrink-0"
-                  >
-                    Create invite link
-                  </button>
-                )}
-              </div>
-            )}
-          </div>
-        </div>
-      )}
-
-      {/* Join Requests Tab */}
-      {activeTab === "requests" && isLeader && (
-        <div className="bg-surface border border-border-subtle rounded-lg p-6 space-y-4 pane-enter">
-          <h2 className="text-base font-serif font-medium text-ink-primary">
-            Pending Join Applications ({joinRequests.length})
-          </h2>
-
-          {joinRequests.length === 0 ? (
-            <p className="text-xs text-ink-muted py-6 text-center italic">
-              No pending join requests awaiting review.
-            </p>
-          ) : (
-            <div className="divide-y divide-border-subtle">
-              {joinRequests.map((req) => {
-                const reqUser = typeof req.userId === "object" ? req.userId : null;
-                const reqName = reqUser ? reqUser.displayName : "Applicant";
-
-                return (
-                  <div key={req.id} className="py-4 space-y-3">
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-3">
-                        <Avatar name={reqName} size="sm" />
-                        <div>
-                          <span className="font-semibold text-sm text-ink-primary">{reqName}</span>
-                          {reqUser?.email && (
-                            <span className="text-xs text-ink-muted ml-2">{reqUser.email}</span>
-                          )}
-                        </div>
-                      </div>
-                      <span className="text-xs text-ink-muted tabular">
-                        {new Date(req.createdAt).toLocaleDateString()}
-                      </span>
-                    </div>
-
-                    {req.message && (
-                      <p className="text-xs text-ink-secondary bg-surface-tonal p-3 rounded border border-border-subtle leading-relaxed">
-                        "{req.message}"
-                      </p>
-                    )}
-
-                    <div className="flex items-center justify-end gap-2 pt-1">
-                      <button
-                        onClick={() => handleRejectRequest(req.id)}
-                        disabled={actionLoading}
-                        className="btn btn-secondary text-xs h-8 px-3 cursor-pointer text-ink-secondary hover:text-danger"
-                      >
-                        Decline
-                      </button>
-                      <button
-                        onClick={() => handleApproveRequest(req.id)}
-                        disabled={actionLoading || !hasAvailableSeats}
-                        className="btn btn-primary text-xs h-8 px-3 cursor-pointer"
-                      >
-                        {actionLoading ? "Processing..." : "Approve & add to roster"}
-                      </button>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          )}
-        </div>
-      )}
-
-      {/* Invitations Tab */}
-      {activeTab === "invitations" && isLeader && (
-        <div className="bg-surface border border-border-subtle rounded-lg p-6 space-y-4 pane-enter">
-          <div className="flex items-center justify-between pb-3 border-b border-border-subtle">
-            <h2 className="text-base font-serif font-medium text-ink-primary">
-              Active Invitation Links ({invitations.length})
-            </h2>
-            <button
-              onClick={() => setIsCreateInviteModalOpen(true)}
-              className="btn btn-primary text-xs h-8 px-3 cursor-pointer"
-            >
-              <Key className="w-3 h-3" />
-              <span>Create Token</span>
-            </button>
-          </div>
-
-          {invitations.length === 0 ? (
-            <p className="text-xs text-ink-muted py-6 text-center italic">
-              No active invitations generated yet.
-            </p>
-          ) : (
-            <div className="divide-y divide-border-subtle text-xs">
-              {invitations.map((inv) => (
-                <div
-                  key={inv.id}
-                  className="py-3.5 flex flex-col sm:flex-row sm:items-center justify-between gap-3"
-                >
-                  <div>
-                    <span className="font-mono text-ink-primary font-semibold block">{inv.id}</span>
-                    <span className="text-[11px] text-ink-muted mt-0.5 block tabular">
-                      Uses: {inv.usesCount} / {inv.maxUses} • Expires:{" "}
-                      {new Date(inv.expiresAt).toLocaleDateString()}
-                    </span>
-                  </div>
-
-                  <div className="flex items-center gap-2">
-                    <span className="px-2 py-0.5 rounded text-[10px] font-semibold bg-accent-tint text-accent">
-                      {inv.status}
-                    </span>
-                    <button
-                      onClick={() => handleRevokeInvitation(inv.id)}
-                      disabled={actionLoading}
-                      className="text-danger hover:underline text-xs cursor-pointer font-medium ml-2"
-                    >
-                      Revoke
-                    </button>
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
-      )}
-
-      {/* Activity History Tab */}
-      {activeTab === "history" && (
-        <div className="bg-surface border border-border-subtle rounded-lg p-6 space-y-4 pane-enter">
-          <h2 className="text-base font-serif font-medium text-ink-primary">
-            Audit Activity Log ({auditLogs.length})
-          </h2>
-          <p className="text-xs text-ink-muted">
-            Immutable log trail recorded with transactional guarantees.
-          </p>
-
-          {auditLogs.length === 0 ? (
-            <p className="text-xs text-ink-secondary py-6 text-center italic">
-              No audit logs recorded for this squad.
-            </p>
-          ) : (
-            <div className="divide-y divide-border-subtle text-xs">
-              {auditLogs.map((log) => {
-                const actorName =
-                  typeof log.actorId === "object" ? log.actorId.displayName : "Member";
-
-                return (
-                  <div key={log.id} className="py-3 flex items-start justify-between gap-3">
-                    <div className="flex items-start gap-2.5">
-                      <Avatar name={actorName} size="sm" />
-                      <div>
-                        <span className="font-medium text-ink-primary">{actorName}</span>{" "}
-                        <span className="text-ink-secondary">
-                          {log.action.toLowerCase().replace(/_/g, " ")}
-                        </span>
-                        {log.metadata && Object.keys(log.metadata).length > 0 && (
-                          <span className="text-[11px] text-ink-muted block mt-0.5 font-mono">
-                            {JSON.stringify(log.metadata)}
-                          </span>
-                        )}
-                      </div>
-                    </div>
-                    <span className="text-ink-muted tabular text-[11px] flex-shrink-0">
-                      {new Date(log.timestamp).toLocaleTimeString([], {
-                        hour: "2-digit",
-                        minute: "2-digit",
-                      })}
-                    </span>
-                  </div>
-                );
-              })}
-            </div>
-          )}
-        </div>
-      )}
-
-      {/* Settings Tab */}
-      {activeTab === "settings" && isLeader && (
-        <div className="bg-surface border border-border-subtle rounded-lg p-6 space-y-6 pane-enter">
-          <h2 className="text-base font-serif font-medium text-ink-primary pb-3 border-b border-border-subtle">
-            Squad Settings & Control
-          </h2>
-
-          <div className="space-y-4">
-            <div className="flex items-center justify-between pb-4 border-b border-border-subtle">
-              <div>
-                <h3 className="text-sm font-semibold text-ink-primary">Recruiting Status</h3>
-                <p className="text-xs text-ink-secondary mt-0.5">
-                  When open, other participants can request or claim seats.
-                </p>
-              </div>
-              <button
-                onClick={handleToggleOpenStatus}
-                disabled={actionLoading}
-                className={`btn text-xs h-9 px-4 cursor-pointer ${
-                  team.isOpen ? "btn-secondary" : "btn-primary"
-                }`}
-              >
-                {team.isOpen ? "Close Recruiting" : "Open Recruiting"}
-              </button>
-            </div>
-
-            <div className="flex items-center justify-between pb-4 border-b border-border-subtle">
-              <div>
-                <h3 className="text-sm font-semibold text-ink-primary">
-                  Transfer Squad Leadership
-                </h3>
-                <p className="text-xs text-ink-secondary mt-0.5">
-                  Appoint another active member as the primary leader.
-                </p>
-              </div>
-              <button
-                onClick={() => setIsTransferModalOpen(true)}
-                className="btn btn-secondary text-xs h-9 px-4 cursor-pointer"
-              >
-                Transfer Leadership
-              </button>
-            </div>
-
-            <div className="flex items-center justify-between pt-2">
-              <div>
-                <h3 className="text-sm font-semibold text-danger">Disband Squad</h3>
-                <p className="text-xs text-ink-secondary mt-0.5">
-                  Permanently disbands the squad and releases all allocated seats.
-                </p>
-              </div>
-              <button
-                onClick={() => setConfirmDisband(true)}
-                className="btn btn-danger text-xs h-9 px-4 cursor-pointer"
-              >
-                Disband Squad
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Confirmation Dialogs */}
-      {confirmDisband && (
-        <div
-          role="dialog"
-          aria-modal="true"
-          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-ink-primary/40 backdrop-blur-xs pane-enter"
-        >
-          <div className="bg-surface border border-border-strong rounded-lg w-full max-w-md p-6 space-y-4 shadow-xl">
-            <h3 className="text-lg font-serif font-medium text-ink-primary">
-              Confirm Disbanding Squad
-            </h3>
-            <p className="text-xs text-ink-secondary leading-relaxed">
-              Are you sure you want to disband <strong>{team.name}</strong>? This action cannot be
-              reversed, and all members will be released.
-            </p>
-            <div className="flex justify-end gap-3 pt-2">
-              <button
-                onClick={() => setConfirmDisband(false)}
-                className="btn btn-secondary text-xs h-9 px-4 cursor-pointer"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={handleDisbandTeam}
-                disabled={actionLoading}
-                className="btn btn-danger text-xs h-9 px-4 cursor-pointer"
-              >
-                {actionLoading ? "Disbanding..." : "Confirm Disband"}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {confirmLeave && (
-        <div
-          role="dialog"
-          aria-modal="true"
-          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-ink-primary/40 backdrop-blur-xs pane-enter"
-        >
-          <div className="bg-surface border border-border-strong rounded-lg w-full max-w-md p-6 space-y-4 shadow-xl">
-            <h3 className="text-lg font-serif font-medium text-ink-primary">Leave Squad</h3>
-            <p className="text-xs text-ink-secondary leading-relaxed">
-              Are you sure you want to leave <strong>{team.name}</strong>? Your allocated seat will
-              immediately become vacant.
-            </p>
-            <div className="flex justify-end gap-3 pt-2">
-              <button
-                onClick={() => setConfirmLeave(false)}
-                className="btn btn-secondary text-xs h-9 px-4 cursor-pointer"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={handleLeaveTeam}
-                disabled={actionLoading}
-                className="btn btn-danger text-xs h-9 px-4 cursor-pointer"
-              >
-                {actionLoading ? "Leaving..." : "Confirm Leave"}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {memberToRemove && (
-        <div
-          role="dialog"
-          aria-modal="true"
-          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-ink-primary/40 backdrop-blur-xs pane-enter"
-        >
-          <div className="bg-surface border border-border-strong rounded-lg w-full max-w-md p-6 space-y-4 shadow-xl">
-            <h3 className="text-lg font-serif font-medium text-ink-primary">Remove Member</h3>
-            <p className="text-xs text-ink-secondary leading-relaxed">
-              Remove <strong>{memberToRemove.name}</strong> from the squad? Their reserved seat will
-              be opened.
-            </p>
-            <div className="flex justify-end gap-3 pt-2">
-              <button
-                onClick={() => setMemberToRemove(null)}
-                className="btn btn-secondary text-xs h-9 px-4 cursor-pointer"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={handleRemoveMember}
-                disabled={actionLoading}
-                className="btn btn-danger text-xs h-9 px-4 cursor-pointer"
-              >
-                {actionLoading ? "Removing..." : "Remove Member"}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Modals */}
-      {isEditModalOpen && team && (
-        <EditTeamModal
+      {/* Active Tab Panel */}
+      {activeTab === "overview" && (
+        <WorkspaceOverviewTab
           team={team}
-          isOpen={isEditModalOpen}
-          onClose={() => setIsEditModalOpen(false)}
-          onTeamUpdated={(updatedTeam) => {
-            setTeam(updatedTeam);
-            setSuccessMessage("Team details updated successfully.");
+          roster={roster}
+          auditLogs={auditLogs}
+          userRole={userRole}
+          onSwitchTab={(tab) => setActiveTab(tab)}
+          onCreateInvite={() => setIsCreateInviteModalOpen(true)}
+          onRequestJoin={() => {
+            if (!user) {
+              navigate("/login", { state: { from: `/teams/${team.id}` } });
+              return;
+            }
+            setIsJoinRequestModalOpen(true);
+          }}
+          onDirectJoin={handleDirectJoin}
+        />
+      )}
+
+      {activeTab === "roster" && (
+        <WorkspaceRosterTab
+          team={team}
+          roster={roster}
+          userRole={userRole}
+          currentUserId={user?.id}
+          onTransferLeadership={() => setIsTransferModalOpen(true)}
+          onRemoveMember={(member) => setMemberToRemove(member)}
+          onCreateInvite={() => setIsCreateInviteModalOpen(true)}
+          onDirectJoin={handleDirectJoin}
+          onRequestJoin={() => {
+            if (!user) {
+              navigate("/login", { state: { from: `/teams/${team.id}` } });
+              return;
+            }
+            setIsJoinRequestModalOpen(true);
           }}
         />
       )}
 
-      {isTransferModalOpen && team && (
-        <TransferLeadershipModal
-          teamId={team.id}
-          members={roster}
-          currentLeaderId={leaderIdStr}
-          isOpen={isTransferModalOpen}
-          onClose={() => setIsTransferModalOpen(false)}
-          onTransferred={() => {
-            setSuccessMessage("Leadership transferred successfully.");
-            fetchTeamData();
-          }}
+      {activeTab === "requests" && (
+        <WorkspaceRequestsTab
+          userRole={userRole}
+          joinRequests={joinRequests}
+          hasAvailableSeats={hasAvailableSeats}
+          actionLoading={actionLoading}
+          onApproveRequest={handleApproveRequest}
+          onRejectRequest={handleRejectRequest}
         />
       )}
 
-      {isJoinRequestModalOpen && team && (
-        <JoinRequestModal
-          isOpen={isJoinRequestModalOpen}
-          onClose={() => setIsJoinRequestModalOpen(false)}
-          teamId={team.id}
-          teamName={team.name}
-          onSuccess={() => {
-            setSuccessMessage("Join request submitted to squad leader.");
-          }}
+      {activeTab === "invitations" && (
+        <WorkspaceInvitationsTab
+          userRole={userRole}
+          invitations={invitations}
+          actionLoading={actionLoading}
+          onCreateInvite={() => setIsCreateInviteModalOpen(true)}
+          onRevokeInvitation={handleRevokeInvitation}
         />
       )}
 
-      {isCreateInviteModalOpen && team && (
-        <CreateInvitationModal
-          isOpen={isCreateInviteModalOpen}
-          onClose={() => setIsCreateInviteModalOpen(false)}
-          teamId={team.id}
-          teamName={team.name}
-          onSuccess={() => {
-            fetchTeamData();
-          }}
+      {activeTab === "activity" && (
+        <WorkspaceActivityTab userRole={userRole} auditLogs={auditLogs} />
+      )}
+
+      {activeTab === "settings" && (
+        <WorkspaceSettingsTab
+          userRole={userRole}
+          team={team}
+          actionLoading={actionLoading}
+          onToggleOpenStatus={handleToggleOpenStatus}
+          onEditTeam={() => setIsEditModalOpen(true)}
+          onTransferLeadership={() => setIsTransferModalOpen(true)}
+          onDisbandTeam={() => setConfirmDisband(true)}
         />
       )}
 
-      {isRedeemModalOpen && (
-        <RedeemInvitationModal
-          isOpen={isRedeemModalOpen}
-          onClose={() => setIsRedeemModalOpen(false)}
-          onSuccess={(newTeamId) => {
-            setSuccessMessage("Invitation redeemed successfully!");
-            navigate(`/teams/${newTeamId}`);
-          }}
-        />
-      )}
+      {/* Modals & Confirmation Dialogs */}
+      <WorkspaceModals
+        team={team}
+        roster={roster}
+        leaderIdStr={leaderIdStr}
+        actionLoading={actionLoading}
+        isEditModalOpen={isEditModalOpen}
+        isTransferModalOpen={isTransferModalOpen}
+        isJoinRequestModalOpen={isJoinRequestModalOpen}
+        isCreateInviteModalOpen={isCreateInviteModalOpen}
+        isRedeemModalOpen={isRedeemModalOpen}
+        confirmDisband={confirmDisband}
+        confirmLeave={confirmLeave}
+        memberToRemove={memberToRemove}
+        onCloseEdit={() => setIsEditModalOpen(false)}
+        onCloseTransfer={() => setIsTransferModalOpen(false)}
+        onCloseJoinRequest={() => setIsJoinRequestModalOpen(false)}
+        onCloseCreateInvite={() => setIsCreateInviteModalOpen(false)}
+        onCloseRedeem={() => setIsRedeemModalOpen(false)}
+        onCancelDisband={() => setConfirmDisband(false)}
+        onCancelLeave={() => setConfirmLeave(false)}
+        onCancelRemoveMember={() => setMemberToRemove(null)}
+        onTeamUpdated={(updatedTeam) => {
+          setTeam(updatedTeam);
+          setSuccessMessage("Squad details updated successfully.");
+        }}
+        onLeadershipTransferred={() => {
+          setSuccessMessage("Leadership transferred successfully.");
+          fetchTeamData();
+        }}
+        onJoinRequestSubmitted={() => {
+          setSuccessMessage("Join application submitted to squad leader.");
+        }}
+        onInviteCreated={() => {
+          fetchTeamData();
+        }}
+        onInvitationRedeemed={(newTeamId) => {
+          setSuccessMessage("Invitation redeemed successfully!");
+          navigate(`/teams/${newTeamId}`);
+        }}
+        onConfirmDisband={handleDisbandTeam}
+        onConfirmLeave={handleLeaveTeam}
+        onConfirmRemoveMember={handleRemoveMember}
+      />
     </div>
   );
 };
