@@ -63,10 +63,10 @@ export const WorkspaceActivityTab: React.FC<WorkspaceActivityTabProps> = ({
       {/* Header */}
       <div className="pb-4 border-b border-border-subtle">
         <h2 className="text-base font-serif font-medium text-ink-primary">
-          Audit Activity History (<span className="tabular">{auditLogs.length}</span>)
+          Team Audit History (<span className="tabular">{auditLogs.length}</span>)
         </h2>
         <p className="text-xs text-ink-secondary mt-0.5">
-          Immutable event stream recorded with transactional guarantees.
+          Persisted team activity and squad lifecycle events recorded in the database.
         </p>
       </div>
 

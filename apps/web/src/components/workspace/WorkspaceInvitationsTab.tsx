@@ -46,7 +46,7 @@ export const WorkspaceInvitationsTab: React.FC<WorkspaceInvitationsTabProps> = (
             Squad Invitation Tokens (<span className="tabular">{invitations.length}</span>)
           </h2>
           <p className="text-xs text-ink-secondary mt-0.5">
-            Cryptographic access keys granting direct admission to open squad seats.
+            Access tokens granting direct admission to open squad seats.
           </p>
         </div>
 
@@ -63,7 +63,7 @@ export const WorkspaceInvitationsTab: React.FC<WorkspaceInvitationsTabProps> = (
       <div className="p-3.5 bg-ground border border-border-subtle rounded text-xs text-ink-secondary flex items-start gap-2.5">
         <AlertCircle className="w-4 h-4 text-accent shrink-0 mt-0.5" />
         <div className="space-y-0.5">
-          <span className="font-semibold text-ink-primary block">Cryptographic Token Security</span>
+          <span className="font-semibold text-ink-primary block">Single-Reveal Token Policy</span>
           <p className="leading-relaxed">
             Invitation tokens are hashed with SHA-256 before database persistence. Raw tokens are
             only revealed once upon creation for copying.

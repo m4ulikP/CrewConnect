@@ -1,6 +1,7 @@
 import React, { useState } from "react";
 import { X, AlertCircle } from "lucide-react";
 import { apiAcceptInvitation, generateIdempotencyKey, ApiClientError } from "../lib/api";
+import { AccessibleDialog } from "./AccessibleDialog";
 
 interface RedeemInvitationModalProps {
   isOpen: boolean;
@@ -14,11 +15,17 @@ export const RedeemInvitationModal: React.FC<RedeemInvitationModalProps> = ({
   onSuccess,
 }) => {
   const [token, setToken] = useState("");
-  const [idempotencyKey] = useState(() => generateIdempotencyKey());
+  const [idempotencyKey, setIdempotencyKey] = useState(() => generateIdempotencyKey());
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   if (!isOpen) return null;
+
+  const handleTokenChange = (value: string) => {
+    setToken(value);
+    // Rotate key whenever the candidate token input changes so a different payload gets a fresh key
+    setIdempotencyKey(generateIdempotencyKey());
+  };
 
   const handleRedeem = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -33,6 +40,7 @@ export const RedeemInvitationModal: React.FC<RedeemInvitationModalProps> = ({
     try {
       const result = await apiAcceptInvitation(token.trim(), idempotencyKey);
       setToken("");
+      setIdempotencyKey(generateIdempotencyKey());
       onSuccess(result.teamId);
       onClose();
     } catch (err) {
@@ -47,24 +55,31 @@ export const RedeemInvitationModal: React.FC<RedeemInvitationModalProps> = ({
   };
 
   return (
-    <div
-      role="dialog"
-      aria-modal="true"
-      aria-labelledby="redeem-invitation-title"
-      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-ink-primary/40 backdrop-blur-xs pane-enter"
+    <AccessibleDialog
+      isOpen={isOpen}
+      onClose={onClose}
+      titleId="redeem-invitation-title"
+      descriptionId="redeem-invitation-description"
+      allowClose={!loading}
+      maxWidthClass="max-w-md"
     >
-      <div className="relative w-full max-w-md bg-surface border border-border-strong rounded-lg shadow-xl overflow-hidden">
+      <div>
         <div className="flex items-center justify-between px-6 py-4 border-b border-border-subtle bg-surface">
           <div>
-            <h2 id="redeem-invitation-title" className="text-xl font-serif font-medium text-ink-primary">
+            <h2
+              id="redeem-invitation-title"
+              className="text-xl font-serif font-medium text-ink-primary"
+            >
               Redeem Team Invitation
             </h2>
             <p className="text-xs text-ink-secondary mt-0.5">Enter secret token to join squad</p>
           </div>
           <button
+            type="button"
             onClick={onClose}
+            disabled={loading}
             aria-label="Close redeem dialog"
-            className="text-ink-muted hover:text-ink-primary p-1.5 rounded hover:bg-surface-tonal transition-colors cursor-pointer"
+            className="text-ink-muted hover:text-ink-primary p-1.5 rounded hover:bg-surface-tonal transition-colors cursor-pointer disabled:opacity-50"
           >
             <X className="w-5 h-5" />
           </button>
@@ -72,7 +87,11 @@ export const RedeemInvitationModal: React.FC<RedeemInvitationModalProps> = ({
 
         <form onSubmit={handleRedeem} className="p-6 space-y-4">
           {error && (
-            <div className="p-3 bg-danger-bg border border-[#FCA5A5] rounded flex items-start gap-2 text-danger text-xs">
+            <div
+              role="alert"
+              aria-live="assertive"
+              className="p-3 bg-danger-bg border border-[#FCA5A5] rounded flex items-start gap-2 text-danger text-xs"
+            >
               <AlertCircle className="w-4 h-4 shrink-0 mt-0.5 text-danger" />
               <span>{error}</span>
             </div>
@@ -86,11 +105,11 @@ export const RedeemInvitationModal: React.FC<RedeemInvitationModalProps> = ({
               id="invitation-token"
               type="text"
               value={token}
-              onChange={(e) => setToken(e.target.value)}
+              onChange={(e) => handleTokenChange(e.target.value)}
               placeholder="e.g. crew_7f8a9b..."
               className="form-input text-xs font-mono"
             />
-            <span className="text-[11px] text-ink-muted block">
+            <span id="redeem-invitation-description" className="text-[11px] text-ink-muted block">
               Redemption verifies vacancy and claims the reserved seat deterministically.
             </span>
           </div>
@@ -114,6 +133,6 @@ export const RedeemInvitationModal: React.FC<RedeemInvitationModalProps> = ({
           </div>
         </form>
       </div>
-    </div>
+    </AccessibleDialog>
   );
 };

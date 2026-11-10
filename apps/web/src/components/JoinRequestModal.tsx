@@ -1,6 +1,7 @@
 import React, { useState } from "react";
 import { X, AlertCircle } from "lucide-react";
 import { apiCreateJoinRequest, ApiClientError } from "../lib/api";
+import { AccessibleDialog } from "./AccessibleDialog";
 
 interface JoinRequestModalProps {
   isOpen: boolean;
@@ -45,13 +46,15 @@ export const JoinRequestModal: React.FC<JoinRequestModalProps> = ({
   };
 
   return (
-    <div
-      role="dialog"
-      aria-modal="true"
-      aria-labelledby="join-request-title"
-      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-ink-primary/40 backdrop-blur-xs pane-enter"
+    <AccessibleDialog
+      isOpen={isOpen}
+      onClose={onClose}
+      titleId="join-request-title"
+      descriptionId="join-request-description"
+      allowClose={!loading}
+      maxWidthClass="max-w-md"
     >
-      <div className="relative w-full max-w-md bg-surface border border-border-strong rounded-lg shadow-xl overflow-hidden">
+      <div>
         <div className="flex items-center justify-between px-6 py-4 border-b border-border-subtle bg-surface">
           <div>
             <h2 id="join-request-title" className="text-xl font-serif font-medium text-ink-primary">
@@ -60,9 +63,11 @@ export const JoinRequestModal: React.FC<JoinRequestModalProps> = ({
             <p className="text-xs text-ink-secondary mt-0.5">{teamName}</p>
           </div>
           <button
+            type="button"
             onClick={onClose}
+            disabled={loading}
             aria-label="Close request dialog"
-            className="text-ink-muted hover:text-ink-primary p-1.5 rounded hover:bg-surface-tonal transition-colors cursor-pointer"
+            className="text-ink-muted hover:text-ink-primary p-1.5 rounded hover:bg-surface-tonal transition-colors cursor-pointer disabled:opacity-50"
           >
             <X className="w-5 h-5" />
           </button>
@@ -70,7 +75,11 @@ export const JoinRequestModal: React.FC<JoinRequestModalProps> = ({
 
         <form onSubmit={handleSubmit} className="p-6 space-y-4">
           {error && (
-            <div className="p-3 bg-danger-bg border border-[#FCA5A5] rounded flex items-start gap-2 text-danger text-xs">
+            <div
+              role="alert"
+              aria-live="assertive"
+              className="p-3 bg-danger-bg border border-[#FCA5A5] rounded flex items-start gap-2 text-danger text-xs"
+            >
               <AlertCircle className="w-4 h-4 shrink-0 mt-0.5 text-danger" />
               <span>{error}</span>
             </div>
@@ -88,7 +97,7 @@ export const JoinRequestModal: React.FC<JoinRequestModalProps> = ({
               placeholder="Tell the leader about your skills and what you'd like to build together..."
               className="form-input text-xs py-2 h-auto"
             />
-            <span className="text-[11px] text-ink-muted block">
+            <span id="join-request-description" className="text-[11px] text-ink-muted block">
               The squad leader will review your application before admitting you to the roster.
             </span>
           </div>
@@ -112,6 +121,6 @@ export const JoinRequestModal: React.FC<JoinRequestModalProps> = ({
           </div>
         </form>
       </div>
-    </div>
+    </AccessibleDialog>
   );
 };

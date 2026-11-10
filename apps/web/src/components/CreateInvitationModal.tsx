@@ -1,6 +1,7 @@
 import React, { useState } from "react";
 import { X, Copy, Check, AlertCircle } from "lucide-react";
 import { apiCreateInvitation, ApiClientError } from "../lib/api";
+import { AccessibleDialog } from "./AccessibleDialog";
 
 interface CreateInvitationModalProps {
   isOpen: boolean;
@@ -67,24 +68,33 @@ export const CreateInvitationModal: React.FC<CreateInvitationModalProps> = ({
   };
 
   return (
-    <div
-      role="dialog"
-      aria-modal="true"
-      aria-labelledby="create-invitation-title"
-      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-ink-primary/40 backdrop-blur-xs pane-enter"
+    <AccessibleDialog
+      isOpen={isOpen}
+      onClose={handleClose}
+      titleId="create-invitation-title"
+      descriptionId="create-invitation-description"
+      allowClose={!loading && !createdToken}
+      maxWidthClass="max-w-md"
     >
-      <div className="relative w-full max-w-md bg-surface border border-border-strong rounded-lg shadow-xl overflow-hidden">
+      <div>
         <div className="flex items-center justify-between px-6 py-4 border-b border-border-subtle bg-surface">
           <div>
-            <h2 id="create-invitation-title" className="text-xl font-serif font-medium text-ink-primary">
+            <h2
+              id="create-invitation-title"
+              className="text-xl font-serif font-medium text-ink-primary"
+            >
               Generate Invitation Token
             </h2>
-            <p className="text-xs text-ink-secondary mt-0.5">{teamName}</p>
+            <p id="create-invitation-description" className="text-xs text-ink-secondary mt-0.5">
+              {teamName}
+            </p>
           </div>
           <button
+            type="button"
             onClick={handleClose}
+            disabled={loading}
             aria-label="Close invitation dialog"
-            className="text-ink-muted hover:text-ink-primary p-1.5 rounded hover:bg-surface-tonal transition-colors cursor-pointer"
+            className="text-ink-muted hover:text-ink-primary p-1.5 rounded hover:bg-surface-tonal transition-colors cursor-pointer disabled:opacity-50"
           >
             <X className="w-5 h-5" />
           </button>
@@ -92,7 +102,11 @@ export const CreateInvitationModal: React.FC<CreateInvitationModalProps> = ({
 
         <div className="p-6 space-y-4">
           {error && (
-            <div className="p-3 bg-danger-bg border border-[#FCA5A5] rounded flex items-start gap-2 text-danger text-xs">
+            <div
+              role="alert"
+              aria-live="assertive"
+              className="p-3 bg-danger-bg border border-[#FCA5A5] rounded flex items-start gap-2 text-danger text-xs"
+            >
               <AlertCircle className="w-4 h-4 shrink-0 mt-0.5 text-danger" />
               <span>{error}</span>
             </div>
@@ -103,14 +117,18 @@ export const CreateInvitationModal: React.FC<CreateInvitationModalProps> = ({
               <div className="p-4 rounded border border-[#BBF7D0] bg-positive-bg text-positive text-xs space-y-2">
                 <span className="font-semibold block">Invitation Token Generated</span>
                 <p className="text-[11px] leading-relaxed">
-                  Share this secret token with your candidate teammate. They can redeem it directly to join your squad without racing.
+                  Copy this token now. Only its SHA-256 hash is persisted on the server, so it will
+                  not be shown again once this dialog closes.
                 </p>
               </div>
 
               <div>
-                <label className="form-label">Single-Use Token</label>
+                <label htmlFor="generated-invitation-token" className="form-label">
+                  Single-Reveal Token
+                </label>
                 <div className="flex gap-2">
                   <input
+                    id="generated-invitation-token"
                     type="text"
                     readOnly
                     value={createdToken}
@@ -174,7 +192,9 @@ export const CreateInvitationModal: React.FC<CreateInvitationModalProps> = ({
                     min="1"
                     max="168"
                     value={expiresInHours}
-                    onChange={(e) => setExpiresInHours(Math.max(1, parseInt(e.target.value, 10) || 24))}
+                    onChange={(e) =>
+                      setExpiresInHours(Math.max(1, parseInt(e.target.value, 10) || 24))
+                    }
                     className="form-input text-xs"
                   />
                 </div>
@@ -215,6 +235,6 @@ export const CreateInvitationModal: React.FC<CreateInvitationModalProps> = ({
           )}
         </div>
       </div>
-    </div>
+    </AccessibleDialog>
   );
 };

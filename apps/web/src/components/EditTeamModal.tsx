@@ -1,6 +1,7 @@
 import React, { useState } from "react";
 import { X, AlertCircle } from "lucide-react";
 import { apiUpdateTeam, ApiClientError, type TeamRecord } from "../lib/api";
+import { AccessibleDialog } from "./AccessibleDialog";
 
 interface EditTeamModalProps {
   team: TeamRecord;
@@ -73,25 +74,31 @@ export const EditTeamModal: React.FC<EditTeamModalProps> = ({
   };
 
   return (
-    <div
-      role="dialog"
-      aria-modal="true"
-      aria-labelledby="edit-team-title"
-      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-ink-primary/40 backdrop-blur-xs pane-enter"
+    <AccessibleDialog
+      isOpen={isOpen}
+      onClose={onClose}
+      titleId="edit-team-title"
+      descriptionId="edit-team-description"
+      allowClose={!loading}
+      maxWidthClass="max-w-lg"
     >
-      <div className="bg-surface border border-border-strong rounded-lg w-full max-w-lg overflow-hidden shadow-xl flex flex-col max-h-[90vh]">
+      <div className="flex flex-col max-h-[90vh]">
         {/* Modal Header */}
         <div className="flex items-center justify-between px-6 py-4 border-b border-border-subtle bg-surface">
           <div>
             <h2 id="edit-team-title" className="text-xl font-serif font-medium text-ink-primary">
               Edit Team Details
             </h2>
-            <p className="text-xs text-ink-secondary">Update attributes and adjust squad capacity</p>
+            <p id="edit-team-description" className="text-xs text-ink-secondary">
+              Update attributes and adjust squad capacity
+            </p>
           </div>
           <button
+            type="button"
             onClick={onClose}
+            disabled={loading}
             aria-label="Close edit team dialog"
-            className="text-ink-muted hover:text-ink-primary p-1.5 rounded hover:bg-surface-tonal transition-colors cursor-pointer"
+            className="text-ink-muted hover:text-ink-primary p-1.5 rounded hover:bg-surface-tonal transition-colors cursor-pointer disabled:opacity-50"
           >
             <X className="w-5 h-5" />
           </button>
@@ -100,7 +107,11 @@ export const EditTeamModal: React.FC<EditTeamModalProps> = ({
         {/* Modal Body */}
         <form onSubmit={handleSubmit} className="p-6 overflow-y-auto space-y-4">
           {error && (
-            <div className="p-3 bg-danger-bg border border-[#FCA5A5] rounded flex items-start gap-2 text-danger text-xs">
+            <div
+              role="alert"
+              aria-live="assertive"
+              className="p-3 bg-danger-bg border border-[#FCA5A5] rounded flex items-start gap-2 text-danger text-xs"
+            >
               <AlertCircle className="w-4 h-4 shrink-0 mt-0.5 text-danger" />
               <span>{error}</span>
             </div>
@@ -235,6 +246,6 @@ export const EditTeamModal: React.FC<EditTeamModalProps> = ({
           </div>
         </form>
       </div>
-    </div>
+    </AccessibleDialog>
   );
 };

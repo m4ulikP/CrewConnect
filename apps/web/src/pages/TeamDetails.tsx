@@ -72,6 +72,7 @@ export const TeamDetails: React.FC = () => {
     leaveHackathonRoom,
   } = useSocket();
   const wasDisconnectedRef = useRef(false);
+  const actionInFlightRef = useRef(false);
 
   // Core squad state
   const [team, setTeam] = useState<TeamRecord | null>(null);
@@ -149,6 +150,7 @@ export const TeamDetails: React.FC = () => {
           setAuditLogs(logs);
         } catch {
           // Non-members receive 403 Forbidden on audit logs
+          setAuditLogs([]);
         }
 
         // Fetch join requests & invitations if user is squad leader
@@ -168,6 +170,9 @@ export const TeamDetails: React.FC = () => {
           } catch {
             // Non-leaders are rejected
           }
+        } else {
+          setJoinRequests([]);
+          setInvitations([]);
         }
       } catch (err) {
         if (!silent) {
@@ -384,34 +389,39 @@ export const TeamDetails: React.FC = () => {
 
   const hasAvailableSeats = team.memberCount < team.maxCapacity;
 
-  // Mutation Handlers
+  // Mutation Handlers (guarded with synchronous single-flight ref)
   const handleDirectJoin = async () => {
     if (!user) {
       navigate("/login", { state: { from: `/teams/${team.id}` } });
       return;
     }
+    if (actionInFlightRef.current) return;
+    actionInFlightRef.current = true;
     setActionLoading(true);
     setError(null);
     try {
       await apiJoinTeam(team.id, joinIdempotencyKey);
       setSuccessMessage("Joined squad successfully! Welcome to the crew.");
       setJoinIdempotencyKey(generateIdempotencyKey());
-      await fetchTeamData();
+      await fetchTeamData(true);
     } catch (err) {
       if (err instanceof ApiClientError) {
         setError(err.message);
-        if (err.statusCode === 409) {
+        if (err.statusCode === 409 || err.statusCode === 400) {
           await fetchTeamData(true);
         }
       } else {
         setError("Failed to join squad.");
       }
     } finally {
+      actionInFlightRef.current = false;
       setActionLoading(false);
     }
   };
 
   const handleApproveRequest = async (requestId: string) => {
+    if (actionInFlightRef.current) return;
+    actionInFlightRef.current = true;
     setActionLoading(true);
     setError(null);
     try {
@@ -422,52 +432,73 @@ export const TeamDetails: React.FC = () => {
       }
       await apiApproveJoinRequest(team.id, requestId, key);
       setSuccessMessage("Join application approved! Candidate admitted to the roster.");
-      await fetchTeamData();
+      await fetchTeamData(true);
     } catch (err) {
       if (err instanceof ApiClientError) {
         setError(err.message);
-        if (err.statusCode === 409) {
+        if (err.statusCode === 409 || err.statusCode === 400) {
           await fetchTeamData(true);
         }
       } else {
         setError("Failed to approve join request.");
       }
     } finally {
+      actionInFlightRef.current = false;
       setActionLoading(false);
     }
   };
 
   const handleRejectRequest = async (requestId: string) => {
+    if (actionInFlightRef.current) return;
+    actionInFlightRef.current = true;
     setActionLoading(true);
     setError(null);
     try {
       await apiRejectJoinRequest(team.id, requestId);
       setSuccessMessage("Join application declined.");
-      await fetchTeamData();
+      await fetchTeamData(true);
     } catch (err) {
-      if (err instanceof ApiClientError) setError(err.message);
-      else setError("Failed to reject join request.");
+      if (err instanceof ApiClientError) {
+        setError(err.message);
+        if (err.statusCode === 409 || err.statusCode === 400) {
+          await fetchTeamData(true);
+        }
+      } else {
+        setError("Failed to reject join request.");
+      }
     } finally {
+      actionInFlightRef.current = false;
       setActionLoading(false);
     }
   };
 
   const handleRevokeInvitation = async (invitationId: string) => {
+    if (actionInFlightRef.current) return;
+    actionInFlightRef.current = true;
     setActionLoading(true);
     setError(null);
     try {
       await apiRevokeInvitation(team.id, invitationId);
       setSuccessMessage("Invitation token revoked.");
-      await fetchTeamData();
+      await fetchTeamData(true);
     } catch (err) {
-      if (err instanceof ApiClientError) setError(err.message);
-      else setError("Failed to revoke invitation.");
+      if (err instanceof ApiClientError) {
+        setError(err.message);
+        if (err.statusCode === 409 || err.statusCode === 400) {
+          await fetchTeamData(true);
+        }
+      } else {
+        setError("Failed to revoke invitation.");
+      }
     } finally {
+      actionInFlightRef.current = false;
       setActionLoading(false);
     }
   };
 
   const handleToggleOpenStatus = async () => {
+    if (actionInFlightRef.current) return;
+    actionInFlightRef.current = true;
     setActionLoading(true);
     setError(null);
     try {
@@ -481,31 +512,48 @@ export const TeamDetails: React.FC = () => {
         setSuccessMessage("Squad recruitment opened! Teammates may now join.");
       }
     } catch (err) {
-      if (err instanceof ApiClientError) setError(err.message);
-      else setError("Failed to update recruitment status.");
+      if (err instanceof ApiClientError) {
+        setError(err.message);
+        if (err.statusCode === 409 || err.statusCode === 400) {
+          await fetchTeamData(true);
+        }
+      } else {
+        setError("Failed to update recruitment status.");
+      }
     } finally {
+      actionInFlightRef.current = false;
       setActionLoading(false);
     }
   };
 
   const handleRemoveMember = async () => {
-    if (!memberToRemove) return;
+    if (!memberToRemove || actionInFlightRef.current) return;
+    actionInFlightRef.current = true;
     setActionLoading(true);
     setError(null);
     try {
       await apiRemoveMember(team.id, memberToRemove.id);
       setSuccessMessage(`Removed ${memberToRemove.name} from the squad.`);
       setMemberToRemove(null);
-      await fetchTeamData();
+      await fetchTeamData(true);
     } catch (err) {
-      if (err instanceof ApiClientError) setError(err.message);
-      else setError("Failed to remove member.");
+      if (err instanceof ApiClientError) {
+        setError(err.message);
+        if (err.statusCode === 409 || err.statusCode === 400) {
+          await fetchTeamData(true);
+        }
+      } else {
+        setError("Failed to remove member.");
+      }
     } finally {
+      actionInFlightRef.current = false;
       setActionLoading(false);
     }
   };
 
   const handleLeaveTeam = async () => {
+    if (actionInFlightRef.current) return;
+    actionInFlightRef.current = true;
     setActionLoading(true);
     setError(null);
     try {
@@ -521,23 +569,33 @@ export const TeamDetails: React.FC = () => {
       if (err instanceof ApiClientError) setError(err.message);
       else setError("Failed to leave squad.");
     } finally {
+      actionInFlightRef.current = false;
       setActionLoading(false);
       setConfirmLeave(false);
     }
   };
 
   const handleDisbandTeam = async () => {
+    if (actionInFlightRef.current) return;
+    actionInFlightRef.current = true;
     setActionLoading(true);
     setError(null);
     try {
       await apiDisbandTeam(team.id);
       setSuccessMessage("Squad has been successfully disbanded.");
       setConfirmDisband(false);
-      await fetchTeamData();
+      await fetchTeamData(true);
     } catch (err) {
-      if (err instanceof ApiClientError) setError(err.message);
-      else setError("Failed to disband squad.");
+      if (err instanceof ApiClientError) {
+        setError(err.message);
+        if (err.statusCode === 409 || err.statusCode === 400) {
+          await fetchTeamData(true);
+        }
+      } else {
+        setError("Failed to disband squad.");
+      }
     } finally {
+      actionInFlightRef.current = false;
       setActionLoading(false);
     }
   };
@@ -546,7 +604,11 @@ export const TeamDetails: React.FC = () => {
     <div className="max-w-6xl mx-auto py-10 px-4 sm:px-6 lg:px-8 space-y-8 pane-enter">
       {/* Notifications */}
       {successMessage && (
-        <div className="p-3.5 bg-positive-bg border border-[#BBF7D0] rounded flex items-center justify-between text-positive text-xs">
+        <div
+          role="status"
+          aria-live="polite"
+          className="p-3.5 bg-positive-bg border border-[#BBF7D0] rounded flex items-center justify-between text-positive text-xs"
+        >
           <div className="flex items-center gap-2">
             <CheckCircle className="w-4 h-4 text-positive shrink-0" />
             <span>{successMessage}</span>
@@ -561,7 +623,11 @@ export const TeamDetails: React.FC = () => {
       )}
 
       {error && (
-        <div className="p-3.5 bg-danger-bg border border-[#FCA5A5] rounded flex items-center justify-between text-danger text-xs">
+        <div
+          role="alert"
+          aria-live="assertive"
+          className="p-3.5 bg-danger-bg border border-[#FCA5A5] rounded flex items-center justify-between text-danger text-xs"
+        >
           <div className="flex items-center gap-2">
             <AlertTriangle className="w-4 h-4 text-danger shrink-0" />
             <span>{error}</span>
@@ -808,13 +874,16 @@ export const TeamDetails: React.FC = () => {
         }}
         onLeadershipTransferred={() => {
           setSuccessMessage("Leadership transferred successfully.");
-          fetchTeamData();
+          setActiveTab((prev) =>
+            prev === "requests" || prev === "invitations" || prev === "settings" ? "overview" : prev
+          );
+          fetchTeamData(true);
         }}
         onJoinRequestSubmitted={() => {
           setSuccessMessage("Join application submitted to squad leader.");
         }}
         onInviteCreated={() => {
-          fetchTeamData();
+          fetchTeamData(true);
         }}
         onInvitationRedeemed={(newTeamId) => {
           setSuccessMessage("Invitation redeemed successfully!");

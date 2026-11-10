@@ -1,6 +1,7 @@
 import React, { useState } from "react";
 import { X, AlertCircle } from "lucide-react";
 import { apiTransferLeadership, ApiClientError, type TeamMemberRecord } from "../lib/api";
+import { AccessibleDialog } from "./AccessibleDialog";
 
 interface TransferLeadershipModalProps {
   teamId: string;
@@ -61,13 +62,15 @@ export const TransferLeadershipModal: React.FC<TransferLeadershipModalProps> = (
   };
 
   return (
-    <div
-      role="dialog"
-      aria-modal="true"
-      aria-labelledby="transfer-leadership-title"
-      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-ink-primary/40 backdrop-blur-xs pane-enter"
+    <AccessibleDialog
+      isOpen={isOpen}
+      onClose={onClose}
+      titleId="transfer-leadership-title"
+      descriptionId="transfer-leadership-description"
+      allowClose={!loading}
+      maxWidthClass="max-w-md"
     >
-      <div className="bg-surface border border-border-strong rounded-lg w-full max-w-md overflow-hidden shadow-xl">
+      <div>
         {/* Modal Header */}
         <div className="flex items-center justify-between px-6 py-4 border-b border-border-subtle bg-surface">
           <div>
@@ -77,12 +80,16 @@ export const TransferLeadershipModal: React.FC<TransferLeadershipModalProps> = (
             >
               Transfer Leadership
             </h2>
-            <p className="text-xs text-ink-secondary">Hand over squad admin rights to a confirmed member</p>
+            <p className="text-xs text-ink-secondary">
+              Hand over squad admin rights to a confirmed member
+            </p>
           </div>
           <button
+            type="button"
             onClick={onClose}
+            disabled={loading}
             aria-label="Close transfer dialog"
-            className="text-ink-muted hover:text-ink-primary p-1.5 rounded hover:bg-surface-tonal transition-colors cursor-pointer"
+            className="text-ink-muted hover:text-ink-primary p-1.5 rounded hover:bg-surface-tonal transition-colors cursor-pointer disabled:opacity-50"
           >
             <X className="w-5 h-5" />
           </button>
@@ -91,19 +98,28 @@ export const TransferLeadershipModal: React.FC<TransferLeadershipModalProps> = (
         {/* Modal Body */}
         <form onSubmit={handleSubmit} className="p-6 space-y-4">
           {error && (
-            <div className="p-3 bg-danger-bg border border-[#FCA5A5] rounded flex items-start gap-2 text-danger text-xs">
+            <div
+              role="alert"
+              aria-live="assertive"
+              className="p-3 bg-danger-bg border border-[#FCA5A5] rounded flex items-start gap-2 text-danger text-xs"
+            >
               <AlertCircle className="w-4 h-4 shrink-0 mt-0.5 text-danger" />
               <span>{error}</span>
             </div>
           )}
 
-          <p className="text-xs text-ink-secondary leading-relaxed">
-            Transferring leadership will demote you to a regular squad member and grant full management rights to the selected participant.
+          <p
+            id="transfer-leadership-description"
+            className="text-xs text-ink-secondary leading-relaxed"
+          >
+            Transferring leadership will demote you to a regular squad member and grant full
+            management rights to the selected participant.
           </p>
 
           {eligibleMembers.length === 0 ? (
             <p className="text-xs text-ink-muted italic py-2">
-              No eligible members found. To transfer leadership, your squad must have other active members.
+              No eligible members found. To transfer leadership, your squad must have other active
+              members.
             </p>
           ) : (
             <div className="space-y-2">
@@ -150,6 +166,6 @@ export const TransferLeadershipModal: React.FC<TransferLeadershipModalProps> = (
           </div>
         </form>
       </div>
-    </div>
+    </AccessibleDialog>
   );
 };
