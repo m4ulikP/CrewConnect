@@ -20,7 +20,16 @@ export class ApiClientError extends Error {
   }
 }
 
-export async function apiRequest<T>(endpoint: string, options: RequestInit = {}): Promise<T> {
+export interface ApiPaginationMeta {
+  page: number;
+  limit: number;
+  total: number;
+}
+
+export async function apiRequestWithMeta<T>(
+  endpoint: string,
+  options: RequestInit = {}
+): Promise<{ data: T; meta?: ApiResponse<T>["meta"] }> {
   const url = `${BASE_URL}${endpoint.startsWith("/") ? endpoint : `/${endpoint}`}`;
 
   const headers = new Headers(options.headers || {});
@@ -47,7 +56,12 @@ export async function apiRequest<T>(endpoint: string, options: RequestInit = {})
   }
 
   const successBody = data as ApiResponse<T>;
-  return successBody.data;
+  return { data: successBody.data, meta: successBody.meta };
+}
+
+export async function apiRequest<T>(endpoint: string, options: RequestInit = {}): Promise<T> {
+  const result = await apiRequestWithMeta<T>(endpoint, options);
+  return result.data;
 }
 
 export async function fetchHealth(): Promise<{
@@ -162,6 +176,37 @@ export async function apiGetHackathon(id: string): Promise<HackathonRecord> {
   return apiRequest<HackathonRecord>(`/hackathons/${id}`);
 }
 
+const TEAM_PAGINATION_META = Symbol("teamPaginationMeta");
+
+type TeamListWithMeta = TeamRecord[] & {
+  [TEAM_PAGINATION_META]?: ApiPaginationMeta;
+};
+
+export function attachTeamPaginationMeta(
+  teams: TeamRecord[],
+  meta: ApiPaginationMeta
+): TeamRecord[] {
+  const tagged = teams as TeamListWithMeta;
+  tagged[TEAM_PAGINATION_META] = meta;
+  return tagged;
+}
+
+export function getTeamListPaginationMeta(
+  teams: TeamRecord[],
+  fallbackPage = 1,
+  fallbackLimit = 12
+): ApiPaginationMeta {
+  const meta = (teams as TeamListWithMeta)[TEAM_PAGINATION_META];
+  if (meta) {
+    return meta;
+  }
+  return {
+    page: fallbackPage,
+    limit: fallbackLimit,
+    total: teams.length,
+  };
+}
+
 export async function apiGetHackathonTeams(
   hackathonId: string,
   params: {
@@ -180,7 +225,18 @@ export async function apiGetHackathonTeams(
   if (params.skills && params.skills.length > 0) query.set("skills", params.skills.join(","));
 
   const qs = query.toString();
-  return apiRequest<TeamRecord[]>(`/hackathons/${hackathonId}/teams${qs ? `?${qs}` : ""}`);
+  const res = await apiRequestWithMeta<TeamRecord[]>(
+    `/hackathons/${hackathonId}/teams${qs ? `?${qs}` : ""}`
+  );
+  const teams = res.data;
+  if (res.meta) {
+    attachTeamPaginationMeta(teams, {
+      page: res.meta.page ?? params.page ?? 1,
+      limit: res.meta.limit ?? params.limit ?? 20,
+      total: res.meta.total ?? teams.length,
+    });
+  }
+  return teams;
 }
 
 export async function apiGetMyTeam(

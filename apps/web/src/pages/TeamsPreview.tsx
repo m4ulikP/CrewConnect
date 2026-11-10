@@ -1,17 +1,6 @@
-import React, { useState, useEffect, useCallback, useRef } from "react";
-import { Link, useNavigate } from "react-router-dom";
-import {
-  Users,
-  Filter,
-  Search,
-  Plus,
-  ExternalLink,
-  ArrowRight,
-  ArrowLeft,
-  CheckCircle,
-  AlertCircle,
-  Send,
-} from "lucide-react";
+import React, { useState, useEffect, useCallback, useRef, useMemo } from "react";
+import { useNavigate, Link, useSearchParams } from "react-router-dom";
+import { AlertCircle, Plus, RefreshCw, Users } from "lucide-react";
 import {
   REALTIME_EVENTS,
   type TeamCapacityUpdatedPayload,
@@ -21,118 +10,247 @@ import {
 import {
   apiGetHackathons,
   apiGetHackathonTeams,
-  apiGetMyTeam,
+  apiGetTeam,
   apiGetTeamRoster,
+  apiGetMyTeam,
   apiJoinTeam,
   generateIdempotencyKey,
+  getTeamListPaginationMeta,
   ApiClientError,
   type HackathonRecord,
   type TeamRecord,
   type TeamMemberRecord,
+  type ApiPaginationMeta,
 } from "../lib/api";
 import { useAuth } from "../context/AuthContext";
 import { useSocket } from "../context/SocketContext";
 import { CreateTeamModal } from "../components/CreateTeamModal";
 import { JoinRequestModal } from "../components/JoinRequestModal";
-import { Avatar } from "../components/Avatar";
-import { CapacityBadge } from "../components/CapacityBadge";
+import { LoadingSkeleton } from "../components/LoadingSkeleton";
+import { DiscoveryToolbar } from "../components/discovery/DiscoveryToolbar";
+import { TeamDirectoryCard } from "../components/discovery/TeamDirectoryCard";
+import { TeamDossierPanel } from "../components/discovery/TeamDossierPanel";
+import { DirectoryPagination } from "../components/discovery/DirectoryPagination";
+
+const DIRECTORY_PAGE_SIZE = 10;
+const SEARCH_DEBOUNCE_MS = 300;
+
+function parsePositiveInt(raw: string | null, fallback = 1): number {
+  if (!raw) return fallback;
+  const parsed = Number.parseInt(raw, 10);
+  return Number.isFinite(parsed) && parsed >= 1 ? parsed : fallback;
+}
+
+function parseSkillsParam(raw: string | null): string[] {
+  if (!raw) return [];
+  return raw
+    .split(",")
+    .map((s) => s.trim())
+    .filter(Boolean);
+}
 
 export const TeamsPreview: React.FC = () => {
   const { user } = useAuth();
-  const { socket, connectionState, joinHackathonRoom, leaveHackathonRoom } = useSocket();
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const { socket, connectionState, joinHackathonRoom, leaveHackathonRoom } = useSocket();
+
+  const initialHackathonParam = searchParams.get("hackathon") || "";
+  const initialSearchParam = searchParams.get("q") || "";
+  const initialVacanciesParam = searchParams.get("vacancies") === "true";
+  const initialSkillsParam = parseSkillsParam(searchParams.get("skills"));
+  const initialPageParam = parsePositiveInt(searchParams.get("page"), 1);
+  const initialTeamParam = searchParams.get("team");
 
   const [hackathons, setHackathons] = useState<HackathonRecord[]>([]);
-  const [selectedHackathonId, setSelectedHackathonId] = useState<string>("");
+  const [hackathonsError, setHackathonsError] = useState<string | null>(null);
+  const [loadingHackathons, setLoadingHackathons] = useState(true);
+  const [selectedHackathonId, setSelectedHackathonId] = useState<string>(initialHackathonParam);
+
   const [teams, setTeams] = useState<TeamRecord[]>([]);
-  const [selectedTeamId, setSelectedTeamId] = useState<string | null>(null);
+  const [paginationMeta, setPaginationMeta] = useState<ApiPaginationMeta>({
+    page: initialPageParam,
+    limit: DIRECTORY_PAGE_SIZE,
+    total: 0,
+  });
+  const [selectedTeamId, setSelectedTeamId] = useState<string | null>(initialTeamParam);
+  const [selectedTeamSnapshot, setSelectedTeamSnapshot] = useState<TeamRecord | null>(null);
   const [selectedTeamRoster, setSelectedTeamRoster] = useState<TeamMemberRecord[]>([]);
   const [loadingRoster, setLoadingRoster] = useState(false);
+  const [rosterError, setRosterError] = useState<string | null>(null);
 
   const [myTeam, setMyTeam] = useState<{ team: TeamRecord; role: string } | null>(null);
   const [loading, setLoading] = useState(true);
-  const [search, setSearch] = useState("");
-  const [hasVacancies, setHasVacancies] = useState(false);
+  const [directoryError, setDirectoryError] = useState<string | null>(null);
 
-  // Reservation UI States
+  const [searchInput, setSearchInput] = useState(initialSearchParam);
+  const [debouncedSearch, setDebouncedSearch] = useState(initialSearchParam);
+  const [hasVacancies, setHasVacancies] = useState(initialVacanciesParam);
+  const [selectedSkills, setSelectedSkills] = useState<string[]>(initialSkillsParam);
+  const [page, setPage] = useState<number>(initialPageParam);
+
+  // Reservation UI states
   const [isJoining, setIsJoining] = useState(false);
   const [joinSuccess, setJoinSuccess] = useState<string | null>(null);
   const [joinError, setJoinError] = useState<string | null>(null);
 
-  // Modals state
+  // Modals & responsive inspection state
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const [isJoinRequestModalOpen, setIsJoinRequestModalOpen] = useState(false);
-  const [showMobileDetail, setShowMobileDetail] = useState(false);
+  const [showMobileDetail, setShowMobileDetail] = useState(Boolean(initialTeamParam));
 
   const wasDisconnectedRef = useRef(false);
 
-  // Load hackathons on mount
+  // Sync URL query params cleanly without polluting history per keystroke
   useEffect(() => {
-    let mounted = true;
-    apiGetHackathons()
-      .then((data) => {
-        if (!mounted) return;
-        setHackathons(data);
-        if (data.length > 0) {
-          setSelectedHackathonId(data[0].id);
-        }
-      })
-      .catch(() => {});
-    return () => {
-      mounted = false;
-    };
+    const next = new URLSearchParams();
+    if (selectedHackathonId) next.set("hackathon", selectedHackathonId);
+    if (debouncedSearch.trim()) next.set("q", debouncedSearch.trim());
+    if (hasVacancies) next.set("vacancies", "true");
+    if (selectedSkills.length > 0) next.set("skills", selectedSkills.join(","));
+    if (page > 1) next.set("page", String(page));
+    if (selectedTeamId) next.set("team", selectedTeamId);
+
+    if (next.toString() !== searchParams.toString()) {
+      setSearchParams(next, { replace: true });
+    }
+  }, [
+    selectedHackathonId,
+    debouncedSearch,
+    hasVacancies,
+    selectedSkills,
+    page,
+    selectedTeamId,
+    searchParams,
+    setSearchParams,
+  ]);
+
+  // Debounce search input updates
+  useEffect(() => {
+    if (searchInput === debouncedSearch) return;
+    const timer = window.setTimeout(() => {
+      setDebouncedSearch(searchInput);
+      setPage(1);
+    }, SEARCH_DEBOUNCE_MS);
+    return () => window.clearTimeout(timer);
+  }, [searchInput, debouncedSearch]);
+
+  // Load hackathons
+  const loadHackathons = useCallback(async () => {
+    setLoadingHackathons(true);
+    setHackathonsError(null);
+    try {
+      const data = await apiGetHackathons();
+      setHackathons(data);
+      if (data.length > 0) {
+        const preferred = data.find((h) => h.status === "ACTIVE") || data[0];
+        setSelectedHackathonId((prev) => {
+          if (prev && data.some((h) => h.id === prev)) return prev;
+          return preferred.id;
+        });
+      } else {
+        setLoading(false);
+      }
+    } catch (err) {
+      const msg =
+        err instanceof ApiClientError
+          ? err.message
+          : "Unable to load hackathon directory. Verify your connection and retry.";
+      setHackathonsError(msg);
+      setLoading(false);
+    } finally {
+      setLoadingHackathons(false);
+    }
   }, []);
 
-  // Fetch teams for selected hackathon
+  useEffect(() => {
+    loadHackathons();
+  }, [loadHackathons]);
+
+  // Fetch teams & active membership for selected hackathon
   const loadTeams = useCallback(async () => {
     if (!selectedHackathonId) return;
     setLoading(true);
+    setDirectoryError(null);
+
     try {
       const [teamsData, myTeamData] = await Promise.all([
         apiGetHackathonTeams(selectedHackathonId, {
-          search: search.trim() || undefined,
+          page,
+          limit: DIRECTORY_PAGE_SIZE,
+          search: debouncedSearch.trim() || undefined,
           hasVacancies: hasVacancies || undefined,
+          skills: selectedSkills.length > 0 ? selectedSkills : undefined,
         }),
         user ? apiGetMyTeam(selectedHackathonId).catch(() => null) : Promise.resolve(null),
       ]);
+
+      const meta = getTeamListPaginationMeta(teamsData, page, DIRECTORY_PAGE_SIZE);
       setTeams(teamsData);
+      setPaginationMeta(meta);
       setMyTeam(myTeamData);
-    } catch {
-      setTeams([]);
+    } catch (err) {
+      const msg =
+        err instanceof ApiClientError
+          ? err.message
+          : "Unable to load squads for this hackathon. Please retry.";
+      setDirectoryError(msg);
     } finally {
       setLoading(false);
     }
-  }, [selectedHackathonId, search, hasVacancies, user]);
+  }, [selectedHackathonId, page, debouncedSearch, hasVacancies, selectedSkills, user]);
 
   useEffect(() => {
-    if (selectedHackathonId) {
-      loadTeams();
-    }
-  }, [loadTeams, selectedHackathonId]);
+    loadTeams();
+  }, [loadTeams]);
 
-  // Load selected team roster
+  // Fetch roster for the selected squad dossier
+  const fetchSelectedRoster = useCallback(async (teamId: string) => {
+    setLoadingRoster(true);
+    setRosterError(null);
+    try {
+      const members = await apiGetTeamRoster(teamId);
+      setSelectedTeamRoster(members);
+    } catch (err) {
+      const msg = err instanceof ApiClientError ? err.message : "Failed to load confirmed roster.";
+      setRosterError(msg);
+      setSelectedTeamRoster([]);
+    } finally {
+      setLoadingRoster(false);
+    }
+  }, []);
+
   useEffect(() => {
     if (!selectedTeamId) {
       setSelectedTeamRoster([]);
+      setRosterError(null);
+      setSelectedTeamSnapshot(null);
       return;
     }
-    let mounted = true;
-    setLoadingRoster(true);
-    apiGetTeamRoster(selectedTeamId)
-      .then((members) => {
-        if (mounted) setSelectedTeamRoster(members);
-      })
-      .catch(() => {
-        if (mounted) setSelectedTeamRoster([]);
-      })
-      .finally(() => {
-        if (mounted) setLoadingRoster(false);
-      });
 
-    return () => {
-      mounted = false;
+    fetchSelectedRoster(selectedTeamId);
+
+    const inList = teams.find((t) => t.id === selectedTeamId);
+    if (inList) {
+      setSelectedTeamSnapshot(inList);
+    } else {
+      apiGetTeam(selectedTeamId)
+        .then((fetched) => setSelectedTeamSnapshot(fetched))
+        .catch(() => setSelectedTeamSnapshot(null));
+    }
+  }, [selectedTeamId, teams, fetchSelectedRoster]);
+
+  // Allow Escape to dismiss mobile inspection drawer cleanly
+  useEffect(() => {
+    if (!showMobileDetail) return;
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        setShowMobileDetail(false);
+      }
     };
-  }, [selectedTeamId]);
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [showMobileDetail]);
 
   // Socket room subscription
   useEffect(() => {
@@ -157,7 +275,7 @@ export const TeamsPreview: React.FC = () => {
     }
   }, [connectionState, selectedHackathonId, loadTeams]);
 
-  // Real-time events
+  // Real-time Socket listeners
   useEffect(() => {
     if (!socket || !selectedHackathonId) return;
 
@@ -180,6 +298,12 @@ export const TeamsPreview: React.FC = () => {
             : t
         );
       });
+
+      if (selectedTeamId === payload.teamId) {
+        apiGetTeamRoster(payload.teamId)
+          .then((members) => setSelectedTeamRoster(members))
+          .catch(() => {});
+      }
     };
 
     const handleTeamUpdated = (payload: TeamUpdatedPayload) => {
@@ -207,6 +331,7 @@ export const TeamsPreview: React.FC = () => {
       setTeams((prev) => prev.filter((t) => t.id !== payload.teamId));
       if (selectedTeamId === payload.teamId) {
         setSelectedTeamId(null);
+        setShowMobileDetail(false);
       }
       setMyTeam((prev) => (prev && prev.team.id === payload.teamId ? null : prev));
     };
@@ -222,7 +347,7 @@ export const TeamsPreview: React.FC = () => {
     };
   }, [socket, selectedHackathonId, loadTeams, selectedTeamId]);
 
-  // Handle direct join adhering to strict 7-step sequence
+  // Handle direct join without optimistic seat decrement
   const handleDirectJoin = async (team: TeamRecord) => {
     if (!user) {
       navigate("/login", { state: { from: `/teams/${team.id}` } });
@@ -237,20 +362,30 @@ export const TeamsPreview: React.FC = () => {
 
     try {
       await apiJoinTeam(team.id, idempotencyKey);
-      setJoinSuccess(`Successfully joined ${team.name}! You are now confirmed.`);
-      // Reconcile client data with server response
+      setJoinSuccess(`Successfully joined ${team.name}! Your seat is confirmed.`);
       await loadTeams();
-      if (selectedTeamId === team.id) {
-        const roster = await apiGetTeamRoster(team.id).catch(() => []);
-        setSelectedTeamRoster(roster);
-      }
+      const [freshTeam, freshRoster] = await Promise.all([
+        apiGetTeam(team.id).catch(() => null),
+        apiGetTeamRoster(team.id).catch(() => []),
+      ]);
+      if (freshTeam) setSelectedTeamSnapshot(freshTeam);
+      if (selectedTeamId === team.id) setSelectedTeamRoster(freshRoster);
     } catch (err) {
       if (err instanceof ApiClientError) {
-        if (err.statusCode === 409) {
-          setJoinError("Team is now full. The final seat was claimed by another participant.");
-          await loadTeams();
-        } else if (err.statusCode === 400 && err.code === "ALREADY_IN_TEAM") {
+        if (err.code === "ALREADY_IN_TEAM") {
           setJoinError("You are already committed to another team in this hackathon.");
+          await loadTeams();
+        } else if (err.statusCode === 409) {
+          setJoinError(
+            err.message || "Team is now full. The final seat was claimed by another participant."
+          );
+          await loadTeams();
+          const [freshTeam, freshRoster] = await Promise.all([
+            apiGetTeam(team.id).catch(() => null),
+            apiGetTeamRoster(team.id).catch(() => []),
+          ]);
+          if (freshTeam) setSelectedTeamSnapshot(freshTeam);
+          if (selectedTeamId === team.id) setSelectedTeamRoster(freshRoster);
         } else {
           setJoinError(err.message || "Failed to claim seat. Please try again.");
         }
@@ -264,395 +399,306 @@ export const TeamsPreview: React.FC = () => {
 
   const handleCreateTeamClick = () => {
     if (!user) {
-      navigate("/login");
+      navigate("/login", { state: { from: "/teams-preview" } });
       return;
     }
     setIsCreateModalOpen(true);
   };
 
-  const selectedTeam = teams.find((t) => t.id === selectedTeamId) || null;
-  const isSelectedFull = selectedTeam ? selectedTeam.memberCount >= selectedTeam.maxCapacity : false;
-  const isUserInSelected = selectedTeam && myTeam && myTeam.team.id === selectedTeam.id;
+  const handleResetFilters = () => {
+    setSearchInput("");
+    setDebouncedSearch("");
+    setHasVacancies(false);
+    setSelectedSkills([]);
+    setPage(1);
+  };
+
+  const handleToggleSkill = (skill: string) => {
+    setPage(1);
+    setSelectedSkills((prev) =>
+      prev.includes(skill) ? prev.filter((item) => item !== skill) : [...prev, skill]
+    );
+  };
+
+  const handleAddCustomSkill = (skill: string) => {
+    setPage(1);
+    setSelectedSkills((prev) =>
+      prev.some((item) => item.toLowerCase() === skill.toLowerCase()) ? prev : [...prev, skill]
+    );
+  };
+
+  const suggestedSkills = useMemo(() => {
+    const counts = new Map<string, number>();
+    teams.forEach((t) => {
+      t.skillsNeeded.forEach((s) => {
+        counts.set(s, (counts.get(s) || 0) + 1);
+      });
+    });
+    return Array.from(counts.entries())
+      .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
+      .map(([skill]) => skill)
+      .slice(0, 6);
+  }, [teams]);
+
+  const activeHackathon = hackathons.find((h) => h.id === selectedHackathonId);
+  const selectedTeam = teams.find((t) => t.id === selectedTeamId) || selectedTeamSnapshot || null;
+  const hasActiveFilters = Boolean(
+    debouncedSearch.trim() || hasVacancies || selectedSkills.length > 0
+  );
+
+  const rangeStart = teams.length === 0 ? 0 : (paginationMeta.page - 1) * paginationMeta.limit + 1;
+  const rangeEnd = (paginationMeta.page - 1) * paginationMeta.limit + teams.length;
+  const effectiveTotal = Math.max(paginationMeta.total, rangeEnd);
 
   return (
-    <div className="max-w-7xl mx-auto py-8 px-4 sm:px-6 lg:px-8 space-y-6 pane-enter">
-      {/* Top Banner / Actions */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-4 border-b border-border-subtle">
-        <div>
-          <h1 className="text-2xl sm:text-3xl font-serif font-medium text-ink-primary flex items-center gap-3">
-            <span>Hackathon Teams Directory</span>
+    <div className="max-w-6xl mx-auto py-7 px-4 sm:px-6 lg:px-8 space-y-5">
+      {/* Compact Header Row */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-border-subtle">
+        <div className="space-y-1">
+          <h1 className="font-display text-2xl sm:text-[26px] font-bold text-ink-primary tracking-tight">
+            Hackathon Teams Directory
           </h1>
-          <p className="text-xs sm:text-sm text-ink-secondary mt-1">
-            Browse active squads, discover complementary teammates, and claim verified open seats.
+          <p className="text-[13px] sm:text-sm text-ink-secondary">
+            Browse verified hackathon squads, inspect open roles, and claim available seats
+            atomically.
           </p>
         </div>
 
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-2.5 flex-shrink-0">
           {myTeam ? (
             <Link
               to={`/teams/${myTeam.team.id}`}
-              className="btn btn-secondary text-xs h-9 px-4"
+              className="btn btn-secondary text-[13px] h-10 px-4"
             >
-              <span>View My Team ({myTeam.team.name})</span>
-              <ArrowRight className="w-3.5 h-3.5" />
+              <span>Your Squad ({myTeam.team.name})</span>
             </Link>
           ) : (
             <button
+              type="button"
               onClick={handleCreateTeamClick}
-              className="btn btn-primary text-xs h-9 px-4 cursor-pointer"
+              disabled={activeHackathon?.status === "COMPLETED"}
+              className="btn btn-primary text-[13px] h-10 px-4 cursor-pointer"
             >
-              <Plus className="w-3.5 h-3.5" />
+              <Plus className="w-3.5 h-3.5" aria-hidden="true" />
               <span>Create a Team</span>
             </button>
           )}
         </div>
       </div>
 
-      {/* Filter and Search Bar */}
-      <div className="flex flex-col sm:flex-row gap-3">
-        {hackathons.length > 1 && (
-          <select
-            value={selectedHackathonId}
-            onChange={(e) => {
-              setSelectedHackathonId(e.target.value);
-              setSelectedTeamId(null);
-            }}
-            className="form-input sm:w-64 text-xs h-10"
+      {/* Hackathon load error state */}
+      {hackathonsError && (
+        <div
+          role="alert"
+          className="p-4 rounded-lg border border-border-strong bg-surface flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-[13px]"
+        >
+          <div className="flex items-center gap-2 text-danger">
+            <AlertCircle className="w-4 h-4 flex-shrink-0" aria-hidden="true" />
+            <span>{hackathonsError}</span>
+          </div>
+          <button
+            type="button"
+            onClick={loadHackathons}
+            className="btn btn-secondary h-9 px-3.5 text-[13px] self-start sm:self-auto"
           >
-            {hackathons.map((h) => (
-              <option key={h.id} value={h.id}>
-                {h.title}
-              </option>
-            ))}
-          </select>
-        )}
+            <RefreshCw className="w-3.5 h-3.5" aria-hidden="true" />
+            <span>Retry</span>
+          </button>
+        </div>
+      )}
 
-        <div className="relative flex-1">
-          <Search className="w-4 h-4 text-ink-muted absolute left-3.5 top-3" />
-          <input
-            type="text"
-            placeholder="Search teams by name, tagline or technology..."
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            className="form-input pl-10 text-xs h-10"
+      {/* Search & Backend-Supported Filters */}
+      {!hackathonsError && (hackathons.length > 0 || !loadingHackathons) && (
+        <div className={showMobileDetail && selectedTeam ? "hidden lg:block" : "block"}>
+          <DiscoveryToolbar
+            hackathons={hackathons}
+            selectedHackathonId={selectedHackathonId}
+            onSelectHackathon={(nextHackathonId) => {
+              setSelectedHackathonId(nextHackathonId);
+              setSelectedTeamId(null);
+              setShowMobileDetail(false);
+              setPage(1);
+            }}
+            searchInput={searchInput}
+            onSearchInputChange={setSearchInput}
+            onSearchSubmit={() => {
+              setDebouncedSearch(searchInput);
+              setPage(1);
+            }}
+            onClearSearch={() => {
+              setSearchInput("");
+              setDebouncedSearch("");
+              setPage(1);
+            }}
+            hasVacancies={hasVacancies}
+            onToggleVacancies={() => {
+              setHasVacancies((prev) => !prev);
+              setPage(1);
+            }}
+            selectedSkills={selectedSkills}
+            suggestedSkills={suggestedSkills}
+            onToggleSkill={handleToggleSkill}
+            onAddCustomSkill={handleAddCustomSkill}
+            onResetFilters={handleResetFilters}
+            hasActiveFilters={hasActiveFilters}
           />
         </div>
+      )}
 
-        <button
-          type="button"
-          onClick={() => setHasVacancies(!hasVacancies)}
-          className={`btn text-xs h-10 px-4 cursor-pointer ${
-            hasVacancies ? "btn-primary" : "btn-secondary"
-          }`}
+      {/* Directory Load Error State */}
+      {!loading && directoryError && (
+        <div
+          role="alert"
+          className="bg-surface border border-border-strong rounded-lg p-8 text-center space-y-3"
         >
-          <Filter className="w-3.5 h-3.5" />
-          <span>Vacancies Only</span>
-        </button>
-      </div>
+          <div className="w-10 h-10 rounded-md bg-danger-bg text-danger flex items-center justify-center mx-auto">
+            <AlertCircle className="w-5 h-5" aria-hidden="true" />
+          </div>
+          <h2 className="font-display text-base font-semibold text-ink-primary">
+            Unable to Load Directory
+          </h2>
+          <p className="text-xs sm:text-sm text-ink-secondary max-w-md mx-auto">{directoryError}</p>
+          <button
+            type="button"
+            onClick={loadTeams}
+            className="btn btn-secondary text-xs h-9 px-4 cursor-pointer"
+          >
+            <RefreshCw className="w-3.5 h-3.5" aria-hidden="true" />
+            <span>Retry Directory</span>
+          </button>
+        </div>
+      )}
 
-      {/* Loading state */}
-      {loading && (
-        <div className="py-20 text-center space-y-3">
-          <div className="animate-spin w-6 h-6 border-2 border-accent border-t-transparent rounded-full mx-auto" />
-          <p className="text-xs text-ink-secondary">Loading teams...</p>
+      {/* Loading Skeleton State (Layout-faithful, flat mineral surfaces) */}
+      {(loading || loadingHackathons) && !directoryError && (
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+          <div className="lg:col-span-5 space-y-3">
+            <div className="h-4 w-32 rounded bg-surface-tonal" />
+            <LoadingSkeleton rows={4} />
+          </div>
+          <div className="hidden lg:block lg:col-span-7 bg-surface border border-border-subtle rounded-lg p-6 space-y-4">
+            <div className="h-6 w-56 rounded bg-surface-tonal" />
+            <div className="h-4 w-full rounded bg-surface-tonal" />
+            <div className="h-24 w-full rounded bg-surface-tonal" />
+          </div>
         </div>
       )}
 
       {/* Empty State */}
-      {!loading && teams.length === 0 && (
-        <div className="py-16 text-center space-y-4 bg-surface border border-border-subtle rounded-lg p-8">
-          <div className="w-12 h-12 rounded-full bg-surface-tonal text-ink-secondary flex items-center justify-center mx-auto">
-            <Users className="w-6 h-6" />
-          </div>
-          <h2 className="text-lg font-serif text-ink-primary font-medium">No Teams Found</h2>
-          <p className="text-xs sm:text-sm text-ink-secondary max-w-sm mx-auto leading-relaxed">
-            {search || hasVacancies
-              ? "No teams match your search or filter criteria. Try broadening your parameters."
-              : "No teams have registered for this hackathon yet. Be the first to launch one!"}
-          </p>
-          {!myTeam && (
-            <button
-              onClick={handleCreateTeamClick}
-              className="btn btn-primary text-xs h-9 px-4 cursor-pointer"
-            >
-              <Plus className="w-3.5 h-3.5" />
-              <span>Create Team</span>
-            </button>
-          )}
-        </div>
-      )}
-
-      {/* Master-Detail Layout */}
-      {!loading && teams.length > 0 && (
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
-          {/* Master Team List (5 cols on desktop, hidden on mobile if detail active) */}
-          <div
-            className={`lg:col-span-5 space-y-3 ${
-              showMobileDetail ? "hidden lg:block" : "block"
-            }`}
-          >
-            <div className="text-xs text-ink-muted pb-1 tabular">
-              Showing {teams.length} squad{teams.length === 1 ? "" : "s"}
+      {!loading &&
+        !loadingHackathons &&
+        !directoryError &&
+        !hackathonsError &&
+        teams.length === 0 && (
+          <div className="py-14 text-center space-y-4 bg-surface border border-border-subtle rounded-lg p-8">
+            <div className="w-11 h-11 rounded-md bg-surface-tonal border border-border-subtle text-ink-secondary flex items-center justify-center mx-auto">
+              <Users className="w-5 h-5" aria-hidden="true" />
             </div>
-
-            <div className="space-y-3 overflow-y-auto max-h-[750px] pr-1">
-              {teams.map((team) => {
-                const isFull = team.memberCount >= team.maxCapacity;
-                const isSelected = team.id === selectedTeamId;
-
-                return (
-                  <div
-                    key={team.id}
-                    onClick={() => {
-                      setSelectedTeamId(team.id);
-                      setShowMobileDetail(true);
-                      setJoinSuccess(null);
-                      setJoinError(null);
-                    }}
-                    className={`p-4 rounded-lg border cursor-pointer transition-all ${
-                      isSelected
-                        ? "bg-surface border-accent shadow-xs ring-1 ring-accent"
-                        : "bg-surface border-border-subtle hover:border-border-strong hover:bg-surface-hover"
-                    }`}
-                  >
-                    <div className="flex items-start justify-between gap-3">
-                      <div>
-                        <h2 className="font-semibold text-ink-primary text-sm leading-tight">
-                          {team.name}
-                        </h2>
-                        {team.tagline && (
-                          <p className="text-xs text-ink-secondary mt-1 line-clamp-2 leading-relaxed">
-                            {team.tagline}
-                          </p>
-                        )}
-                      </div>
-                      <CapacityBadge memberCount={team.memberCount} maxCapacity={team.maxCapacity} />
-                    </div>
-
-                    <div className="mt-3 pt-3 border-t border-border-subtle flex items-center justify-between text-xs">
-                      <span
-                        className={`font-semibold ${
-                          team.isOpen && !isFull ? "text-positive" : "text-ink-muted"
-                        }`}
-                      >
-                        {team.isOpen && !isFull ? "Open for Join" : "Closed"}
-                      </span>
-
-                      <span className="text-[11px] text-accent font-medium">
-                        View Dossier →
-                      </span>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-
-          {/* Detail Column (7 cols on desktop, full on mobile when active) */}
-          <div
-            className={`lg:col-span-7 ${
-              showMobileDetail ? "block" : "hidden lg:block"
-            }`}
-          >
-            {selectedTeam ? (
-              <div className="bg-surface border border-border-strong rounded-lg p-6 sm:p-8 space-y-6 shadow-xs sticky top-24">
-                {/* Mobile back button */}
+            <h2 className="font-display text-lg font-semibold text-ink-primary">No Teams Found</h2>
+            <p className="text-xs sm:text-sm text-ink-secondary max-w-md mx-auto leading-relaxed">
+              {hasActiveFilters
+                ? "No squads matched your active search or skill filters. Broaden your criteria or clear filters to browse all teams."
+                : "No squads have registered for this hackathon yet. Be the first builder to launch one."}
+            </p>
+            <div className="flex flex-wrap items-center justify-center gap-2.5 pt-1">
+              {hasActiveFilters && (
                 <button
                   type="button"
-                  onClick={() => setShowMobileDetail(false)}
-                  className="lg:hidden flex items-center gap-1.5 text-xs text-ink-secondary hover:text-ink-primary mb-2"
+                  onClick={handleResetFilters}
+                  className="btn btn-secondary text-xs h-9 px-4 cursor-pointer"
                 >
-                  <ArrowLeft className="w-3.5 h-3.5" />
-                  <span>Back to team list</span>
+                  Reset Filters
                 </button>
+              )}
+              {!myTeam && activeHackathon?.status !== "COMPLETED" && (
+                <button
+                  type="button"
+                  onClick={handleCreateTeamClick}
+                  className="btn btn-primary text-xs h-9 px-4 cursor-pointer"
+                >
+                  <Plus className="w-3.5 h-3.5" aria-hidden="true" />
+                  <span>Create Team</span>
+                </button>
+              )}
+            </div>
+          </div>
+        )}
 
-                {/* Team Header */}
-                <div className="flex flex-col sm:flex-row sm:items-baseline justify-between gap-3 pb-4 border-b border-border-subtle">
-                  <div>
-                    <span className="text-[11px] font-mono uppercase tracking-wider text-ink-muted">
-                      Squad Dossier
-                    </span>
-                    <h2 className="text-2xl sm:text-3xl font-serif font-medium text-ink-primary mt-1">
-                      {selectedTeam.name}
-                    </h2>
-                  </div>
+      {/* Master-Detail Directory Workspace */}
+      {!loading && !loadingHackathons && !directoryError && teams.length > 0 && (
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+          {/* Master List Column (5 cols desktop) */}
+          <div
+            className={`lg:col-span-5 space-y-3 ${showMobileDetail ? "hidden lg:block" : "block"}`}
+          >
+            <div className="flex items-center justify-between text-xs text-ink-muted pb-1 tabular">
+              <span>
+                {effectiveTotal > teams.length
+                  ? `Showing ${rangeStart}-${rangeEnd} of ${effectiveTotal} squads`
+                  : `Showing ${teams.length} squad${teams.length === 1 ? "" : "s"}`}
+              </span>
+              {selectedSkills.length > 0 && <span>Matched skills: {selectedSkills.length}</span>}
+            </div>
 
-                  <CapacityBadge
-                    memberCount={selectedTeam.memberCount}
-                    maxCapacity={selectedTeam.maxCapacity}
-                    isOpen={selectedTeam.isOpen}
-                    variant="indicator"
-                  />
-                </div>
+            <div className="space-y-3">
+              {teams.map((team) => (
+                <TeamDirectoryCard
+                  key={team.id}
+                  team={team}
+                  isSelected={team.id === selectedTeamId}
+                  isMyTeam={Boolean(myTeam && myTeam.team.id === team.id)}
+                  onSelect={() => {
+                    setSelectedTeamId(team.id);
+                    setShowMobileDetail(true);
+                    setJoinSuccess(null);
+                    setJoinError(null);
+                  }}
+                />
+              ))}
+            </div>
 
-                {/* Description & Mission */}
-                <div className="space-y-2">
-                  <h3 className="text-xs font-semibold uppercase tracking-wider text-ink-muted">
-                    Mission & Focus
-                  </h3>
-                  <p className="text-sm text-ink-secondary leading-relaxed">
-                    {selectedTeam.description || selectedTeam.tagline || "No mission statement specified for this team yet."}
-                  </p>
-                </div>
+            <DirectoryPagination
+              page={paginationMeta.page}
+              limit={paginationMeta.limit}
+              total={effectiveTotal}
+              visibleCount={teams.length}
+              onPageChange={(nextPage) => {
+                setPage(Math.max(1, nextPage));
+                setSelectedTeamId(null);
+                setShowMobileDetail(false);
+              }}
+            />
+          </div>
 
-                {/* Skills needed */}
-                {selectedTeam.skillsNeeded && selectedTeam.skillsNeeded.length > 0 && (
-                  <div className="space-y-2">
-                    <h3 className="text-xs font-semibold uppercase tracking-wider text-ink-muted">
-                      Seeking Capabilities
-                    </h3>
-                    <div className="flex flex-wrap gap-1.5">
-                      {selectedTeam.skillsNeeded.map((skill) => (
-                        <span
-                          key={skill}
-                          className="text-xs px-2.5 py-1 rounded bg-surface-tonal border border-border-subtle font-medium text-ink-primary"
-                        >
-                          {skill}
-                        </span>
-                      ))}
-                    </div>
-                  </div>
-                )}
-
-                {/* Confirmed Roster */}
-                <div className="space-y-3 pt-2 border-t border-border-subtle">
-                  <h3 className="text-xs font-semibold uppercase tracking-wider text-ink-muted">
-                    Confirmed Roster ({selectedTeamRoster.length} / {selectedTeam.maxCapacity})
-                  </h3>
-
-                  {loadingRoster ? (
-                    <div className="py-4 text-xs text-ink-muted">Loading confirmed roster...</div>
-                  ) : selectedTeamRoster.length === 0 ? (
-                    <p className="text-xs text-ink-muted italic">Roster details synchronizing...</p>
-                  ) : (
-                    <div className="divide-y divide-border-subtle">
-                      {selectedTeamRoster.map((member) => {
-                        const mUser = typeof member.userId === "object" ? member.userId : null;
-                        const mName = mUser ? mUser.displayName : "Squad Member";
-                        const isLeader = member.role === "LEADER";
-
-                        return (
-                          <div key={member.id} className="py-2.5 flex items-center justify-between text-xs">
-                            <div className="flex items-center gap-3">
-                              <Avatar name={mName} size="sm" />
-                              <div>
-                                <span className="font-medium text-ink-primary">{mName}</span>
-                                {isLeader && (
-                                  <span className="ml-2 text-[10px] font-semibold text-accent bg-accent-tint px-1.5 py-0.5 rounded">
-                                    Lead
-                                  </span>
-                                )}
-                              </div>
-                            </div>
-
-                            <span className="text-ink-muted tabular text-[11px]">
-                              Joined {new Date(member.joinedAt).toLocaleDateString()}
-                            </span>
-                          </div>
-                        );
-                      })}
-                    </div>
-                  )}
-                </div>
-
-                {/* Reservation Box with Exact 7-Step Sequence */}
-                <div className="p-5 rounded-lg border border-border-strong bg-ground/50 space-y-4">
-                  <div className="flex items-center justify-between text-xs">
-                    <span className="font-medium text-ink-primary">Seat Allocation</span>
-                    <span className="font-mono text-ink-muted tabular">
-                      Server confirmed: {selectedTeam.memberCount} / {selectedTeam.maxCapacity}
-                    </span>
-                  </div>
-
-                  {/* Feedback alerts */}
-                  {joinSuccess && (
-                    <div className="p-3 rounded border border-[#BBF7D0] bg-positive-bg flex items-start gap-2 text-xs text-positive">
-                      <CheckCircle className="w-4 h-4 flex-shrink-0 mt-0.5" />
-                      <div>{joinSuccess}</div>
-                    </div>
-                  )}
-
-                  {joinError && (
-                    <div className="p-3 rounded border border-[#FCA5A5] bg-danger-bg flex items-start gap-2 text-xs text-danger">
-                      <AlertCircle className="w-4 h-4 flex-shrink-0 mt-0.5" />
-                      <div>{joinError}</div>
-                    </div>
-                  )}
-
-                  {/* Actions */}
-                  {isUserInSelected ? (
-                    <div className="flex items-center justify-between pt-1">
-                      <span className="text-xs font-semibold text-accent">
-                        You are a confirmed member of this squad.
-                      </span>
-                      <Link
-                        to={`/teams/${selectedTeam.id}`}
-                        className="btn btn-primary text-xs h-9 px-4"
-                      >
-                        Open Workspace
-                      </Link>
-                    </div>
-                  ) : myTeam ? (
-                    <p className="text-xs text-ink-secondary">
-                      You are already committed to <strong>{myTeam.team.name}</strong> for this hackathon.
-                    </p>
-                  ) : isSelectedFull ? (
-                    <p className="text-xs text-ink-muted italic">
-                      This squad has reached maximum capacity ({selectedTeam.maxCapacity} seats filled).
-                    </p>
-                  ) : (
-                    <div className="flex flex-wrap items-center gap-3 pt-1">
-                      <button
-                        type="button"
-                        onClick={() => handleDirectJoin(selectedTeam)}
-                        disabled={isJoining || !selectedTeam.isOpen}
-                        className="btn btn-primary text-xs h-10 px-4 cursor-pointer"
-                      >
-                        {isJoining ? (
-                          <>
-                            <div className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                            <span>Claiming seat...</span>
-                          </>
-                        ) : (
-                          <span>Instant direct join</span>
-                        )}
-                      </button>
-
-                      <button
-                        type="button"
-                        onClick={() => {
-                          if (!user) {
-                            navigate("/login");
-                            return;
-                          }
-                          setIsJoinRequestModalOpen(true);
-                        }}
-                        className="btn btn-secondary text-xs h-10 px-4 cursor-pointer"
-                      >
-                        <Send className="w-3.5 h-3.5" />
-                        <span>Request to join</span>
-                      </button>
-
-                      <Link
-                        to={`/teams/${selectedTeam.id}`}
-                        className="btn btn-ghost text-xs h-10 px-3"
-                      >
-                        <span>Workspace</span>
-                        <ExternalLink className="w-3 h-3" />
-                      </Link>
-                    </div>
-                  )}
-
-                  <p className="text-[11px] text-ink-muted leading-relaxed">
-                    Direct join sends an Idempotency-Key and awaits server transaction confirmation (HTTP 201) without optimistic seat decrement.
-                  </p>
-                </div>
-              </div>
-            ) : (
-              <div className="bg-surface border border-border-subtle rounded-lg p-12 text-center text-ink-secondary text-sm">
-                Select a squad from the directory to review its roster, vision, and vacancy status.
-              </div>
-            )}
+          {/* Squad Dossier Column (7 cols desktop, full pane on mobile selection) */}
+          <div className={`lg:col-span-7 ${showMobileDetail ? "block" : "hidden lg:block"}`}>
+            <TeamDossierPanel
+              team={selectedTeam}
+              hackathonTitle={activeHackathon?.title}
+              hackathonStatus={activeHackathon?.status}
+              roster={selectedTeamRoster}
+              loadingRoster={loadingRoster}
+              rosterError={rosterError}
+              onRetryRoster={() => {
+                if (selectedTeamId) fetchSelectedRoster(selectedTeamId);
+              }}
+              myTeam={myTeam}
+              isAuthenticated={Boolean(user)}
+              isJoining={isJoining}
+              joinSuccess={joinSuccess}
+              joinError={joinError}
+              onDirectJoin={handleDirectJoin}
+              onOpenJoinRequest={() => {
+                if (!user) {
+                  navigate("/login", {
+                    state: { from: selectedTeam ? `/teams/${selectedTeam.id}` : "/teams-preview" },
+                  });
+                  return;
+                }
+                setIsJoinRequestModalOpen(true);
+              }}
+              onCloseMobileDetail={() => setShowMobileDetail(false)}
+            />
           </div>
         </div>
       )}

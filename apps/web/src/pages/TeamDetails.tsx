@@ -83,9 +83,9 @@ export const TeamDetails: React.FC = () => {
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
 
   // Tabs state
-  const [activeTab, setActiveTab] = useState<"roster" | "requests" | "invitations" | "history" | "settings">(
-    "roster"
-  );
+  const [activeTab, setActiveTab] = useState<
+    "roster" | "requests" | "invitations" | "history" | "settings"
+  >("roster");
 
   // Modals state
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
@@ -385,8 +385,14 @@ export const TeamDetails: React.FC = () => {
       setJoinIdempotencyKey(generateIdempotencyKey());
       await fetchTeamData();
     } catch (err) {
-      if (err instanceof ApiClientError) setError(err.message);
-      else setError("Failed to join team.");
+      if (err instanceof ApiClientError) {
+        setError(err.message);
+        if (err.statusCode === 409) {
+          await fetchTeamData(true);
+        }
+      } else {
+        setError("Failed to join team.");
+      }
     } finally {
       setActionLoading(false);
     }
@@ -575,21 +581,31 @@ export const TeamDetails: React.FC = () => {
                 <span className="status-label status-open">ACTIVE</span>
               )}
               {!isDisbanded && (
-                <span
-                  className={`status-label ${
-                    team.isOpen ? "status-open" : "status-full"
-                  }`}
-                >
+                <span className={`status-label ${team.isOpen ? "status-open" : "status-full"}`}>
                   {team.isOpen ? "RECRUITING" : "CLOSED"}
                 </span>
               )}
             </div>
 
-            {team.tagline && <p className="text-sm text-ink-secondary font-medium">{team.tagline}</p>}
+            {team.tagline && (
+              <p className="text-sm text-ink-secondary font-medium">{team.tagline}</p>
+            )}
             {team.description && (
               <p className="text-xs text-ink-secondary max-w-3xl leading-relaxed pt-1">
                 {team.description}
               </p>
+            )}
+            {team.skillsNeeded && team.skillsNeeded.length > 0 && (
+              <div className="flex flex-wrap items-center gap-1.5 pt-2">
+                {team.skillsNeeded.map((skill) => (
+                  <span
+                    key={skill}
+                    className="text-[11px] font-medium px-2 py-0.5 rounded-sm bg-surface-tonal border border-border-subtle text-ink-secondary"
+                  >
+                    {skill}
+                  </span>
+                ))}
+              </div>
             )}
           </div>
 
@@ -624,7 +640,9 @@ export const TeamDetails: React.FC = () => {
 
                   <button
                     onClick={handleToggleOpenStatus}
-                    disabled={actionLoading || (team.memberCount >= team.maxCapacity && !team.isOpen)}
+                    disabled={
+                      actionLoading || (team.memberCount >= team.maxCapacity && !team.isOpen)
+                    }
                     className="btn btn-secondary text-xs h-9 px-3.5 cursor-pointer"
                   >
                     {team.isOpen ? (
@@ -661,7 +679,14 @@ export const TeamDetails: React.FC = () => {
                   </button>
 
                   <button
-                    onClick={() => setIsJoinRequestModalOpen(true)}
+                    onClick={() => {
+                      if (!user) {
+                        navigate("/login", { state: { from: `/teams/${team.id}` } });
+                        return;
+                      }
+                      setIsJoinRequestModalOpen(true);
+                    }}
+                    disabled={actionLoading || !team.isOpen || !hasAvailableSeats}
                     className="btn btn-secondary text-xs h-9 px-4 cursor-pointer"
                   >
                     <Send className="w-3.5 h-3.5" />
@@ -669,7 +694,13 @@ export const TeamDetails: React.FC = () => {
                   </button>
 
                   <button
-                    onClick={() => setIsRedeemModalOpen(true)}
+                    onClick={() => {
+                      if (!user) {
+                        navigate("/login", { state: { from: `/teams/${team.id}` } });
+                        return;
+                      }
+                      setIsRedeemModalOpen(true);
+                    }}
                     className="btn btn-ghost text-xs h-9 px-3 cursor-pointer"
                   >
                     <Ticket className="w-3.5 h-3.5" />
@@ -805,7 +836,10 @@ export const TeamDetails: React.FC = () => {
                 const isMemberLeader = member.role === "LEADER";
 
                 return (
-                  <div key={member.id} className="py-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                  <div
+                    key={member.id}
+                    className="py-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3"
+                  >
                     <div className="flex items-center gap-3.5">
                       <Avatar name={mName} size="md" />
                       <div>
@@ -862,7 +896,8 @@ export const TeamDetails: React.FC = () => {
                     Open Seat {roster.length + 1} — Seeking Collaborator
                   </span>
                   <p className="text-[11px] text-ink-secondary mt-0.5">
-                    Share an invite token or open direct join to allow teammates to claim this vacancy.
+                    Share an invite token or open direct join to allow teammates to claim this
+                    vacancy.
                   </p>
                 </div>
                 {isLeader && (
@@ -966,11 +1001,15 @@ export const TeamDetails: React.FC = () => {
           ) : (
             <div className="divide-y divide-border-subtle text-xs">
               {invitations.map((inv) => (
-                <div key={inv.id} className="py-3.5 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                <div
+                  key={inv.id}
+                  className="py-3.5 flex flex-col sm:flex-row sm:items-center justify-between gap-3"
+                >
                   <div>
                     <span className="font-mono text-ink-primary font-semibold block">{inv.id}</span>
                     <span className="text-[11px] text-ink-muted mt-0.5 block tabular">
-                      Uses: {inv.usesCount} / {inv.maxUses} • Expires: {new Date(inv.expiresAt).toLocaleDateString()}
+                      Uses: {inv.usesCount} / {inv.maxUses} • Expires:{" "}
+                      {new Date(inv.expiresAt).toLocaleDateString()}
                     </span>
                   </div>
 
@@ -1030,7 +1069,10 @@ export const TeamDetails: React.FC = () => {
                       </div>
                     </div>
                     <span className="text-ink-muted tabular text-[11px] flex-shrink-0">
-                      {new Date(log.timestamp).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
+                      {new Date(log.timestamp).toLocaleTimeString([], {
+                        hour: "2-digit",
+                        minute: "2-digit",
+                      })}
                     </span>
                   </div>
                 );
@@ -1068,7 +1110,9 @@ export const TeamDetails: React.FC = () => {
 
             <div className="flex items-center justify-between pb-4 border-b border-border-subtle">
               <div>
-                <h3 className="text-sm font-semibold text-ink-primary">Transfer Squad Leadership</h3>
+                <h3 className="text-sm font-semibold text-ink-primary">
+                  Transfer Squad Leadership
+                </h3>
                 <p className="text-xs text-ink-secondary mt-0.5">
                   Appoint another active member as the primary leader.
                 </p>
@@ -1111,7 +1155,8 @@ export const TeamDetails: React.FC = () => {
               Confirm Disbanding Squad
             </h3>
             <p className="text-xs text-ink-secondary leading-relaxed">
-              Are you sure you want to disband <strong>{team.name}</strong>? This action cannot be reversed, and all members will be released.
+              Are you sure you want to disband <strong>{team.name}</strong>? This action cannot be
+              reversed, and all members will be released.
             </p>
             <div className="flex justify-end gap-3 pt-2">
               <button
@@ -1139,11 +1184,10 @@ export const TeamDetails: React.FC = () => {
           className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-ink-primary/40 backdrop-blur-xs pane-enter"
         >
           <div className="bg-surface border border-border-strong rounded-lg w-full max-w-md p-6 space-y-4 shadow-xl">
-            <h3 className="text-lg font-serif font-medium text-ink-primary">
-              Leave Squad
-            </h3>
+            <h3 className="text-lg font-serif font-medium text-ink-primary">Leave Squad</h3>
             <p className="text-xs text-ink-secondary leading-relaxed">
-              Are you sure you want to leave <strong>{team.name}</strong>? Your allocated seat will immediately become vacant.
+              Are you sure you want to leave <strong>{team.name}</strong>? Your allocated seat will
+              immediately become vacant.
             </p>
             <div className="flex justify-end gap-3 pt-2">
               <button
@@ -1171,11 +1215,10 @@ export const TeamDetails: React.FC = () => {
           className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-ink-primary/40 backdrop-blur-xs pane-enter"
         >
           <div className="bg-surface border border-border-strong rounded-lg w-full max-w-md p-6 space-y-4 shadow-xl">
-            <h3 className="text-lg font-serif font-medium text-ink-primary">
-              Remove Member
-            </h3>
+            <h3 className="text-lg font-serif font-medium text-ink-primary">Remove Member</h3>
             <p className="text-xs text-ink-secondary leading-relaxed">
-              Remove <strong>{memberToRemove.name}</strong> from the squad? Their reserved seat will be opened.
+              Remove <strong>{memberToRemove.name}</strong> from the squad? Their reserved seat will
+              be opened.
             </p>
             <div className="flex justify-end gap-3 pt-2">
               <button
