@@ -10,7 +10,27 @@ import {
 } from "../apps/api/src/models/index.js";
 
 export const LOAD_BENCH_SLUG = "hack4hack-load-bench-2026";
-export const LOAD_BENCH_EMAIL_REGEX = /@load-bench\.crewconnect\.test$/;
+export const LOAD_BENCH_EMAIL_REGEX = /\.load-bench\.crewconnect\.test$/i;
+
+export function validateBenchmarkSlug(benchmarkSlug: string): string {
+  const normalizedSlug = benchmarkSlug?.trim().toLowerCase();
+  if (!normalizedSlug || !/^[a-z0-9-]+$/i.test(normalizedSlug)) {
+    throw new Error(
+      `Invalid benchmark identifier "${benchmarkSlug}". Explicit alphanumeric/hyphen slug required.`
+    );
+  }
+  return normalizedSlug;
+}
+
+export function getBenchmarkEmailDomain(benchmarkSlug: string): string {
+  const normalized = validateBenchmarkSlug(benchmarkSlug);
+  return `${normalized}.load-bench.crewconnect.test`;
+}
+
+export function getBenchmarkEmailRegex(benchmarkSlug: string): RegExp {
+  const domain = getBenchmarkEmailDomain(benchmarkSlug).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  return new RegExp(`@${domain}$`, "i");
+}
 
 export const DEFAULT_TEAM_COUNT = Number(process.env.SEED_TEAM_COUNT || "2000");
 export const DEFAULT_PARTICIPANT_COUNT = Number(process.env.SEED_PARTICIPANT_COUNT || "10000");
@@ -35,18 +55,14 @@ async function insertInChunks<T>(
 
 /**
  * Idempotently cleans up ONLY synthetic benchmark data identified by an explicit benchmark slug
- * and the synthetic `@load-bench.crewconnect.test` email suffix. Ordinary development users,
- * teams, and unrelated idempotency records are strictly preserved.
+ * and the slug-scoped synthetic email domain `@<slug>.load-bench.crewconnect.test`.
+ * Ordinary development records AND other independent benchmark datasets are strictly preserved.
  */
 export async function cleanupLoadData(benchmarkSlug: string = LOAD_BENCH_SLUG): Promise<void> {
-  const normalizedSlug = benchmarkSlug?.trim();
-  if (!normalizedSlug || !/^[a-z0-9-]+$/i.test(normalizedSlug)) {
-    throw new Error(
-      `Invalid benchmark identifier "${benchmarkSlug}". Explicit alphanumeric/hyphen slug required.`
-    );
-  }
+  const normalizedSlug = validateBenchmarkSlug(benchmarkSlug);
+  const emailRegex = getBenchmarkEmailRegex(normalizedSlug);
 
-  const syntheticUserIds = await User.find({ email: LOAD_BENCH_EMAIL_REGEX }).distinct("_id");
+  const syntheticUserIds = await User.find({ email: emailRegex }).distinct("_id");
   const existingHackathon = await Hackathon.findOne({ slug: normalizedSlug });
 
   let benchmarkTeamEndpoints: string[] = [];
@@ -72,13 +88,11 @@ export async function cleanupLoadData(benchmarkSlug: string = LOAD_BENCH_SLUG): 
     if (benchmarkTeamEndpoints.length > 0) {
       idempotencyFilter.endpoint = { $in: benchmarkTeamEndpoints };
     } else {
-      // If hackathon teams were already cleaned up in a partial run, still restrict strictly
-      // to synthetic users AND the exact team-join endpoint ObjectId pattern.
       idempotencyFilter.endpoint = /^\/api\/v1\/teams\/[a-f0-9]{24}\/join$/i;
     }
 
     await IdempotencyRecord.deleteMany(idempotencyFilter);
-    await User.deleteMany({ _id: { $in: syntheticUserIds }, email: LOAD_BENCH_EMAIL_REGEX });
+    await User.deleteMany({ _id: { $in: syntheticUserIds }, email: emailRegex });
   }
 }
 
@@ -88,7 +102,8 @@ export async function cleanupLoadData(benchmarkSlug: string = LOAD_BENCH_SLUG): 
  * hackathon invariants. Team 0 is reserved as the 4/5 Last-Seat Race Arena Team.
  */
 export async function seedLoadData(options: SeedLoadOptions = {}) {
-  const benchmarkSlug = (options.benchmarkSlug || LOAD_BENCH_SLUG).trim();
+  const benchmarkSlug = validateBenchmarkSlug(options.benchmarkSlug || LOAD_BENCH_SLUG);
+  const emailDomain = getBenchmarkEmailDomain(benchmarkSlug);
   const teamCount = Math.max(1, options.teamCount ?? DEFAULT_TEAM_COUNT);
   const minRequiredUsers = teamCount + 3 + (options.minFreeContenders ?? 100);
   const participantCount = Math.max(
@@ -150,7 +165,7 @@ export async function seedLoadData(options: SeedLoadOptions = {}) {
   // Generate all User docs in chunks (Leaders + Teammates + Free Contenders = exact `participantCount`)
   const leaderDocs = Array.from({ length: teamCount }, (_, i) => ({
     _id: new Types.ObjectId(),
-    email: `leader-${i}@load-bench.crewconnect.test`,
+    email: `leader-${i}@${emailDomain}`,
     displayName: `Bench Leader ${i}`,
     passwordHash: "synthetic-bench-hash-not-for-login",
     skills: skillsPool[i % skillsPool.length],
@@ -207,7 +222,7 @@ export async function seedLoadData(options: SeedLoadOptions = {}) {
       const idx = teammateUserDocs.length;
       teammateUserDocs.push({
         _id: uid,
-        email: `teammate-${idx}@load-bench.crewconnect.test`,
+        email: `teammate-${idx}@${emailDomain}`,
         displayName: `Bench Teammate ${idx}`,
         passwordHash: "synthetic-bench-hash-not-for-login",
         skills: skillsPool[idx % skillsPool.length],
@@ -227,7 +242,7 @@ export async function seedLoadData(options: SeedLoadOptions = {}) {
 
   const contenderDocs = Array.from({ length: totalContenders }, (_, i) => ({
     _id: new Types.ObjectId(),
-    email: `contender-${i}@load-bench.crewconnect.test`,
+    email: `contender-${i}@${emailDomain}`,
     displayName: `Race Contender ${i}`,
     passwordHash: "synthetic-bench-hash-not-for-login",
     skills: skillsPool[i % skillsPool.length],

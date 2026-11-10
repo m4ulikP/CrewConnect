@@ -53,10 +53,21 @@ function extractToken(socket: Socket): string | undefined {
   return undefined;
 }
 
+export interface InitSocketServerOptions {
+  /**
+   * Optional lifecycle hook invoked after initial membership validation and before socket.join
+   * on `join:team`. Used solely by concurrency tests to inject deterministic interleavings.
+   */
+  onBeforeTeamRoomJoin?: (context: { teamId: string; userId: string }) => Promise<void> | void;
+}
+
 /**
  * Initializes the Socket.IO server on top of an HTTP server
  */
-export function initSocketServer(httpServer: http.Server): SocketIOServer {
+export function initSocketServer(
+  httpServer: http.Server,
+  options: InitSocketServerOptions = {}
+): SocketIOServer {
   io = new SocketIOServer(httpServer, {
     cors: {
       origin: [env.CLIENT_URL, "http://localhost:5173", "http://localhost:3000"],
@@ -111,6 +122,7 @@ export function initSocketServer(httpServer: http.Server): SocketIOServer {
     socket.join(`user:${userId}`);
 
     // Join Team Room (Authorized to active team members only)
+    // Implements double-checked join-then-reverify to close the join-vs-eviction race window.
     socket.on(
       "join:team",
       async (
@@ -124,13 +136,17 @@ export function initSocketServer(httpServer: http.Server): SocketIOServer {
             return;
           }
 
-          const isMember = await Membership.exists({
-            teamId: new Types.ObjectId(teamId),
-            userId: new Types.ObjectId(userId),
+          const teamObjectId = new Types.ObjectId(teamId);
+          const userObjectId = new Types.ObjectId(userId);
+          const roomName = `team:${teamId}`;
+
+          const isMemberInitially = await Membership.exists({
+            teamId: teamObjectId,
+            userId: userObjectId,
             status: "ACTIVE",
           });
 
-          if (!isMember) {
+          if (!isMemberInitially) {
             ack?.({
               success: false,
               error: "FORBIDDEN: Must be an active member to join team room",
@@ -138,7 +154,29 @@ export function initSocketServer(httpServer: http.Server): SocketIOServer {
             return;
           }
 
-          socket.join(`team:${teamId}`);
+          if (options.onBeforeTeamRoomJoin) {
+            await options.onBeforeTeamRoomJoin({ teamId, userId });
+          }
+
+          await socket.join(roomName);
+
+          // Re-verify active membership AFTER entering the room so any concurrent
+          // post-commit removal/disbandment that raced ahead of socket.join is caught.
+          const isStillMember = await Membership.exists({
+            teamId: teamObjectId,
+            userId: userObjectId,
+            status: "ACTIVE",
+          });
+
+          if (!isStillMember) {
+            await socket.leave(roomName);
+            ack?.({
+              success: false,
+              error: "FORBIDDEN: Membership is no longer active",
+            });
+            return;
+          }
+
           ack?.({ success: true });
         } catch {
           ack?.({ success: false, error: "INTERNAL_ERROR: Failed to join team room" });

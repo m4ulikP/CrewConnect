@@ -695,5 +695,124 @@ describe("Phase 6: Real-Time Event Dispatching & Socket Authorization Test Suite
       const remainingSockets = await getSocketServer()?.in(`team:${teamId}`).fetchSockets();
       expect(remainingSockets?.length ?? 0).toBe(0);
     });
+
+    it("deterministically blocks stale join:team when membership is removed and evicted between initial check and socket.join", async () => {
+      const { team } = await TeamService.createTeam(testHackathonId, leaderUser._id.toString(), {
+        name: "Realtime Team Mu",
+        tagline: "Race Closure Team",
+        maxCapacity: 4,
+      });
+      const teamId = team._id.toString();
+
+      await SeatReservationService.reserveSeatAndJoin({
+        teamId,
+        userId: memberUser._id.toString(),
+        action: "MEMBER_JOINED",
+      });
+
+      let resolvePausedAtJoin!: () => void;
+      const pausedAtJoinPromise = new Promise<void>((r) => {
+        resolvePausedAtJoin = r;
+      });
+      let releaseJoinHandler!: () => void;
+      const waitToResumeJoin = new Promise<void>((r) => {
+        releaseJoinHandler = r;
+      });
+
+      const raceHttpServer = http.createServer(app);
+      await closeSocketServer();
+      initSocketServer(raceHttpServer, {
+        onBeforeTeamRoomJoin: async ({ teamId: tId, userId: uId }) => {
+          if (tId === teamId && uId === memberUser._id.toString()) {
+            resolvePausedAtJoin();
+            await waitToResumeJoin;
+          }
+        },
+      });
+
+      await new Promise<void>((resolve) => raceHttpServer.listen(0, () => resolve()));
+      const racePort = (raceHttpServer.address() as AddressInfo).port;
+      const raceUrl = `http://127.0.0.1:${racePort}`;
+
+      const raceClients: ClientSocket[] = [];
+      const connectRaceClient = (token: string) =>
+        new Promise<ClientSocket>((resolve, reject) => {
+          const sock = ioClient(raceUrl, {
+            auth: { token },
+            transports: ["websocket"],
+            reconnection: false,
+          });
+          raceClients.push(sock);
+          sock.on("connect", () => resolve(sock));
+          sock.on("connect_error", reject);
+        });
+
+      try {
+        // 1. Authorized leader joins normally (proving ordinary authorized join succeeds)
+        const leaderClient = await connectRaceClient(leaderToken);
+        const leaderJoinAck = await new Promise<RoomAck>((r) =>
+          leaderClient.emit("join:team", { teamId }, r)
+        );
+        expect(leaderJoinAck.success).toBe(true);
+
+        // 2. Member connects and emits join:team; server pauses deterministically right after initial check
+        const memberClient = await connectRaceClient(memberToken);
+        const memberJoinAckPromise = new Promise<RoomAck>((r) =>
+          memberClient.emit("join:team", { teamId }, r)
+        );
+
+        await pausedAtJoinPromise;
+
+        // 3. While member's join:team handler is paused before socket.join:
+        //    Leader removes member -> DB transaction commits -> post-commit eviction runs.
+        await TeamService.removeMember(
+          teamId,
+          leaderUser._id.toString(),
+          memberUser._id.toString()
+        );
+
+        // 4. Resume the paused join handler now that membership is revoked
+        releaseJoinHandler();
+
+        const memberJoinAck = await memberJoinAckPromise;
+        expect(memberJoinAck.success).toBe(false);
+        expect(memberJoinAck.error).toContain("FORBIDDEN");
+
+        // 5. Verify member's socket is NOT present in `team:<teamId>`
+        const roomSockets = await getSocketServer()?.in(`team:${teamId}`).fetchSockets();
+        const socketUserIds = (roomSockets || []).map((s) => s.data.userId);
+        expect(socketUserIds).toEqual([leaderUser._id.toString()]);
+
+        // 6. Dispatch subsequent private team event -> leader receives it, former member receives nothing
+        let memberReceivedPrivateEvent = false;
+        memberClient.on(REALTIME_EVENTS.LEADERSHIP_TRANSFERRED, () => {
+          memberReceivedPrivateEvent = true;
+        });
+
+        const leaderReceivedPrivateEvent = new Promise<void>((r) =>
+          leaderClient.once(REALTIME_EVENTS.LEADERSHIP_TRANSFERRED, () => r())
+        );
+
+        EventDispatcher.dispatchLeadershipTransferred({
+          teamId,
+          hackathonId: testHackathonId,
+          previousLeaderId: leaderUser._id.toString(),
+          newLeaderId: leaderUser._id.toString(),
+          newLeaderDisplayName: "Realtime Leader",
+          timestamp: new Date().toISOString(),
+        });
+
+        await leaderReceivedPrivateEvent;
+        await new Promise((r) => setTimeout(r, 200));
+        expect(memberReceivedPrivateEvent).toBe(false);
+      } finally {
+        for (const c of raceClients) {
+          if (c.connected) c.disconnect();
+        }
+        await closeSocketServer();
+        await new Promise<void>((resolve) => raceHttpServer.close(() => resolve()));
+        initSocketServer(server);
+      }
+    });
   });
 });

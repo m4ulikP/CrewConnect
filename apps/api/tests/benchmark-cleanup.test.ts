@@ -2,7 +2,15 @@ import { describe, it, expect, beforeAll, afterAll, beforeEach } from "vitest";
 import { Types } from "mongoose";
 import { connectToDatabase, disconnectDatabase } from "../src/db/connection.js";
 import { User, Hackathon, Team, Membership, IdempotencyRecord } from "../src/models/index.js";
-import { seedLoadData, cleanupLoadData, LOAD_BENCH_SLUG } from "../../../scripts/seed-load-data.js";
+import {
+  seedLoadData,
+  cleanupLoadData,
+  getBenchmarkEmailRegex,
+  LOAD_BENCH_SLUG,
+} from "../../../scripts/seed-load-data.js";
+
+const SLUG_A = "bench-isolation-alpha";
+const SLUG_B = "bench-isolation-beta";
 
 describe("Phase 6.1: Benchmark Seeding & Scoped Cleanup Safety", () => {
   beforeAll(async () => {
@@ -16,6 +24,8 @@ describe("Phase 6.1: Benchmark Seeding & Scoped Cleanup Safety", () => {
 
   afterAll(async () => {
     await cleanupLoadData(LOAD_BENCH_SLUG);
+    await cleanupLoadData(SLUG_A);
+    await cleanupLoadData(SLUG_B);
     await User.deleteMany({ email: /@ordinary-dev-survival\.test$/ });
     await Hackathon.deleteMany({ slug: /ordinary-dev-survival-/ });
     await disconnectDatabase();
@@ -23,6 +33,8 @@ describe("Phase 6.1: Benchmark Seeding & Scoped Cleanup Safety", () => {
 
   beforeEach(async () => {
     await cleanupLoadData(LOAD_BENCH_SLUG);
+    await cleanupLoadData(SLUG_A);
+    await cleanupLoadData(SLUG_B);
     await User.deleteMany({ email: /@ordinary-dev-survival\.test$/ });
     await Hackathon.deleteMany({ slug: /ordinary-dev-survival-/ });
   });
@@ -128,7 +140,7 @@ describe("Phase 6.1: Benchmark Seeding & Scoped Cleanup Safety", () => {
 
     // 4. Verify synthetic benchmark records are gone
     expect(await Hackathon.findOne({ slug: LOAD_BENCH_SLUG })).toBeNull();
-    expect(await User.countDocuments({ email: /@load-bench\.crewconnect\.test$/ })).toBe(0);
+    expect(await User.countDocuments({ email: getBenchmarkEmailRegex(LOAD_BENCH_SLUG) })).toBe(0);
     expect(await IdempotencyRecord.findOne({ userId: benchContender._id })).toBeNull();
 
     // 5. Verify ordinary unrelated data survived completely intact
@@ -143,6 +155,90 @@ describe("Phase 6.1: Benchmark Seeding & Scoped Cleanup Safety", () => {
     await IdempotencyRecord.deleteOne({ _id: ordinaryIdemp._id });
     await Team.deleteOne({ _id: ordinaryTeamId });
     await Hackathon.deleteOne({ _id: ordinaryHackathon._id });
+    await User.deleteOne({ _id: ordinaryUser._id });
+  });
+
+  it("isolates cleanup across two independent benchmark datasets (Dataset A vs Dataset B)", async () => {
+    // Seed ordinary user/record too
+    const ordinaryUser = await User.create({
+      email: `dev-multi-${Date.now()}@ordinary-dev-survival.test`,
+      displayName: "Ordinary User",
+      passwordHash: "hash",
+      skills: ["Go"],
+      status: "ACTIVE",
+      tokenVersion: 0,
+    });
+
+    // Seed Dataset A and Dataset B independently
+    const datasetA = await seedLoadData({
+      teamCount: 4,
+      participantCount: 110,
+      minFreeContenders: 100,
+      benchmarkSlug: SLUG_A,
+    });
+
+    const datasetB = await seedLoadData({
+      teamCount: 5,
+      participantCount: 115,
+      minFreeContenders: 100,
+      benchmarkSlug: SLUG_B,
+    });
+
+    // Attach IdempotencyRecords for both Dataset A and Dataset B contenders
+    const contenderA = datasetA.contenders[0];
+    const contenderB = datasetB.contenders[0];
+    const endpointA = `/api/v1/teams/${datasetA.arenaTeam._id.toString()}/join`;
+    const endpointB = `/api/v1/teams/${datasetB.arenaTeam._id.toString()}/join`;
+
+    const idempA = await IdempotencyRecord.create({
+      key: `key-a-${Date.now()}`,
+      userId: contenderA._id,
+      endpoint: endpointA,
+      payloadHash: "hash-a",
+      ownerToken: "owner-a",
+      status: "COMPLETED",
+      statusCode: 201,
+      responseBody: { dataset: "A" },
+      expiresAt: new Date(Date.now() + 86400000),
+    });
+
+    const idempB = await IdempotencyRecord.create({
+      key: `key-b-${Date.now()}`,
+      userId: contenderB._id,
+      endpoint: endpointB,
+      payloadHash: "hash-b",
+      ownerToken: "owner-b",
+      status: "COMPLETED",
+      statusCode: 201,
+      responseBody: { dataset: "B" },
+      expiresAt: new Date(Date.now() + 86400000),
+    });
+
+    // Clean up ONLY Dataset A (repeated twice to confirm idempotency)
+    await cleanupLoadData(SLUG_A);
+    await cleanupLoadData(SLUG_A);
+
+    // Verify Dataset A is completely removed
+    expect(await Hackathon.findOne({ slug: SLUG_A })).toBeNull();
+    expect(await Team.countDocuments({ hackathonId: datasetA.hackathon._id })).toBe(0);
+    expect(await Membership.countDocuments({ hackathonId: datasetA.hackathon._id })).toBe(0);
+    expect(await User.countDocuments({ email: getBenchmarkEmailRegex(SLUG_A) })).toBe(0);
+    expect(await IdempotencyRecord.findById(idempA._id)).toBeNull();
+
+    // Verify Dataset B remains 100% intact
+    expect(await Hackathon.findOne({ slug: SLUG_B })).not.toBeNull();
+    expect(await Team.countDocuments({ hackathonId: datasetB.hackathon._id })).toBe(5);
+    expect(await Membership.countDocuments({ hackathonId: datasetB.hackathon._id })).toBe(
+      datasetB.membershipCount
+    );
+    expect(await User.countDocuments({ email: getBenchmarkEmailRegex(SLUG_B) })).toBe(115);
+    expect(await IdempotencyRecord.findById(idempB._id)).not.toBeNull();
+
+    // Verify ordinary user survived intact
+    expect(await User.findById(ordinaryUser._id)).not.toBeNull();
+
+    // Clean up Dataset B and ordinary user cleanly
+    await cleanupLoadData(SLUG_B);
     await User.deleteOne({ _id: ordinaryUser._id });
   });
 });
