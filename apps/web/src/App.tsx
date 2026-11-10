@@ -7,6 +7,7 @@ import { Navbar } from "./components/Navbar";
 import { Footer } from "./components/Footer";
 import { ErrorBoundary } from "./components/ErrorBoundary";
 import { ProtectedRoute } from "./components/ProtectedRoute";
+import { AuthenticatedDashboard } from "./components/dashboard/AuthenticatedDashboard";
 import { Home } from "./pages/Home";
 import { TeamsPreview } from "./pages/TeamsPreview";
 import { TeamDetails } from "./pages/TeamDetails";
@@ -35,6 +36,14 @@ export const App: React.FC = () => {
                 <main className="flex-1">
                   <Routes>
                     <Route path="/" element={<Home />} />
+                    <Route
+                      path="/dashboard"
+                      element={
+                        <ProtectedRoute>
+                          <AuthenticatedDashboard />
+                        </ProtectedRoute>
+                      }
+                    />
                     <Route path="/teams" element={<TeamsPreview />} />
                     <Route path="/teams-preview" element={<TeamsPreview />} />
                     <Route path="/teams/:teamId" element={<TeamDetails />} />
@@ -52,7 +61,9 @@ export const App: React.FC = () => {
                       path="*"
                       element={
                         <div className="py-24 text-center space-y-4 max-w-md mx-auto">
-                          <h1 className="text-3xl font-serif text-ink-primary">404 — Page Not Found</h1>
+                          <h1 className="text-3xl font-serif text-ink-primary">
+                            404 — Page Not Found
+                          </h1>
                           <p className="text-sm text-ink-secondary">
                             The requested squad or view does not exist in this hackathon.
                           </p>

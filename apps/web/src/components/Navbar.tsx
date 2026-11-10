@@ -12,6 +12,7 @@ export const Navbar: React.FC = () => {
 
   const isActive = (path: string) =>
     location.pathname === path ||
+    (path === "/" && Boolean(user) && location.pathname === "/dashboard") ||
     (path === "/teams-preview" && location.pathname.startsWith("/teams"));
 
   return (
@@ -50,14 +51,14 @@ export const Navbar: React.FC = () => {
           className="flex items-center gap-2 sm:gap-5 flex-shrink-0"
         >
           <Link
-            to="/"
+            to={user ? "/dashboard" : "/"}
             className={`hidden sm:inline-flex items-center py-1 text-sm font-semibold whitespace-nowrap transition-colors focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-accent rounded-sm ${
               isActive("/")
                 ? "text-ink-primary font-bold underline decoration-2 decoration-accent underline-offset-[6px]"
                 : "text-ink-secondary hover:text-ink-primary"
             }`}
           >
-            <span>Platform</span>
+            <span>{user ? "Dashboard" : "Platform"}</span>
           </Link>
           <Link
             to="/teams-preview"
