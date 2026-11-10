@@ -52,8 +52,7 @@ export const LiveSquadShowcase: React.FC = () => {
   const [reservedIds, setReservedIds] = useState<Record<string, boolean>>({});
   const [isReserving, setIsReserving] = useState(false);
 
-  const activeSquad =
-    DEMO_SQUADS.find((s) => s.id === selectedSquadId) ?? DEMO_SQUADS[0];
+  const activeSquad = DEMO_SQUADS.find((s) => s.id === selectedSquadId) ?? DEMO_SQUADS[0];
   const isReserved = Boolean(reservedIds[activeSquad.id]);
   const occupiedCount = activeSquad.baseMembers.length + (isReserved ? 1 : 0);
   const remainingSeats = activeSquad.maxCapacity - occupiedCount;
@@ -98,7 +97,7 @@ export const LiveSquadShowcase: React.FC = () => {
           })}
         </div>
         <span className="text-[13px] font-medium text-[#D4D4D8]">
-          Illustrative interactive preview
+          Illustrative interactive preview · Simulated
         </span>
       </div>
 
@@ -109,16 +108,12 @@ export const LiveSquadShowcase: React.FC = () => {
             <h3 className="font-serif text-3xl font-medium text-ink-primary tracking-tight">
               {activeSquad.name}
             </h3>
-            <p className="text-[13px] font-medium text-ink-muted">
-              {activeSquad.track}
-            </p>
+            <p className="text-[13px] font-medium text-ink-muted">{activeSquad.track}</p>
           </div>
 
           <span
             className={`px-3 py-1 rounded text-[13px] font-bold tabular border-2 border-ink-primary self-start ${
-              remainingSeats > 0
-                ? "bg-highlight text-ink-primary"
-                : "bg-accent text-white"
+              remainingSeats > 0 ? "bg-highlight text-ink-primary" : "bg-accent text-white"
             }`}
           >
             {occupiedCount} / {activeSquad.maxCapacity} seats ·{" "}
@@ -135,20 +130,14 @@ export const LiveSquadShowcase: React.FC = () => {
               <div
                 key={slot}
                 className={`h-3 rounded-sm border border-ink-primary transition-colors duration-200 ${
-                  filled
-                    ? isFourthSlot
-                      ? "bg-accent"
-                      : "bg-ink-primary"
-                    : "bg-highlight"
+                  filled ? (isFourthSlot ? "bg-accent" : "bg-ink-primary") : "bg-highlight"
                 }`}
               />
             );
           })}
         </div>
 
-        <p className="text-base text-ink-secondary leading-relaxed">
-          {activeSquad.mission}
-        </p>
+        <p className="text-base text-ink-secondary leading-relaxed">{activeSquad.mission}</p>
 
         {/* Skills Sought */}
         <div className="space-y-2.5">
@@ -181,9 +170,7 @@ export const LiveSquadShowcase: React.FC = () => {
               >
                 <Avatar name={member.name} size="sm" />
                 <div className="min-w-0">
-                  <p className="text-sm font-semibold text-ink-primary truncate">
-                    {member.name}
-                  </p>
+                  <p className="text-sm font-semibold text-ink-primary truncate">{member.name}</p>
                   <p className="text-[13px] text-ink-secondary truncate">
                     {member.role} · {member.specialty}
                   </p>
@@ -198,9 +185,7 @@ export const LiveSquadShowcase: React.FC = () => {
                   <Check className="w-4 h-4" />
                 </span>
                 <div className="min-w-0">
-                  <p className="text-sm font-bold text-accent truncate">
-                    You (Seat 4 Reserved)
-                  </p>
+                  <p className="text-sm font-bold text-accent truncate">You (Seat 4 Reserved)</p>
                   <p className="text-[13px] text-ink-primary truncate">
                     Simulated Idempotency-Key lock
                   </p>
@@ -209,12 +194,8 @@ export const LiveSquadShowcase: React.FC = () => {
             ) : (
               <div className="flex items-center justify-between gap-3 p-3 rounded-md bg-highlight-soft border-2 border-ink-primary">
                 <div className="min-w-0">
-                  <p className="text-sm font-bold text-ink-primary truncate">
-                    Open Seat 4
-                  </p>
-                  <p className="text-[13px] text-ink-primary truncate">
-                    Direct join available
-                  </p>
+                  <p className="text-sm font-bold text-ink-primary truncate">Open Seat 4</p>
+                  <p className="text-[13px] text-ink-primary truncate">Direct join available</p>
                 </div>
                 <span className="text-[13px] font-bold text-ink-primary px-2.5 py-0.5 rounded bg-highlight border border-ink-primary">
                   Open
@@ -232,7 +213,7 @@ export const LiveSquadShowcase: React.FC = () => {
                 type="button"
                 onClick={handleReserveDemoSeat}
                 disabled={isReserving}
-                className="btn btn-primary h-10 px-5 text-sm border-2 border-ink-primary"
+                className="btn btn-brutal-primary h-10 px-5 text-sm"
               >
                 <span>{isReserving ? "Locking seat..." : "Try Reserve Final Seat"}</span>
               </button>
@@ -240,7 +221,7 @@ export const LiveSquadShowcase: React.FC = () => {
               <button
                 type="button"
                 onClick={handleResetDemo}
-                className="btn h-10 px-4 text-sm bg-highlight text-ink-primary border-2 border-ink-primary hover:bg-highlight-hover"
+                className="btn btn-brutal-highlight h-10 px-4 text-sm"
               >
                 <RotateCcw className="w-4 h-4" />
                 <span>Reset demonstration</span>
@@ -248,12 +229,9 @@ export const LiveSquadShowcase: React.FC = () => {
             )}
           </div>
 
-          <Link
-            to="/teams-preview"
-            className="text-sm font-semibold text-accent hover:text-accent-hover inline-flex items-center gap-1.5"
-          >
+          <Link to="/teams-preview" className="btn-text-link group text-sm">
             <span>Inspect live squads</span>
-            <ArrowRight className="w-4 h-4" />
+            <ArrowRight className="w-4 h-4 transition-transform duration-150 group-hover:translate-x-1" />
           </Link>
         </div>
       </div>

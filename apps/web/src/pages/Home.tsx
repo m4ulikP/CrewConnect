@@ -15,10 +15,19 @@ import { useAuth } from "../context/AuthContext";
 import { CapacityBadge } from "../components/CapacityBadge";
 import { CreateTeamModal } from "../components/CreateTeamModal";
 import { SquadAssemblyIllustration } from "../components/landing/SquadAssemblyIllustration";
+import { TypingHeadline } from "../components/landing/TypingHeadline";
 import { LiveSquadShowcase } from "../components/landing/LiveSquadShowcase";
 import { WorkflowShowcase } from "../components/landing/WorkflowShowcase";
 import { ReservationEngineDemo } from "../components/landing/ReservationEngineDemo";
 import { useInViewOnce } from "../hooks/useInViewOnce";
+
+const SectionConnector: React.FC<{ dotClass: string }> = ({ dotClass }) => (
+  <div aria-hidden="true" className="flex flex-col items-center py-2">
+    <span className="w-0.5 h-6 bg-ink-primary" />
+    <span className={`w-3.5 h-3.5 rounded-full border-2 border-ink-primary ${dotClass}`} />
+    <span className="w-0.5 h-6 bg-ink-primary" />
+  </div>
+);
 
 const PublicLanding: React.FC<{ apiOnline: boolean; loadingHealth: boolean }> = ({
   apiOnline,
@@ -28,86 +37,58 @@ const PublicLanding: React.FC<{ apiOnline: boolean; loadingHealth: boolean }> = 
   const ctaReveal = useInViewOnce<HTMLDivElement>(0.15);
 
   return (
-    <div className="overflow-x-clip">
-      {/* 1. Expressive Hero + Kinetic Geometric Squad Illustration */}
-      <section className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 pt-10 sm:pt-16 pb-20 sm:pb-24">
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-10 lg:gap-10 items-center">
-          {/* Left Copy, Brutalist Marker Highlight & Actions */}
-          <div className="lg:col-span-7 space-y-7">
-            <h1 className="text-[40px] sm:text-5xl lg:text-[64px] font-serif font-normal text-ink-primary tracking-[-0.03em] leading-[1.02]">
-              <span className="hero-line-mask">
-                <span className="hero-line-inner">Sharp builders.</span>
-              </span>
-              <span className="hero-line-mask">
-                <span className="hero-line-inner" style={{ animationDelay: "90ms" }}>
-                  Locked into{" "}
-                  <span className="inline-block bg-highlight px-2.5 pb-0.5 rounded-sm">
-                    squads.
-                  </span>
-                </span>
-              </span>
-            </h1>
+    <div className="bg-ground overflow-x-clip">
+      {/* 1. Expressive Hero on Architectural Drafting Dots */}
+      <section className="bg-drafting-dots pt-10 sm:pt-16 pb-14 sm:pb-20">
+        <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 grid grid-cols-1 lg:grid-cols-12 gap-10 lg:gap-10 items-center">
+          {/* Left Copy, Typing Headline & Cohesive Brutalist Actions */}
+          <div className="lg:col-span-6 space-y-6">
+            <TypingHeadline />
 
             <p className="text-base sm:text-lg text-ink-secondary max-w-[46ch] leading-relaxed reveal-line reveal-delay-1">
-              Skip endless chat scrolls. Browse active hackathon missions, match skills cleanly, and claim your team seat through atomic database locks.
+              Discover hackathon teams, check which skills they need, and claim open seats backed by
+              atomic database reservations that prevent double-bookings.
             </p>
 
             <div className="flex flex-wrap items-center gap-3.5 pt-1 reveal-line reveal-delay-2">
               <Link
                 to="/teams-preview"
-                className="btn btn-primary h-12 px-6 text-sm sm:text-base border-2 border-ink-primary"
+                className="btn btn-brutal-primary group h-12 px-6 text-sm sm:text-base"
               >
                 <span>Explore Team Board</span>
-                <ArrowRight className="w-4 h-4" />
+                <ArrowRight className="w-4 h-4 transition-transform duration-150 group-hover:translate-x-1" />
               </Link>
               <Link
                 to="/register"
-                className="btn h-12 px-6 text-sm sm:text-base bg-surface text-ink-primary border-2 border-ink-primary hover:bg-highlight"
+                className="btn btn-brutal-secondary h-12 px-6 text-sm sm:text-base"
               >
                 <span>Create account</span>
               </Link>
             </div>
 
-            {/* Tilted Editorial Sticker Annotation */}
-            <div className="pt-1 flex flex-wrap items-center gap-3 reveal-line reveal-delay-3">
-              <span className="inline-flex items-center gap-2 bg-surface-tonal border-2 border-ink-primary px-3 py-1 rounded -rotate-1 text-[13px] font-semibold text-ink-primary">
-                <span className="w-2.5 h-2.5 rounded-full bg-tangelo border border-ink-primary" />
-                <span>Hack4Hack 2026 · Fixed-capacity squad engine</span>
+            <div className="flex flex-wrap items-center gap-5 pt-1 reveal-line reveal-delay-3">
+              <a href="#architecture" className="btn-text-link group text-sm">
+                <span>See how last-seat locking works</span>
+                <ArrowRight className="w-3.5 h-3.5 transition-transform duration-150 group-hover:translate-x-1" />
+              </a>
+              <span className="inline-flex items-center gap-2 bg-surface border border-ink-primary/30 px-2.5 py-1 rounded-[3px] text-[13px] font-medium text-ink-secondary">
+                <span className="w-2 h-2 rounded-full bg-tangelo" />
+                <span>Hack4Hack 2026</span>
               </span>
             </div>
           </div>
 
-          {/* Right Bespoke Playful Builder Assembly Illustration */}
-          <div className="lg:col-span-5 reveal-line reveal-delay-2">
+          {/* Right Playful Builder Assembly Illustration */}
+          <div className="lg:col-span-6 reveal-line reveal-delay-2">
             <SquadAssemblyIllustration />
           </div>
         </div>
       </section>
 
-      {/* 2. Stark Architectural Contrast Band */}
-      <div className="bg-ink-primary text-ground py-5">
-        <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 grid grid-cols-2 lg:grid-cols-4 gap-4 text-[13px] sm:text-sm font-semibold">
-          <div className="flex items-center gap-2.5">
-            <span className="w-2.5 h-2.5 rounded-full bg-highlight flex-shrink-0" />
-            <span>Atomic conditional writes</span>
-          </div>
-          <div className="flex items-center gap-2.5">
-            <span className="w-2.5 h-2.5 rounded-full bg-tangelo flex-shrink-0" />
-            <span>Idempotency-key protected</span>
-          </div>
-          <div className="flex items-center gap-2.5">
-            <span className="w-2.5 h-2.5 rounded-full bg-accent-tint flex-shrink-0" />
-            <span>Live Socket.IO sync</span>
-          </div>
-          <div className="flex items-center gap-2.5">
-            <span className="w-2.5 h-2.5 rounded-full bg-highlight flex-shrink-0" />
-            <span>Zero phantom memberships</span>
-          </div>
-        </div>
-      </div>
+      <SectionConnector dotClass="bg-highlight" />
 
-      {/* 3. Interactive Product / Discovery Showcase */}
-      <section className="bg-surface py-20 sm:py-28">
+      {/* 2. Interactive Product / Discovery Showcase */}
+      <section className="py-12 sm:py-16">
         <div
           ref={showcaseReveal.ref}
           className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 grid grid-cols-1 lg:grid-cols-12 gap-12 items-start"
@@ -117,19 +98,22 @@ const PublicLanding: React.FC<{ apiOnline: boolean; loadingHealth: boolean }> = 
               showcaseReveal.inView ? "opacity-100 translate-y-0" : "opacity-0 translate-y-4"
             }`}
           >
-            <div className="inline-flex items-baseline gap-2 font-serif text-5xl sm:text-6xl font-medium text-accent tabular">
+            <div className="inline-flex items-baseline gap-2 font-display text-4xl sm:text-5xl font-bold text-accent tabular">
               <span>3</span>
-              <span className="text-ink-muted text-3xl">→</span>
-              <span className="bg-highlight text-ink-primary px-2 rounded-sm">4</span>
+              <span className="text-ink-muted text-2xl">→</span>
+              <span className="bg-highlight border-2 border-ink-primary text-ink-primary px-2 rounded-[4px]">
+                4
+              </span>
             </div>
-            <h2 className="font-serif text-[28px] sm:text-4xl font-medium text-ink-primary tracking-tight leading-tight">
-              Inspect a squad before you claim a seat.
+            <h2 className="font-display text-3xl sm:text-4xl font-bold text-ink-primary tracking-tight leading-tight">
+              Inspect a squad before joining.
             </h2>
-            <p className="text-base text-ink-secondary leading-relaxed max-w-[60ch]">
-              Every dossier displays active members, project scope, exact skills sought, and remaining seat capacity in real time.
+            <p className="text-base text-ink-secondary leading-relaxed max-w-[56ch]">
+              See active members, project goals, sought skills, and remaining seat count at a glance
+              before deciding where to contribute.
             </p>
-            <p className="text-base text-ink-secondary leading-relaxed max-w-[60ch]">
-              Click the reserve control on the preview to test locking the remaining fourth slot cleanly.
+            <p className="text-base text-ink-secondary leading-relaxed max-w-[56ch]">
+              Click the button on this preview to try reserving the open fourth slot.
             </p>
           </div>
 
@@ -144,78 +128,102 @@ const PublicLanding: React.FC<{ apiOnline: boolean; loadingHealth: boolean }> = 
         </div>
       </section>
 
-      {/* 4. Staggered Asymmetric Workflow Chapters */}
-      <section className="bg-surface-tonal py-20 sm:py-28">
+      <SectionConnector dotClass="bg-tangelo" />
+
+      {/* 3. Staggered User Journey on Drafting Grid Texture */}
+      <section className="bg-drafting-grid border-y-2 border-ink-primary py-16 sm:py-24">
         <WorkflowShowcase />
       </section>
 
-      {/* 5. Technical Credibility: Race-Proof Reservation Engine */}
-      <section className="bg-ground py-20 sm:py-28">
+      <SectionConnector dotClass="bg-accent" />
+
+      {/* 4. Last-Seat Protection Explainer */}
+      <section className="bg-drafting-dots py-14 sm:py-20">
         <ReservationEngineDemo apiOnline={apiOnline} loadingHealth={loadingHealth} />
       </section>
 
-      {/* 6. Bold Expressive Pine Closing Poster CTA */}
-      <section className="relative bg-accent py-20 sm:py-28 overflow-hidden">
-        {/* Decorative Clipped Graphic Geometry */}
-        <svg
-          aria-hidden="true"
-          viewBox="0 0 260 260"
-          className="hidden lg:block absolute -right-10 -bottom-12 w-64 h-64 pointer-events-none opacity-95"
-        >
-          <circle
-            cx="150"
-            cy="150"
-            r="96"
-            fill="#FDE047"
-            stroke="#18181B"
-            strokeWidth="3"
-          />
-          <circle
-            cx="64"
-            cy="88"
-            r="34"
-            fill="#FF5A1F"
-            stroke="#18181B"
-            strokeWidth="3"
-          />
-        </svg>
-
-        <div
-          ref={ctaReveal.ref}
-          className="relative z-10 max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 grid grid-cols-1 lg:grid-cols-12 gap-8 items-center"
-        >
+      {/* 5. Cohesive Framed Pine Closing CTA Poster (Unified Within Grid Canvas) */}
+      <section className="pt-8 pb-20 sm:pb-24">
+        <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
           <div
-            className={`lg:col-span-7 space-y-4 transition-[transform,opacity] duration-500 ease-out ${
-              ctaReveal.inView ? "opacity-100 translate-y-0" : "opacity-0 translate-y-4"
-            }`}
+            ref={ctaReveal.ref}
+            className="relative bg-accent border-2 border-ink-primary rounded-xl p-8 sm:p-12 overflow-hidden"
           >
-            <h2 className="font-serif text-[30px] sm:text-5xl font-normal text-white tracking-tight leading-[1.06]">
-              Ready to form your hackathon squad?
-            </h2>
-            <p className="text-base sm:text-lg text-[#E6F2F0] max-w-[54ch] leading-relaxed">
-              Register your builder profile, declare your stack, or initialize a new team for Hack4Hack 2026 in under two minutes.
-            </p>
-          </div>
+            {/* Friendly Geometric Crew Corner Cameo */}
+            <svg
+              aria-hidden="true"
+              viewBox="0 0 220 140"
+              className="hidden lg:block absolute right-6 bottom-0 w-52 h-32 pointer-events-none"
+            >
+              <path
+                d="M12 140 V92 C12 68.8 30.8 50 54 50 C77.2 50 96 68.8 96 92 V140 H12 Z"
+                fill="#0F4C48"
+                stroke="#18181B"
+                strokeWidth="2.5"
+              />
+              <circle cx="42" cy="90" r="4" fill="#FFFFFF" />
+              <circle cx="64" cy="90" r="4" fill="#FFFFFF" />
+              <rect
+                x="110"
+                y="62"
+                width="76"
+                height="78"
+                rx="16"
+                fill="#FDE047"
+                stroke="#18181B"
+                strokeWidth="2.5"
+              />
+              <circle cx="136" cy="94" r="4" fill="#18181B" />
+              <circle cx="160" cy="94" r="4" fill="#18181B" />
+              <path
+                d="M140 110 Q148 117 156 110"
+                fill="none"
+                stroke="#18181B"
+                strokeWidth="2.5"
+                strokeLinecap="round"
+              />
+              <circle cx="192" cy="42" r="18" fill="#FF5A1F" stroke="#18181B" strokeWidth="2.5" />
+            </svg>
 
-          <div
-            style={{ transitionDelay: "90ms" }}
-            className={`lg:col-span-5 flex flex-wrap lg:justify-end gap-3.5 transition-[transform,opacity] duration-500 ease-out ${
-              ctaReveal.inView ? "opacity-100 translate-y-0" : "opacity-0 translate-y-4"
-            }`}
-          >
-            <Link
-              to="/register"
-              className="btn h-12 px-6 bg-highlight text-ink-primary border-2 border-ink-primary font-bold text-sm sm:text-base hover:bg-highlight-hover"
-            >
-              <span>Create builder profile</span>
-              <ArrowRight className="w-4 h-4" />
-            </Link>
-            <Link
-              to="/teams-preview"
-              className="btn h-12 px-5 bg-surface text-ink-primary border-2 border-ink-primary font-semibold text-sm sm:text-base hover:bg-surface-tonal"
-            >
-              <span>Browse open squads</span>
-            </Link>
+            <div className="relative z-10 max-w-2xl space-y-5">
+              <h2
+                className={`font-display text-3xl sm:text-4xl font-bold text-white tracking-tight leading-[1.08] transition-[transform,opacity] duration-500 ease-out ${
+                  ctaReveal.inView ? "opacity-100 translate-y-0" : "opacity-0 translate-y-4"
+                }`}
+              >
+                Ready to form your hackathon squad?
+              </h2>
+              <p
+                style={{ transitionDelay: "70ms" }}
+                className={`text-base sm:text-lg text-[#E6F2F0] max-w-[50ch] leading-relaxed transition-[transform,opacity] duration-500 ease-out ${
+                  ctaReveal.inView ? "opacity-100 translate-y-0" : "opacity-0 translate-y-4"
+                }`}
+              >
+                Create your builder profile, list your skills, or start a new squad for Hack4Hack
+                2026 in under two minutes.
+              </p>
+
+              <div
+                style={{ transitionDelay: "130ms" }}
+                className={`flex flex-wrap items-center gap-3.5 pt-2 transition-[transform,opacity] duration-500 ease-out ${
+                  ctaReveal.inView ? "opacity-100 translate-y-0" : "opacity-0 translate-y-4"
+                }`}
+              >
+                <Link
+                  to="/register"
+                  className="btn btn-brutal-highlight group h-12 px-6 text-sm sm:text-base"
+                >
+                  <span>Create builder profile</span>
+                  <ArrowRight className="w-4 h-4 transition-transform duration-150 group-hover:translate-x-1" />
+                </Link>
+                <Link
+                  to="/teams-preview"
+                  className="btn btn-brutal-secondary h-12 px-5 text-sm sm:text-base"
+                >
+                  <span>Browse open squads</span>
+                </Link>
+              </div>
+            </div>
           </div>
         </div>
       </section>
@@ -306,7 +314,9 @@ export const Home: React.FC = () => {
               {timeGreeting}, {user.displayName}
             </h1>
             <p className="text-sm text-ink-secondary mt-1">
-              {selectedHackathon ? `${selectedHackathon.title} • Active recruitment window` : "Active recruitment window"}
+              {selectedHackathon
+                ? `${selectedHackathon.title} • Active recruitment window`
+                : "Active recruitment window"}
             </p>
           </div>
           <div className="flex items-center gap-3">
@@ -378,7 +388,8 @@ export const Home: React.FC = () => {
                 <div className="space-y-1">
                   <h2 className="text-xl font-serif text-ink-primary">No active squad yet</h2>
                   <p className="text-sm text-ink-secondary max-w-md mx-auto leading-relaxed">
-                    You haven't formed or joined a squad for this hackathon. Explore open squads with remaining seats or initialize your own team.
+                    You haven't formed or joined a squad for this hackathon. Explore open squads
+                    with remaining seats or initialize your own team.
                   </p>
                 </div>
                 <div className="flex items-center justify-center gap-3 pt-2">
@@ -398,8 +409,13 @@ export const Home: React.FC = () => {
             {/* Quick Discover Section */}
             <div className="bg-surface border border-border-subtle rounded-lg p-6 space-y-4">
               <div className="flex items-center justify-between">
-                <h3 className="text-base font-serif text-ink-primary">Open Squads Seeking Members</h3>
-                <Link to="/teams-preview" className="text-xs font-medium text-accent hover:underline">
+                <h3 className="text-base font-serif text-ink-primary">
+                  Open Squads Seeking Members
+                </h3>
+                <Link
+                  to="/teams-preview"
+                  className="text-xs font-medium text-accent hover:underline"
+                >
                   View all
                 </Link>
               </div>
@@ -412,11 +428,16 @@ export const Home: React.FC = () => {
                     <div key={t.id} className="py-3 flex items-center justify-between gap-4">
                       <div>
                         <h4 className="text-sm font-semibold text-ink-primary">{t.name}</h4>
-                        <p className="text-xs text-ink-secondary line-clamp-1">{t.tagline || t.description || "Building hackathon project"}</p>
+                        <p className="text-xs text-ink-secondary line-clamp-1">
+                          {t.tagline || t.description || "Building hackathon project"}
+                        </p>
                       </div>
                       <div className="flex items-center gap-3 flex-shrink-0">
                         <CapacityBadge memberCount={t.memberCount} maxCapacity={t.maxCapacity} />
-                        <Link to={`/teams/${t.id}`} className="text-xs font-medium text-accent hover:underline">
+                        <Link
+                          to={`/teams/${t.id}`}
+                          className="text-xs font-medium text-accent hover:underline"
+                        >
                           View
                         </Link>
                       </div>
@@ -447,10 +468,15 @@ export const Home: React.FC = () => {
                         <span className="font-medium text-ink-primary">
                           {typeof log.actorId === "object" ? log.actorId.displayName : "Member"}
                         </span>{" "}
-                        <span className="text-ink-secondary">{log.action.toLowerCase().replace(/_/g, " ")}</span>
+                        <span className="text-ink-secondary">
+                          {log.action.toLowerCase().replace(/_/g, " ")}
+                        </span>
                       </div>
                       <span className="tabular text-ink-muted text-[11px] flex-shrink-0">
-                        {new Date(log.timestamp).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
+                        {new Date(log.timestamp).toLocaleTimeString([], {
+                          hour: "2-digit",
+                          minute: "2-digit",
+                        })}
                       </span>
                     </div>
                   ))}
@@ -465,7 +491,9 @@ export const Home: React.FC = () => {
                 <div className="space-y-2 text-xs">
                   <div className="flex items-center justify-between">
                     <span className="text-ink-secondary">Event:</span>
-                    <span className="font-semibold text-ink-primary">{selectedHackathon.title}</span>
+                    <span className="font-semibold text-ink-primary">
+                      {selectedHackathon.title}
+                    </span>
                   </div>
                   <div className="flex items-center justify-between">
                     <span className="text-ink-secondary">Team Capacity:</span>
@@ -504,7 +532,5 @@ export const Home: React.FC = () => {
   }
 
   // If user is NOT authenticated, render the Public Landing Page
-  return (
-    <PublicLanding apiOnline={Boolean(health)} loadingHealth={loadingHealth} />
-  );
+  return <PublicLanding apiOnline={Boolean(health)} loadingHealth={loadingHealth} />;
 };

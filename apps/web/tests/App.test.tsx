@@ -29,7 +29,9 @@ describe("Frontend Shell Rendering", () => {
   it("renders the hero heading and primary action", async () => {
     render(<App />);
     await waitFor(() => {
-      expect(screen.getByText(/Sharp builders\./i)).toBeInTheDocument();
+      expect(
+        screen.getByRole("heading", { level: 1, name: /Form your squad\./i })
+      ).toBeInTheDocument();
       expect(screen.getByText(/Explore Team Board/i)).toBeInTheDocument();
     });
   });
@@ -37,7 +39,7 @@ describe("Frontend Shell Rendering", () => {
   it("renders interactive squad showcase and reservation engine explanation", async () => {
     render(<App />);
     await waitFor(() => {
-      expect(screen.getByText("Inspect a squad before you claim a seat.")).toBeInTheDocument();
+      expect(screen.getByText("Inspect a squad before joining.")).toBeInTheDocument();
       expect(screen.getByText("Engineered to prevent phantom memberships.")).toBeInTheDocument();
       expect(screen.getByText("MongoDB 7.0 (rs0)")).toBeInTheDocument();
       expect(screen.getByText("Two-Tier Reservation")).toBeInTheDocument();

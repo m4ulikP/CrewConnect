@@ -7,24 +7,25 @@ export const WorkflowShowcase: React.FC = () => {
   const stage3 = useInViewOnce<HTMLDivElement>(0.15);
 
   return (
-    <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 space-y-20">
+    <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 space-y-16">
       {/* Editorial Header */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-end">
         <div className="lg:col-span-6">
-          <h2 className="font-serif text-[30px] sm:text-5xl font-medium text-ink-primary tracking-tight leading-[1.06]">
-            Three steps to a full squad.
+          <h2 className="font-display text-3xl sm:text-4xl font-bold text-ink-primary tracking-tight leading-[1.08]">
+            Three steps from solo to squad.
           </h2>
         </div>
         <div className="lg:col-span-6">
-          <p className="text-base sm:text-lg text-ink-secondary leading-relaxed max-w-[58ch]">
-            Every movement takes a builder from solo discovery to atomic seat locking inside an active team workspace.
+          <p className="text-base sm:text-lg text-ink-secondary leading-relaxed max-w-[56ch]">
+            Go from browsing hackathon projects to collaborating in a structured workspace without
+            losing track of open spots.
           </p>
         </div>
       </div>
 
-      {/* Staggered Asymmetric Chapters */}
-      <div className="space-y-16 sm:space-y-24">
-        {/* Stage 1: Left Editorial + Right Discovery Filter UI */}
+      {/* Staggered Asymmetric Chapters Reusing Core Brand Builder Marks */}
+      <div className="space-y-14 sm:space-y-20">
+        {/* Stage 1 */}
         <div
           ref={stage1.ref}
           className="grid grid-cols-1 lg:grid-cols-12 gap-8 lg:gap-12 items-center"
@@ -34,17 +35,35 @@ export const WorkflowShowcase: React.FC = () => {
               stage1.inView ? "opacity-100 translate-y-0" : "opacity-0 translate-y-4"
             }`}
           >
-            <span
-              aria-hidden="true"
-              className="inline-flex items-center justify-center w-12 h-12 rounded-md bg-accent text-white font-serif text-3xl font-medium border-2 border-ink-primary"
-            >
-              1
-            </span>
-            <h3 className="font-serif text-2xl sm:text-3xl font-medium text-ink-primary">
-              Discover compatible teams
+            <div className="flex items-center gap-3">
+              {/* Mini Systems Pine Arch Character */}
+              <svg aria-hidden="true" viewBox="0 0 44 44" className="w-11 h-11 flex-shrink-0">
+                <path
+                  d="M4 40 V21 C4 11.059 12.059 3 22 3 C31.941 3 40 11.059 40 21 V40 H4 Z"
+                  fill="#115E59"
+                  stroke="#18181B"
+                  strokeWidth="2.5"
+                />
+                <circle cx="17" cy="21" r="2.8" fill="#FFFFFF" />
+                <circle cx="27" cy="21" r="2.8" fill="#FFFFFF" />
+                <path
+                  d="M18 29 Q22 33 26 29"
+                  fill="none"
+                  stroke="#FFFFFF"
+                  strokeWidth="2.2"
+                  strokeLinecap="round"
+                />
+              </svg>
+              <span className="inline-flex items-center justify-center px-3 py-1 rounded-[4px] bg-surface border-2 border-ink-primary font-display text-lg font-bold text-ink-primary">
+                1 · Discover
+              </span>
+            </div>
+            <h3 className="font-display text-2xl sm:text-3xl font-bold text-ink-primary">
+              Find a team that fits your stack
             </h3>
-            <p className="text-base text-ink-secondary leading-relaxed max-w-[54ch]">
-              Filter active hackathons by open seats, desired stack, and overlapping timezones before committing a moment of build time.
+            <p className="text-base text-ink-secondary leading-relaxed max-w-[52ch]">
+              Search active hackathon squads, filter by open vacancies and timezones, and inspect
+              what roles are still needed.
             </p>
           </div>
 
@@ -57,7 +76,7 @@ export const WorkflowShowcase: React.FC = () => {
           >
             <div className="flex items-center justify-between gap-2">
               <span className="text-sm font-bold text-ink-primary">
-                Team Board Filters (Illustrative)
+                Squad Directory Filters (Illustrative)
               </span>
               <span className="px-2.5 py-0.5 rounded bg-highlight border border-ink-primary text-[13px] font-bold text-ink-primary tabular">
                 12 open squads
@@ -89,7 +108,7 @@ export const WorkflowShowcase: React.FC = () => {
           </div>
         </div>
 
-        {/* Stage 2 (Flipped Asymmetry): Left Idempotent Reserve UI + Right Editorial */}
+        {/* Stage 2 (Flipped Asymmetry) */}
         <div
           ref={stage2.ref}
           className="grid grid-cols-1 lg:grid-cols-12 gap-8 lg:gap-12 items-center"
@@ -102,24 +121,24 @@ export const WorkflowShowcase: React.FC = () => {
           >
             <div className="flex items-center justify-between gap-2">
               <span className="text-sm font-bold text-ink-primary">
-                Atomic Seat Reservation Request
+                Seat Claim Confirmation (Illustrative)
               </span>
               <span className="px-2.5 py-0.5 rounded bg-tangelo border border-ink-primary text-[13px] font-bold text-ink-primary">
-                Idempotent
+                Protected Write
               </span>
             </div>
 
             <div className="space-y-2.5">
               <div className="flex items-center justify-between bg-ground border border-border-strong rounded px-3.5 py-2.5 text-[13px]">
-                <span className="text-ink-secondary font-medium">Capacity predicate</span>
+                <span className="text-ink-secondary font-medium">Available seat check</span>
                 <span className="text-positive font-bold tabular">memberCount &lt; 4</span>
               </div>
               <div className="flex items-center justify-between bg-ground border border-border-strong rounded px-3.5 py-2.5 text-[13px]">
-                <span className="text-ink-secondary font-medium">Request header</span>
+                <span className="text-ink-secondary font-medium">Duplicate retry guard</span>
                 <span className="text-ink-primary font-bold">Idempotency-Key</span>
               </div>
               <div className="flex items-center justify-between bg-accent-tint border border-accent rounded px-3.5 py-2.5 text-[13px]">
-                <span className="text-accent font-semibold">Transaction response</span>
+                <span className="text-accent font-semibold">Seat status</span>
                 <span className="text-accent font-bold tabular">201 Created</span>
               </div>
             </div>
@@ -131,22 +150,38 @@ export const WorkflowShowcase: React.FC = () => {
               stage2.inView ? "opacity-100 translate-y-0" : "opacity-0 translate-y-4"
             }`}
           >
-            <span
-              aria-hidden="true"
-              className="inline-flex items-center justify-center w-12 h-12 rounded-md bg-tangelo text-ink-primary font-serif text-3xl font-medium border-2 border-ink-primary"
-            >
-              2
-            </span>
-            <h3 className="font-serif text-2xl sm:text-3xl font-medium text-ink-primary">
-              Reserve or request a seat
+            <div className="flex items-center gap-3">
+              {/* Mini Tangelo AI/Data Monolith Character */}
+              <svg aria-hidden="true" viewBox="0 0 44 44" className="w-11 h-11 flex-shrink-0">
+                <rect
+                  x="4"
+                  y="4"
+                  width="36"
+                  height="36"
+                  rx="10"
+                  fill="#FF5A1F"
+                  stroke="#18181B"
+                  strokeWidth="2.5"
+                />
+                <circle cx="17" cy="21" r="2.8" fill="#18181B" />
+                <circle cx="27" cy="21" r="2.8" fill="#18181B" />
+                <path d="M17 30 H27" stroke="#18181B" strokeWidth="2.4" strokeLinecap="round" />
+              </svg>
+              <span className="inline-flex items-center justify-center px-3 py-1 rounded-[4px] bg-surface border-2 border-ink-primary font-display text-lg font-bold text-ink-primary">
+                2 · Join or Request
+              </span>
+            </div>
+            <h3 className="font-display text-2xl sm:text-3xl font-bold text-ink-primary">
+              Claim an open spot cleanly
             </h3>
-            <p className="text-base text-ink-secondary leading-relaxed max-w-[54ch]">
-              Open teams lock your seat directly via an idempotent conditional database write. Curated squads send your skill pitch straight to the team leader.
+            <p className="text-base text-ink-secondary leading-relaxed max-w-[52ch]">
+              Open teams let you claim a seat right away with server-side concurrency locks.
+              Invite-only squads route a short skill pitch to the team leader.
             </p>
           </div>
         </div>
 
-        {/* Stage 3: Left Editorial + Right Live Workspace Fragment */}
+        {/* Stage 3 */}
         <div
           ref={stage3.ref}
           className="grid grid-cols-1 lg:grid-cols-12 gap-8 lg:gap-12 items-center"
@@ -156,17 +191,35 @@ export const WorkflowShowcase: React.FC = () => {
               stage3.inView ? "opacity-100 translate-y-0" : "opacity-0 translate-y-4"
             }`}
           >
-            <span
-              aria-hidden="true"
-              className="inline-flex items-center justify-center w-12 h-12 rounded-full bg-highlight text-ink-primary font-serif text-3xl font-medium border-2 border-ink-primary"
-            >
-              3
-            </span>
-            <h3 className="font-serif text-2xl sm:text-3xl font-medium text-ink-primary">
-              Build with your squad
+            <div className="flex items-center gap-3">
+              {/* Mini Sunburst Butter Product Character */}
+              <svg aria-hidden="true" viewBox="0 0 44 44" className="w-11 h-11 flex-shrink-0">
+                <path
+                  d="M4 4 H40 V40 H15 C8.925 40 4 35.075 4 29 V4 Z"
+                  fill="#FDE047"
+                  stroke="#18181B"
+                  strokeWidth="2.5"
+                />
+                <circle cx="17" cy="19" r="2.8" fill="#18181B" />
+                <circle cx="27" cy="19" r="2.8" fill="#18181B" />
+                <path
+                  d="M18 28 Q22 32 26 28"
+                  fill="none"
+                  stroke="#18181B"
+                  strokeWidth="2.2"
+                  strokeLinecap="round"
+                />
+              </svg>
+              <span className="inline-flex items-center justify-center px-3 py-1 rounded-[4px] bg-highlight border-2 border-ink-primary font-display text-lg font-bold text-ink-primary">
+                3 · Collaborate
+              </span>
+            </div>
+            <h3 className="font-display text-2xl sm:text-3xl font-bold text-ink-primary">
+              Build inside your team workspace
             </h3>
-            <p className="text-base text-ink-secondary leading-relaxed max-w-[54ch]">
-              Coordinate roles, review join requests, mint single-use invite tokens, and keep roster events synchronized across connected sessions.
+            <p className="text-base text-ink-secondary leading-relaxed max-w-[52ch]">
+              Review incoming requests, mint single-use invite links, transfer leadership cleanly,
+              and receive live Socket.IO roster updates.
             </p>
           </div>
 
@@ -179,7 +232,7 @@ export const WorkflowShowcase: React.FC = () => {
           >
             <div className="flex items-center justify-between gap-2">
               <span className="text-sm font-bold text-ink-primary">
-                Squad Workspace Activity (Illustrative)
+                Team Workspace Updates (Illustrative)
               </span>
               <span className="px-2.5 py-0.5 rounded bg-accent text-white text-[13px] font-bold tabular">
                 4 / 4 seats
@@ -188,16 +241,16 @@ export const WorkflowShowcase: React.FC = () => {
 
             <div className="space-y-2.5">
               <div className="flex items-center justify-between bg-ground border border-border-strong rounded px-3.5 py-2.5 text-[13px]">
-                <span className="text-ink-primary font-semibold">Leadership updated</span>
+                <span className="text-ink-primary font-semibold">Leadership transferred</span>
                 <span className="text-ink-muted tabular">2m ago</span>
               </div>
               <div className="flex items-center justify-between bg-ground border border-border-strong rounded px-3.5 py-2.5 text-[13px]">
-                <span className="text-ink-primary font-semibold">Single-use invite issued</span>
+                <span className="text-ink-primary font-semibold">Invite link generated</span>
                 <span className="text-accent font-bold">crew_8a1c...</span>
               </div>
               <div className="flex items-center justify-between bg-highlight-soft border border-ink-primary rounded px-3.5 py-2.5 text-[13px]">
-                <span className="text-ink-primary font-semibold">Socket.IO room stream</span>
-                <span className="text-positive font-bold">Synced</span>
+                <span className="text-ink-primary font-semibold">Socket.IO room sync</span>
+                <span className="text-positive font-bold">Live</span>
               </div>
             </div>
           </div>

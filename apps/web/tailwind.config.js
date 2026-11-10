@@ -52,6 +52,7 @@ export default {
         },
       },
       fontFamily: {
+        display: ["Bricolage Grotesque", "IBM Plex Sans", "sans-serif"],
         serif: ["Newsreader", "serif"],
         sans: ["IBM Plex Sans", "sans-serif"],
         mono: ["IBM Plex Sans", "sans-serif"],

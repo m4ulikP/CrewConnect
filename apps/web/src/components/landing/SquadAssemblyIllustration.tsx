@@ -61,9 +61,7 @@ export const SquadAssemblyIllustration: React.FC = () => {
         </span>
         <span
           className={`px-2.5 py-0.5 rounded text-[13px] font-bold tabular border border-ink-primary ${
-            assembled
-              ? "bg-accent text-white"
-              : "bg-surface text-ink-primary"
+            assembled ? "bg-accent text-white" : "bg-surface text-ink-primary"
           }`}
         >
           {assembled ? "4 / 4 Locked" : "3 / 4 Ready"}
@@ -91,12 +89,7 @@ export const SquadAssemblyIllustration: React.FC = () => {
           className="w-full h-auto max-h-[300px] overflow-visible"
         >
           <defs>
-            <pattern
-              id="heroDotMatrix"
-              width="20"
-              height="20"
-              patternUnits="userSpaceOnUse"
-            >
+            <pattern id="heroDotMatrix" width="20" height="20" patternUnits="userSpaceOnUse">
               <circle cx="2" cy="2" r="1.3" fill="#CFCBC2" />
             </pattern>
           </defs>
@@ -111,14 +104,7 @@ export const SquadAssemblyIllustration: React.FC = () => {
               transition: "transform 220ms cubic-bezier(0.22, 1, 0.36, 1)",
             }}
           >
-            <circle
-              cx="358"
-              cy="54"
-              r="18"
-              fill="#FDE047"
-              stroke="#18181B"
-              strokeWidth="2"
-            />
+            <circle cx="358" cy="54" r="18" fill="#FDE047" stroke="#18181B" strokeWidth="2" />
             <rect
               x="44"
               y="222"
@@ -230,24 +216,12 @@ export const SquadAssemblyIllustration: React.FC = () => {
               strokeWidth="2.5"
             />
             {/* Architectural Signal Stripes & Eyes */}
-            <rect
-              x="232"
-              y="64"
-              width="22"
-              height="8"
-              rx="4"
-              fill="#18181B"
-            />
+            <rect x="232" y="64" width="22" height="8" rx="4" fill="#18181B" />
             <circle cx="248" cy="94" r="5" fill="#FFFFFF" stroke="#18181B" strokeWidth="1.5" />
             <circle cx="247" cy="94" r="2" fill="#18181B" />
             <circle cx="270" cy="94" r="5" fill="#FFFFFF" stroke="#18181B" strokeWidth="1.5" />
             <circle cx="269" cy="94" r="2" fill="#18181B" />
-            <path
-              d="M251 110 H267"
-              stroke="#18181B"
-              strokeWidth="2.5"
-              strokeLinecap="round"
-            />
+            <path d="M251 110 H267" stroke="#18181B" strokeWidth="2.5" strokeLinecap="round" />
           </g>
 
           {/* SHAPE 3 (Bottom-Left): Sunburst Butter Product Block */}
@@ -307,12 +281,7 @@ export const SquadAssemblyIllustration: React.FC = () => {
             />
             {assembled ? (
               <>
-                <circle
-                  cx="259"
-                  cy="176"
-                  r="13"
-                  fill="#115E59"
-                />
+                <circle cx="259" cy="176" r="13" fill="#115E59" />
                 <path
                   d="M253 176 L257.5 180.5 L265.5 171.5"
                   fill="none"
@@ -354,17 +323,13 @@ export const SquadAssemblyIllustration: React.FC = () => {
 
       {/* Bottom Interactive Control Bar */}
       <div className="bg-surface border-t-2 border-ink-primary px-4 py-3 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-        <p className="text-[13px] font-medium text-ink-primary leading-snug">
-          {activeCaption}
-        </p>
+        <p className="text-[13px] font-medium text-ink-primary leading-snug">{activeCaption}</p>
 
         <button
           type="button"
           onClick={() => setAssembled((prev) => !prev)}
-          className={`btn h-9 !px-3.5 text-[13px] flex-shrink-0 border-2 border-ink-primary ${
-            assembled
-              ? "bg-surface text-ink-primary hover:bg-surface-tonal"
-              : "bg-highlight text-ink-primary hover:bg-highlight-hover"
+          className={`btn h-9 !px-3.5 text-[13px] flex-shrink-0 ${
+            assembled ? "btn-brutal-secondary" : "btn-brutal-highlight"
           }`}
         >
           {assembled ? (

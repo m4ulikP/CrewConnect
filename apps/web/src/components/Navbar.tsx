@@ -1,6 +1,6 @@
 import React from "react";
 import { Link, useLocation } from "react-router-dom";
-import { LogOut, Radio } from "lucide-react";
+import { ArrowRight, LogOut, Radio } from "lucide-react";
 import { useAuth } from "../context/AuthContext";
 import { useSocket } from "../context/SocketContext";
 import { Avatar } from "./Avatar";
@@ -15,45 +15,66 @@ export const Navbar: React.FC = () => {
     (path === "/teams-preview" && location.pathname.startsWith("/teams"));
 
   return (
-    <header className="sticky top-0 z-50 bg-chrome">
+    <header className="sticky top-0 z-50 bg-ground border-b-2 border-ink-primary">
       <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between gap-2">
-        {/* Brand */}
-        <Link to="/" className="flex items-center gap-2 group flex-shrink-0">
-          <span className="w-2.5 h-2.5 rounded-full bg-accent transition-transform group-hover:scale-110" />
-          <span className="font-serif text-lg sm:text-xl font-semibold tracking-tight text-ink-primary whitespace-nowrap">
+        {/* Bespoke Brand Emblem + Division Stamp */}
+        <Link
+          to="/"
+          className="flex items-center gap-1.5 sm:gap-2.5 group flex-shrink-0 focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-accent rounded"
+        >
+          <svg
+            aria-hidden="true"
+            viewBox="0 0 28 28"
+            className="w-6 h-6 sm:w-7 sm:h-7 flex-shrink-0 transition-transform duration-150 ease-out group-hover:-rotate-6"
+          >
+            <path
+              d="M3 22 V13 C3 7.477 7.477 3 13 3 H15 V22 H3 Z"
+              fill="#115E59"
+              stroke="#18181B"
+              strokeWidth="2"
+            />
+            <circle cx="20" cy="17" r="6" fill="#FDE047" stroke="#18181B" strokeWidth="2" />
+          </svg>
+          <span className="font-display text-lg sm:text-xl font-bold tracking-tight text-ink-primary whitespace-nowrap">
             CrewConnect
           </span>
-          <span className="hidden lg:inline-flex ml-1 text-[13px] font-semibold px-2 py-0.5 rounded bg-highlight border border-ink-primary text-ink-primary whitespace-nowrap">
-            PS1 Engine
+          <span className="hidden lg:inline-flex items-center gap-1.5 ml-1 text-[13px] font-bold px-2.5 py-0.5 rounded-[3px] bg-highlight border border-ink-primary text-ink-primary whitespace-nowrap">
+            <span className="w-1.5 h-1.5 rounded-full bg-tangelo" />
+            <span>PS1 Engine</span>
           </span>
         </Link>
 
         {/* Primary Navigation */}
-        <nav className="flex items-center gap-1 sm:gap-2 flex-shrink-0">
+        <nav
+          aria-label="Primary navigation"
+          className="flex items-center gap-2 sm:gap-5 flex-shrink-0"
+        >
           <Link
             to="/"
-            className={`hidden sm:inline-flex px-3 py-1.5 rounded-md text-[13px] sm:text-sm font-medium whitespace-nowrap transition-colors ${
+            className={`hidden sm:inline-flex items-center gap-1.5 py-1 text-sm font-semibold whitespace-nowrap transition-colors focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-accent rounded-sm ${
               isActive("/")
-                ? "bg-surface text-ink-primary"
-                : "text-ink-secondary hover:text-ink-primary hover:bg-surface/60"
+                ? "text-ink-primary underline decoration-2 decoration-accent underline-offset-[6px]"
+                : "text-ink-secondary hover:text-ink-primary"
             }`}
           >
+            {isActive("/") && <span className="w-1.5 h-1.5 rounded-full bg-accent" />}
             <span>Platform</span>
           </Link>
           <Link
             to="/teams-preview"
-            className={`px-2.5 sm:px-3 py-1.5 rounded-md text-[13px] sm:text-sm font-medium whitespace-nowrap transition-colors ${
+            className={`inline-flex items-center gap-1.5 px-1.5 sm:px-0 py-1 text-[13px] sm:text-sm font-semibold whitespace-nowrap transition-colors focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-accent rounded-sm ${
               isActive("/teams-preview")
-                ? "bg-surface text-ink-primary"
-                : "text-ink-secondary hover:text-ink-primary hover:bg-surface/60"
+                ? "text-ink-primary underline decoration-2 decoration-accent underline-offset-[6px]"
+                : "text-ink-secondary hover:text-ink-primary"
             }`}
           >
+            {isActive("/teams-preview") && <span className="w-1.5 h-1.5 rounded-full bg-accent" />}
             <span className="sm:hidden">Teams</span>
             <span className="hidden sm:inline">Team Discovery</span>
           </Link>
         </nav>
 
-        {/* Right Actions */}
+        {/* Right Auth & Action Controls */}
         <div className="flex items-center gap-2 sm:gap-3 flex-shrink-0">
           {isLoading ? (
             <div className="w-5 h-5 border-2 border-accent border-t-transparent rounded-full animate-spin" />
@@ -93,10 +114,10 @@ export const Navbar: React.FC = () => {
               {/* Profile Shortcut */}
               <Link
                 to="/profile"
-                className="flex items-center gap-2 p-1 pr-2.5 rounded-md bg-surface hover:bg-surface-hover transition-colors"
+                className="flex items-center gap-2 p-1 pr-2.5 rounded bg-surface border border-ink-primary/25 hover:border-ink-primary transition-colors"
               >
                 <Avatar name={user.displayName} size="sm" />
-                <span className="text-[13px] font-medium text-ink-primary hidden md:inline">
+                <span className="text-[13px] font-semibold text-ink-primary hidden md:inline">
                   {user.displayName}
                 </span>
               </Link>
@@ -106,24 +127,26 @@ export const Navbar: React.FC = () => {
                 onClick={() => logout()}
                 title="Sign out"
                 aria-label="Sign out"
-                className="p-2 rounded-md text-ink-secondary hover:text-ink-primary hover:bg-surface transition-colors cursor-pointer"
+                className="p-2 rounded text-ink-secondary hover:text-ink-primary hover:bg-surface-tonal transition-colors cursor-pointer"
               >
                 <LogOut className="w-4 h-4" />
               </button>
             </div>
           ) : (
-            <div className="flex items-center gap-1.5 sm:gap-2">
+            <div className="flex items-center gap-2 sm:gap-3">
               <Link
                 to="/login"
-                className="px-1.5 sm:px-3 py-1.5 text-[13px] sm:text-sm font-medium text-ink-primary hover:text-accent whitespace-nowrap transition-colors"
+                className="px-1.5 sm:px-2 py-1.5 text-[13px] sm:text-sm font-semibold text-ink-primary hover:text-accent whitespace-nowrap transition-colors focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-accent rounded-sm"
               >
                 Sign In
               </Link>
               <Link
                 to="/register"
-                className="btn btn-primary text-[13px] h-9 !px-3 sm:!px-4 whitespace-nowrap"
+                className="btn btn-brutal-primary group h-9 !px-3 sm:!px-4 text-[13px] whitespace-nowrap"
               >
-                Find a squad
+                <span className="sm:hidden">Join</span>
+                <span className="hidden sm:inline">Find a squad</span>
+                <ArrowRight className="w-3.5 h-3.5 hidden sm:inline transition-transform duration-150 group-hover:translate-x-0.5" />
               </Link>
             </div>
           )}
