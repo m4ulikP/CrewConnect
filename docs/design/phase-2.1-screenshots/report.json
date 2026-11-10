@@ -1,0 +1,1609 @@
+{
+ "url": "http://localhost:4173/",
+ "at": "2026-11-10T11:27:48.691Z",
+ "allow": [],
+ "viewports": [
+  {
+   "width": 1440,
+   "height": 900,
+   "load": "load",
+   "screens": 4,
+   "filled": [
+    0.59,
+    0.94,
+    0.92,
+    0.97
+   ],
+   "motion": {
+    "elements": 21,
+    "css": 10,
+    "transitions": 11,
+    "scripted": 0,
+    "videos": 0,
+    "playingVideos": 0
+   },
+   "metrics": {
+    "viewport": {
+     "w": 1440,
+     "h": 900
+    },
+    "page": {
+     "height": 3310,
+     "screens": 3.7,
+     "words": 539,
+     "img": 0,
+     "video": 0,
+     "canvas": 0,
+     "svg": 7,
+     "sections": 5,
+     "horizontalOverflow": 0,
+     "overflowCulprits": [],
+     "uiFragments": 6,
+     "uiAbuse": false,
+     "realPictures": 0,
+     "videoCount": 0,
+     "uiPictures": 6,
+     "pictureSamples": [],
+     "blendText": 0,
+     "sideScrollers": 0,
+     "brokenImages": [],
+     "emoji": [],
+     "videosNoPoster": 0
+    },
+    "hero": {
+     "text": "Race-proof squads, formed cleanly.",
+     "words": 4,
+     "chars": 34,
+     "lines": 2,
+     "size": 62,
+     "vw": 4.3,
+     "font": "Newsreader",
+     "weight": 400,
+     "tracking": -0.025,
+     "leading": 1,
+     "upper": false,
+     "italic": false,
+     "mono": false,
+     "align": "left",
+     "position": "left",
+     "widthRatio": 0.36,
+     "top": 190,
+     "tag": "h1",
+     "kind": "heading"
+    },
+    "h1": {
+     "text": "Race-proof squads, formed cleanly.",
+     "words": 4,
+     "lines": 2,
+     "size": 62,
+     "font": "Newsreader"
+    },
+    "headings": [
+     {
+      "text": "Race-proof squads, formed cleanly.",
+      "words": 4,
+      "chars": 34,
+      "lines": 2,
+      "size": 62,
+      "vw": 4.3,
+      "font": "Newsreader",
+      "weight": 400,
+      "tracking": -0.025,
+      "leading": 1,
+      "upper": false,
+      "italic": false,
+      "mono": false,
+      "align": "left",
+      "position": "left",
+      "widthRatio": 0.36,
+      "top": 190,
+      "tag": "h1",
+      "kind": "heading"
+     },
+     {
+      "text": "Inspect a squad before you claim a seat.",
+      "words": 8,
+      "chars": 40,
+      "lines": 2,
+      "size": 36,
+      "vw": 2.5,
+      "font": "Newsreader",
+      "weight": 500,
+      "tracking": -0.025,
+      "leading": 1.11,
+      "upper": false,
+      "italic": false,
+      "mono": false,
+      "align": "left",
+      "position": "left",
+      "widthRatio": 0.23,
+      "top": 792,
+      "tag": "h2",
+      "kind": "heading"
+     },
+     {
+      "text": "Three steps to a full squad.",
+      "words": 6,
+      "chars": 28,
+      "lines": 1,
+      "size": 36,
+      "vw": 2.5,
+      "font": "Newsreader",
+      "weight": 500,
+      "tracking": -0.025,
+      "leading": 1.11,
+      "upper": false,
+      "italic": false,
+      "mono": false,
+      "align": "left",
+      "position": "left",
+      "widthRatio": 0.37,
+      "top": 1664,
+      "tag": "h2",
+      "kind": "heading"
+     },
+     {
+      "text": "Engineered to prevent phantom memberships.",
+      "words": 5,
+      "chars": 42,
+      "lines": 2,
+      "size": 36,
+      "vw": 2.5,
+      "font": "Newsreader",
+      "weight": 500,
+      "tracking": -0.025,
+      "leading": 1.11,
+      "upper": false,
+      "italic": false,
+      "mono": false,
+      "align": "left",
+      "position": "left",
+      "widthRatio": 0.3,
+      "top": 2336,
+      "tag": "h2",
+      "kind": "heading"
+     },
+     {
+      "text": "Ready to form your hackathon squad?",
+      "words": 6,
+      "chars": 35,
+      "lines": 2,
+      "size": 48,
+      "vw": 3.3,
+      "font": "Newsreader",
+      "weight": 400,
+      "tracking": -0.025,
+      "leading": 1,
+      "upper": false,
+      "italic": false,
+      "mono": false,
+      "align": "left",
+      "position": "left",
+      "widthRatio": 0.43,
+      "top": 2946,
+      "tag": "h2",
+      "kind": "heading"
+     }
+    ],
+    "headingSummary": {
+     "count": 5,
+     "maxLines": 2,
+     "over2Lines": 0,
+     "statements": 0,
+     "centered": 0,
+     "medianWords": 6,
+     "mixedFontHeadings": 0
+    },
+    "type": {
+     "families": [
+      {
+       "family": "IBM Plex Sans",
+       "share": 0.91,
+       "mono": false
+      },
+      {
+       "family": "Newsreader",
+       "share": 0.09,
+       "mono": false
+      }
+     ],
+     "familyCount": 2,
+     "sizes": [
+      13,
+      14,
+      16,
+      18,
+      20,
+      24,
+      36,
+      48,
+      62
+     ],
+     "sizeCount": 9,
+     "notLoaded": [],
+     "body": {
+      "font": "IBM Plex Sans",
+      "size": 16,
+      "leading": 1.63,
+      "weight": 400,
+      "tracking": 0,
+      "contrast": 7.7
+     },
+     "measureChars": 53,
+     "max": {
+      "size": 62,
+      "vw": 4.3,
+      "font": "Newsreader",
+      "text": "Race-proof squads,"
+     },
+     "monoShare": 0,
+     "monoProseShare": 0,
+     "monoFamilies": [],
+     "monoSamples": [],
+     "microLabels": 0,
+     "microLabelShare": 0,
+     "microSamples": [],
+     "upperShare": 0,
+     "centerShare": 0.02,
+     "smallText": 0
+    },
+    "eyebrows": [],
+    "numbered": [],
+    "color": {
+     "bodyBg": "#f6f6f4",
+     "bodyBgHsl": {
+      "h": 60,
+      "s": 0.1,
+      "l": 0.96
+     },
+     "dark": false,
+     "sectionBgs": [
+      {
+       "color": "#f6f6f4",
+       "top": 0,
+       "hsl": {
+        "h": 60,
+        "s": 0.1,
+        "l": 0.96
+       }
+      },
+      {
+       "color": "#ffffff",
+       "top": 680,
+       "hsl": {
+        "h": 0,
+        "s": 0,
+        "l": 1
+       }
+      },
+      {
+       "color": "#f1f0ec",
+       "top": 1540,
+       "hsl": {
+        "h": 48,
+        "s": 0.15,
+        "l": 0.94
+       }
+      },
+      {
+       "color": "#115e59",
+       "top": 2850,
+       "hsl": {
+        "h": 176,
+        "s": 0.69,
+        "l": 0.22
+       }
+      }
+     ],
+     "textColors": [
+      {
+       "color": "#52525b",
+       "share": 0.51
+      },
+      {
+       "color": "#18181b",
+       "share": 0.31
+      },
+      {
+       "color": "#115e59",
+       "share": 0.06
+      },
+      {
+       "color": "#64635e",
+       "share": 0.04
+      },
+      {
+       "color": "#ffffff",
+       "share": 0.04
+      }
+     ],
+     "button": {
+      "bg": "#ffffff",
+      "hsl": {
+       "h": 0,
+       "s": 0,
+       "l": 1
+      },
+      "fg": "#18181b"
+     },
+     "lowContrast": []
+    },
+    "buttons": {
+     "count": 13,
+     "inHero": 9,
+     "radius": 6,
+     "height": 40,
+     "withShadow": 0,
+     "withGradient": 0,
+     "mono": 0,
+     "upper": 0,
+     "heroLabels": [
+      "Platform",
+      "Find a squad",
+      "Explore Team Board",
+      "Create account",
+      "ML Maya Lin Rust & QUIC"
+     ]
+    },
+    "surfaces": {
+     "shadowStatic": 0,
+     "shadowOverlay": 0,
+     "shadowSamples": [],
+     "gradients": 0,
+     "scrims": 0,
+     "gradientSamples": [],
+     "gradientText": 0,
+     "hairlines": 0,
+     "hairlineSamples": [],
+     "outlinedBoxes": 0,
+     "dashed": 0,
+     "blurred": 0,
+     "roundedBoxes": 8,
+     "boxRadius": 10,
+     "squareMedia": 0,
+     "roundedMedia": 0,
+     "mediaRadius": 0,
+     "textShadow": 0,
+     "cardRows": []
+    },
+    "heroMedia": [
+     {
+      "type": "svg",
+      "ratio": 0.09
+     }
+    ],
+    "nav": {
+     "links": 5,
+     "fixed": true,
+     "height": 64,
+     "floatingPill": false,
+     "blur": false
+    },
+    "fontsLoaded": []
+   },
+   "layout": {
+    "viewport": {
+     "w": 1440,
+     "h": 900
+    },
+    "pageH": 3310,
+    "margins": {
+     "left": 176,
+     "right": 197
+    },
+    "sections": [
+     {
+      "sel": "section.max-w-6xl.mx-auto",
+      "tag": "section",
+      "top": 64,
+      "height": 616,
+      "words": 90,
+      "media": 1,
+      "middle": 103,
+      "heading": {
+       "text": "Race-proof squads,",
+       "size": 62,
+       "tag": "h1"
+      },
+      "left": 176,
+      "right": 201,
+      "textLeft": 176,
+      "textRight": 210,
+      "fullBleed": false,
+      "footer": false,
+      "hero": true,
+      "continues": false,
+      "pinned": false
+     },
+     {
+      "sel": "section.bg-surface.py-20",
+      "tag": "section",
+      "top": 680,
+      "height": 860,
+      "words": 136,
+      "media": 0,
+      "middle": 82,
+      "heading": {
+       "text": "Inspect a squad before you claim a seat.",
+       "size": 36,
+       "tag": "h2"
+      },
+      "left": 176,
+      "right": 197,
+      "textLeft": 176,
+      "textRight": 197,
+      "fullBleed": false,
+      "footer": false,
+      "hero": false,
+      "continues": false,
+      "pinned": false
+     },
+     {
+      "sel": "section.bg-surface-tonal.py-20",
+      "tag": "section",
+      "top": 1540,
+      "height": 684,
+      "words": 143,
+      "media": 0,
+      "middle": 11,
+      "heading": {
+       "text": "Three steps to a full squad.",
+       "size": 36,
+       "tag": "h2"
+      },
+      "left": 176,
+      "right": 206,
+      "textLeft": 176,
+      "textRight": 206,
+      "fullBleed": false,
+      "footer": false,
+      "hero": false,
+      "continues": false,
+      "pinned": false
+     },
+     {
+      "sel": "section.bg-surface.py-20",
+      "tag": "section",
+      "top": 2224,
+      "height": 626,
+      "words": 131,
+      "media": 0,
+      "middle": 76,
+      "heading": {
+       "text": "Engineered to prevent phantom memberships.",
+       "size": 36,
+       "tag": "h2"
+      },
+      "left": 176,
+      "right": 197,
+      "textLeft": 176,
+      "textRight": 216,
+      "fullBleed": false,
+      "footer": false,
+      "hero": false,
+      "continues": false,
+      "pinned": false
+     },
+     {
+      "sel": "section.bg-accent.py-20",
+      "tag": "section",
+      "top": 2850,
+      "height": 360,
+      "words": 31,
+      "media": 0,
+      "middle": 149,
+      "heading": {
+       "text": "Ready to form your hackathon squad?",
+       "size": 48,
+       "tag": "h2"
+      },
+      "left": 176,
+      "right": 197,
+      "textLeft": 176,
+      "textRight": 197,
+      "fullBleed": false,
+      "footer": true,
+      "hero": false,
+      "continues": false,
+      "pinned": false
+     }
+    ],
+    "gaps": [],
+    "h1s": [
+     {
+      "text": "Race-proof squads, formed cleanly.",
+      "size": 62,
+      "top": 190,
+      "firstScreen": true
+     }
+    ],
+    "edgeText": [],
+    "edges": [
+     {
+      "x": 176,
+      "n": 14
+     },
+     {
+      "x": 549,
+      "n": 2
+     },
+     {
+      "x": 923,
+      "n": 2
+     },
+     {
+      "x": 732,
+      "n": 1
+     }
+    ],
+    "leftBlocks": 19,
+    "bodySize": 16,
+    "stage": false,
+    "explains": true,
+    "slivers": [],
+    "voidShare": 0.27,
+    "voidBox": {
+     "x": 0,
+     "y": 540,
+     "w": 1440,
+     "h": 240
+    }
+   },
+   "app": null,
+   "consoleErrors": []
+  },
+  {
+   "width": 768,
+   "height": 1024,
+   "load": "load",
+   "screens": 5,
+   "filled": [
+    0.57,
+    0.94,
+    0.78,
+    0.89,
+    0.98
+   ],
+   "motion": {
+    "elements": 21,
+    "css": 10,
+    "transitions": 11,
+    "scripted": 0,
+    "videos": 0,
+    "playingVideos": 0
+   },
+   "metrics": {
+    "viewport": {
+     "w": 768,
+     "h": 1024
+    },
+    "page": {
+     "height": 5065,
+     "screens": 4.9,
+     "words": 537,
+     "img": 0,
+     "video": 0,
+     "canvas": 0,
+     "svg": 7,
+     "sections": 5,
+     "horizontalOverflow": 0,
+     "overflowCulprits": [],
+     "uiFragments": 6,
+     "uiAbuse": false,
+     "realPictures": 0,
+     "videoCount": 0,
+     "uiPictures": 6,
+     "pictureSamples": [],
+     "blendText": 0,
+     "sideScrollers": 0,
+     "brokenImages": [],
+     "emoji": [],
+     "videosNoPoster": 0
+    },
+    "hero": {
+     "text": "Race-proof squads, formed cleanly.",
+     "words": 4,
+     "chars": 34,
+     "lines": 2,
+     "size": 48,
+     "vw": 6.3,
+     "font": "Newsreader",
+     "weight": 400,
+     "tracking": -0.025,
+     "leading": 1,
+     "upper": false,
+     "italic": false,
+     "mono": false,
+     "align": "left",
+     "position": "center",
+     "widthRatio": 0.94,
+     "top": 144,
+     "tag": "h1",
+     "kind": "heading"
+    },
+    "h1": {
+     "text": "Race-proof squads, formed cleanly.",
+     "words": 4,
+     "lines": 2,
+     "size": 48,
+     "font": "Newsreader"
+    },
+    "headings": [
+     {
+      "text": "Race-proof squads, formed cleanly.",
+      "words": 4,
+      "chars": 34,
+      "lines": 2,
+      "size": 48,
+      "vw": 6.3,
+      "font": "Newsreader",
+      "weight": 400,
+      "tracking": -0.025,
+      "leading": 1,
+      "upper": false,
+      "italic": false,
+      "mono": false,
+      "align": "left",
+      "position": "center",
+      "widthRatio": 0.94,
+      "top": 144,
+      "tag": "h1",
+      "kind": "heading"
+     },
+     {
+      "text": "Inspect a squad before you claim a seat.",
+      "words": 8,
+      "chars": 40,
+      "lines": 1,
+      "size": 36,
+      "vw": 4.7,
+      "font": "Newsreader",
+      "weight": 500,
+      "tracking": -0.025,
+      "leading": 1.11,
+      "upper": false,
+      "italic": false,
+      "mono": false,
+      "align": "left",
+      "position": "center",
+      "widthRatio": 0.94,
+      "top": 1144,
+      "tag": "h2",
+      "kind": "heading"
+     },
+     {
+      "text": "Three steps to a full squad.",
+      "words": 6,
+      "chars": 28,
+      "lines": 1,
+      "size": 36,
+      "vw": 4.7,
+      "font": "Newsreader",
+      "weight": 500,
+      "tracking": -0.025,
+      "leading": 1.11,
+      "upper": false,
+      "italic": false,
+      "mono": false,
+      "align": "left",
+      "position": "center",
+      "widthRatio": 0.94,
+      "top": 2236,
+      "tag": "h2",
+      "kind": "heading"
+     },
+     {
+      "text": "Engineered to prevent phantom memberships.",
+      "words": 5,
+      "chars": 42,
+      "lines": 1,
+      "size": 36,
+      "vw": 4.7,
+      "font": "Newsreader",
+      "weight": 500,
+      "tracking": -0.025,
+      "leading": 1.11,
+      "upper": false,
+      "italic": false,
+      "mono": false,
+      "align": "left",
+      "position": "center",
+      "widthRatio": 0.94,
+      "top": 3706,
+      "tag": "h2",
+      "kind": "heading"
+     },
+     {
+      "text": "Ready to form your hackathon squad?",
+      "words": 6,
+      "chars": 35,
+      "lines": 1,
+      "size": 48,
+      "vw": 6.3,
+      "font": "Newsreader",
+      "weight": 400,
+      "tracking": -0.025,
+      "leading": 1,
+      "upper": false,
+      "italic": false,
+      "mono": false,
+      "align": "left",
+      "position": "center",
+      "widthRatio": 0.94,
+      "top": 4623,
+      "tag": "h2",
+      "kind": "heading"
+     }
+    ],
+    "headingSummary": {
+     "count": 5,
+     "maxLines": 2,
+     "over2Lines": 0,
+     "statements": 0,
+     "centered": 0,
+     "medianWords": 6,
+     "mixedFontHeadings": 0
+    },
+    "type": {
+     "families": [
+      {
+       "family": "IBM Plex Sans",
+       "share": 0.91,
+       "mono": false
+      },
+      {
+       "family": "Newsreader",
+       "share": 0.09,
+       "mono": false
+      }
+     ],
+     "familyCount": 2,
+     "sizes": [
+      13,
+      14,
+      16,
+      18,
+      20,
+      24,
+      36,
+      48
+     ],
+     "sizeCount": 8,
+     "notLoaded": [],
+     "body": {
+      "font": "IBM Plex Sans",
+      "size": 16,
+      "leading": 1.63,
+      "weight": 400,
+      "tracking": 0,
+      "contrast": 7.7
+     },
+     "measureChars": 67,
+     "max": {
+      "size": 48,
+      "vw": 6.3,
+      "font": "Newsreader",
+      "text": "Race-proof squads,"
+     },
+     "monoShare": 0,
+     "monoProseShare": 0,
+     "monoFamilies": [],
+     "monoSamples": [],
+     "microLabels": 0,
+     "microLabelShare": 0,
+     "microSamples": [],
+     "upperShare": 0,
+     "centerShare": 0.02,
+     "smallText": 0
+    },
+    "eyebrows": [],
+    "numbered": [],
+    "color": {
+     "bodyBg": "#f6f6f4",
+     "bodyBgHsl": {
+      "h": 60,
+      "s": 0.1,
+      "l": 0.96
+     },
+     "dark": false,
+     "sectionBgs": [
+      {
+       "color": "#f6f6f4",
+       "top": 0,
+       "hsl": {
+        "h": 60,
+        "s": 0.1,
+        "l": 0.96
+       }
+      },
+      {
+       "color": "#ffffff",
+       "top": 496,
+       "hsl": {
+        "h": 0,
+        "s": 0,
+        "l": 1
+       }
+      },
+      {
+       "color": "#f1f0ec",
+       "top": 2124,
+       "hsl": {
+        "h": 48,
+        "s": 0.15,
+        "l": 0.94
+       }
+      },
+      {
+       "color": "#115e59",
+       "top": 4527,
+       "hsl": {
+        "h": 176,
+        "s": 0.69,
+        "l": 0.22
+       }
+      }
+     ],
+     "textColors": [
+      {
+       "color": "#52525b",
+       "share": 0.51
+      },
+      {
+       "color": "#18181b",
+       "share": 0.31
+      },
+      {
+       "color": "#115e59",
+       "share": 0.06
+      },
+      {
+       "color": "#64635e",
+       "share": 0.04
+      },
+      {
+       "color": "#ffffff",
+       "share": 0.04
+      }
+     ],
+     "button": {
+      "bg": "#ffffff",
+      "hsl": {
+       "h": 0,
+       "s": 0,
+       "l": 1
+      },
+      "fg": "#18181b"
+     },
+     "lowContrast": []
+    },
+    "buttons": {
+     "count": 13,
+     "inHero": 8,
+     "radius": 6,
+     "height": 40,
+     "withShadow": 0,
+     "withGradient": 0,
+     "mono": 0,
+     "upper": 0,
+     "heroLabels": [
+      "Platform",
+      "Find a squad",
+      "Explore Team Board",
+      "Create account",
+      "ML Maya Lin Rust & QUIC"
+     ]
+    },
+    "surfaces": {
+     "shadowStatic": 0,
+     "shadowOverlay": 0,
+     "shadowSamples": [],
+     "gradients": 0,
+     "scrims": 0,
+     "gradientSamples": [],
+     "gradientText": 0,
+     "hairlines": 0,
+     "hairlineSamples": [],
+     "outlinedBoxes": 0,
+     "dashed": 0,
+     "blurred": 0,
+     "roundedBoxes": 8,
+     "boxRadius": 10,
+     "squareMedia": 0,
+     "roundedMedia": 0,
+     "mediaRadius": 0,
+     "textShadow": 0,
+     "cardRows": []
+    },
+    "heroMedia": [
+     {
+      "type": "svg",
+      "ratio": 0.21
+     }
+    ],
+    "nav": {
+     "links": 5,
+     "fixed": true,
+     "height": 64,
+     "floatingPill": false,
+     "blur": false
+    },
+    "fontsLoaded": []
+   },
+   "layout": {
+    "viewport": {
+     "w": 768,
+     "h": 1024
+    },
+    "pageH": 5065,
+    "margins": {
+     "left": 24,
+     "right": 49
+    },
+    "sections": [
+     {
+      "sel": "main.flex-1",
+      "tag": "main",
+      "top": 64,
+      "height": 4855,
+      "words": 531,
+      "media": 1,
+      "middle": 0,
+      "heading": {
+       "text": "Race-proof squads,",
+       "size": 48,
+       "tag": "h1"
+      },
+      "left": 24,
+      "right": 45,
+      "textLeft": 24,
+      "textRight": 45,
+      "fullBleed": false,
+      "footer": false,
+      "hero": true,
+      "continues": false,
+      "pinned": false
+     },
+     {
+      "sel": "footer.bg-chrome.py-10",
+      "tag": "footer",
+      "top": 4919,
+      "height": 146,
+      "words": 14,
+      "media": 0,
+      "middle": 50,
+      "heading": null,
+      "left": 44,
+      "right": 180,
+      "textLeft": 44,
+      "textRight": 180,
+      "fullBleed": false,
+      "footer": true,
+      "hero": false,
+      "continues": false,
+      "pinned": false
+     }
+    ],
+    "gaps": [],
+    "h1s": [
+     {
+      "text": "Race-proof squads, formed cleanly.",
+      "size": 48,
+      "top": 144,
+      "firstScreen": true
+     }
+    ],
+    "edgeText": [],
+    "edges": [
+     {
+      "x": 24,
+      "n": 19
+     }
+    ],
+    "leftBlocks": 19,
+    "bodySize": 16,
+    "stage": false,
+    "explains": true,
+    "slivers": [],
+    "voidShare": 0,
+    "voidBox": null
+   },
+   "app": null,
+   "consoleErrors": []
+  },
+  {
+   "width": 390,
+   "height": 844,
+   "load": "load",
+   "screens": 7,
+   "filled": [
+    0.71,
+    0.92,
+    0.89,
+    0.94,
+    0.92,
+    0.86,
+    0.93
+   ],
+   "motion": {
+    "elements": 21,
+    "css": 10,
+    "transitions": 11,
+    "scripted": 0,
+    "videos": 0,
+    "playingVideos": 0
+   },
+   "metrics": {
+    "viewport": {
+     "w": 390,
+     "h": 844
+    },
+    "page": {
+     "height": 5857,
+     "screens": 6.9,
+     "words": 535,
+     "img": 0,
+     "video": 0,
+     "canvas": 0,
+     "svg": 7,
+     "sections": 5,
+     "horizontalOverflow": 0,
+     "overflowCulprits": [],
+     "uiFragments": 6,
+     "uiAbuse": false,
+     "realPictures": 0,
+     "videoCount": 0,
+     "uiPictures": 6,
+     "pictureSamples": [],
+     "blendText": 0,
+     "sideScrollers": 0,
+     "brokenImages": [],
+     "emoji": [],
+     "videosNoPoster": 0
+    },
+    "hero": {
+     "text": "Race-proof squads, formed cleanly.",
+     "words": 4,
+     "chars": 34,
+     "lines": 2,
+     "size": 36,
+     "vw": 9.2,
+     "font": "Newsreader",
+     "weight": 400,
+     "tracking": -0.025,
+     "leading": 1.06,
+     "upper": false,
+     "italic": false,
+     "mono": false,
+     "align": "left",
+     "position": "center",
+     "widthRatio": 0.92,
+     "top": 112,
+     "tag": "h1",
+     "kind": "heading"
+    },
+    "h1": {
+     "text": "Race-proof squads, formed cleanly.",
+     "words": 4,
+     "lines": 2,
+     "size": 36,
+     "font": "Newsreader"
+    },
+    "headings": [
+     {
+      "text": "Race-proof squads, formed cleanly.",
+      "words": 4,
+      "chars": 34,
+      "lines": 2,
+      "size": 36,
+      "vw": 9.2,
+      "font": "Newsreader",
+      "weight": 400,
+      "tracking": -0.025,
+      "leading": 1.06,
+      "upper": false,
+      "italic": false,
+      "mono": false,
+      "align": "left",
+      "position": "center",
+      "widthRatio": 0.92,
+      "top": 112,
+      "tag": "h1",
+      "kind": "heading"
+     },
+     {
+      "text": "Inspect a squad before you claim a seat.",
+      "words": 8,
+      "chars": 40,
+      "lines": 2,
+      "size": 28,
+      "vw": 7.2,
+      "font": "Newsreader",
+      "weight": 500,
+      "tracking": -0.025,
+      "leading": 1.25,
+      "upper": false,
+      "italic": false,
+      "mono": false,
+      "align": "left",
+      "position": "center",
+      "widthRatio": 0.92,
+      "top": 1205,
+      "tag": "h2",
+      "kind": "heading"
+     },
+     {
+      "text": "Helios Mesh",
+      "words": 2,
+      "chars": 11,
+      "lines": 1,
+      "size": 24,
+      "vw": 6.2,
+      "font": "Newsreader",
+      "weight": 500,
+      "tracking": -0.025,
+      "leading": 1.33,
+      "upper": false,
+      "italic": false,
+      "mono": false,
+      "align": "left",
+      "position": "center",
+      "widthRatio": 0.79,
+      "top": 1666,
+      "tag": "h3",
+      "kind": "heading"
+     },
+     {
+      "text": "Three steps to a full squad.",
+      "words": 6,
+      "chars": 28,
+      "lines": 1,
+      "size": 28,
+      "vw": 7.2,
+      "font": "Newsreader",
+      "weight": 500,
+      "tracking": -0.025,
+      "leading": 1.25,
+      "upper": false,
+      "italic": false,
+      "mono": false,
+      "align": "left",
+      "position": "center",
+      "widthRatio": 0.92,
+      "top": 2632,
+      "tag": "h2",
+      "kind": "heading"
+     },
+     {
+      "text": "Discover compatible teams",
+      "words": 3,
+      "chars": 25,
+      "lines": 1,
+      "size": 24,
+      "vw": 6.2,
+      "font": "Newsreader",
+      "weight": 500,
+      "tracking": -0.025,
+      "leading": 1.33,
+      "upper": false,
+      "italic": false,
+      "mono": false,
+      "align": "left",
+      "position": "center",
+      "widthRatio": 0.92,
+      "top": 2817,
+      "tag": "h3",
+      "kind": "heading"
+     },
+     {
+      "text": "Reserve or request a seat",
+      "words": 5,
+      "chars": 25,
+      "lines": 1,
+      "size": 24,
+      "vw": 6.2,
+      "font": "Newsreader",
+      "weight": 500,
+      "tracking": -0.025,
+      "leading": 1.33,
+      "upper": false,
+      "italic": false,
+      "mono": false,
+      "align": "left",
+      "position": "center",
+      "widthRatio": 0.92,
+      "top": 3217,
+      "tag": "h3",
+      "kind": "heading"
+     },
+     {
+      "text": "Build with your squad",
+      "words": 4,
+      "chars": 21,
+      "lines": 1,
+      "size": 24,
+      "vw": 6.2,
+      "font": "Newsreader",
+      "weight": 500,
+      "tracking": -0.025,
+      "leading": 1.33,
+      "upper": false,
+      "italic": false,
+      "mono": false,
+      "align": "left",
+      "position": "center",
+      "widthRatio": 0.92,
+      "top": 3617,
+      "tag": "h3",
+      "kind": "heading"
+     },
+     {
+      "text": "Engineered to prevent phantom memberships.",
+      "words": 5,
+      "chars": 42,
+      "lines": 2,
+      "size": 28,
+      "vw": 7.2,
+      "font": "Newsreader",
+      "weight": 500,
+      "tracking": -0.025,
+      "leading": 1.25,
+      "upper": false,
+      "italic": false,
+      "mono": false,
+      "align": "left",
+      "position": "center",
+      "widthRatio": 0.92,
+      "top": 4137,
+      "tag": "h2",
+      "kind": "heading"
+     },
+     {
+      "text": "Ready to form your hackathon squad?",
+      "words": 6,
+      "chars": 35,
+      "lines": 2,
+      "size": 28,
+      "vw": 7.2,
+      "font": "Newsreader",
+      "weight": 400,
+      "tracking": -0.025,
+      "leading": 1.08,
+      "upper": false,
+      "italic": false,
+      "mono": false,
+      "align": "left",
+      "position": "center",
+      "widthRatio": 0.92,
+      "top": 5322,
+      "tag": "h2",
+      "kind": "heading"
+     }
+    ],
+    "headingSummary": {
+     "count": 9,
+     "maxLines": 2,
+     "over2Lines": 0,
+     "statements": 0,
+     "centered": 0,
+     "medianWords": 5,
+     "mixedFontHeadings": 0
+    },
+    "type": {
+     "families": [
+      {
+       "family": "IBM Plex Sans",
+       "share": 0.91,
+       "mono": false
+      },
+      {
+       "family": "Newsreader",
+       "share": 0.09,
+       "mono": false
+      }
+     ],
+     "familyCount": 2,
+     "sizes": [
+      13,
+      14,
+      16,
+      18,
+      24,
+      28,
+      36
+     ],
+     "sizeCount": 7,
+     "notLoaded": [],
+     "body": {
+      "font": "IBM Plex Sans",
+      "size": 16,
+      "leading": 1.63,
+      "weight": 400,
+      "tracking": 0,
+      "contrast": 7.1
+     },
+     "measureChars": 45,
+     "max": {
+      "size": 36,
+      "vw": 9.2,
+      "font": "Newsreader",
+      "text": "Race-proof squads,"
+     },
+     "monoShare": 0,
+     "monoProseShare": 0,
+     "monoFamilies": [],
+     "monoSamples": [],
+     "microLabels": 0,
+     "microLabelShare": 0,
+     "microSamples": [],
+     "upperShare": 0,
+     "centerShare": 0.02,
+     "smallText": 0
+    },
+    "eyebrows": [],
+    "numbered": [],
+    "color": {
+     "bodyBg": "#f6f6f4",
+     "bodyBgHsl": {
+      "h": 60,
+      "s": 0.1,
+      "l": 0.96
+     },
+     "dark": false,
+     "sectionBgs": [
+      {
+       "color": "#f6f6f4",
+       "top": 0,
+       "hsl": {
+        "h": 60,
+        "s": 0.1,
+        "l": 0.96
+       }
+      },
+      {
+       "color": "#ffffff",
+       "top": 436,
+       "hsl": {
+        "h": 0,
+        "s": 0,
+        "l": 1
+       }
+      },
+      {
+       "color": "#f1f0ec",
+       "top": 2552,
+       "hsl": {
+        "h": 48,
+        "s": 0.15,
+        "l": 0.94
+       }
+      },
+      {
+       "color": "#115e59",
+       "top": 5242,
+       "hsl": {
+        "h": 176,
+        "s": 0.69,
+        "l": 0.22
+       }
+      }
+     ],
+     "textColors": [
+      {
+       "color": "#52525b",
+       "share": 0.51
+      },
+      {
+       "color": "#18181b",
+       "share": 0.31
+      },
+      {
+       "color": "#115e59",
+       "share": 0.06
+      },
+      {
+       "color": "#64635e",
+       "share": 0.04
+      },
+      {
+       "color": "#ffffff",
+       "share": 0.04
+      }
+     ],
+     "button": {
+      "bg": "#ffffff",
+      "hsl": {
+       "h": 0,
+       "s": 0,
+       "l": 1
+      },
+      "fg": "#18181b"
+     },
+     "lowContrast": []
+    },
+    "buttons": {
+     "count": 12,
+     "inHero": 7,
+     "radius": 6,
+     "height": 40,
+     "withShadow": 0,
+     "withGradient": 0,
+     "mono": 0,
+     "upper": 0,
+     "heroLabels": [
+      "Find a squad",
+      "Explore Team Board",
+      "Create account",
+      "ML Maya Lin Rust & QUIC",
+      "AN Arjun Nair PyTorch"
+     ]
+    },
+    "surfaces": {
+     "shadowStatic": 0,
+     "shadowOverlay": 0,
+     "shadowSamples": [],
+     "gradients": 0,
+     "scrims": 0,
+     "gradientSamples": [],
+     "gradientText": 0,
+     "hairlines": 0,
+     "hairlineSamples": [],
+     "outlinedBoxes": 0,
+     "dashed": 0,
+     "blurred": 0,
+     "roundedBoxes": 10,
+     "boxRadius": 10,
+     "squareMedia": 0,
+     "roundedMedia": 0,
+     "mediaRadius": 0,
+     "textShadow": 0,
+     "cardRows": []
+    },
+    "heroMedia": [],
+    "nav": {
+     "links": 4,
+     "fixed": true,
+     "height": 64,
+     "floatingPill": false,
+     "blur": false
+    },
+    "fontsLoaded": []
+   },
+   "layout": {
+    "viewport": {
+     "w": 390,
+     "h": 844
+    },
+    "pageH": 5857,
+    "margins": {
+     "left": 16,
+     "right": 26
+    },
+    "sections": [
+     {
+      "sel": "main.flex-1",
+      "tag": "main",
+      "top": 64,
+      "height": 5635,
+      "words": 531,
+      "media": 0,
+      "middle": 0,
+      "heading": {
+       "text": "Race-proof squads,",
+       "size": 36,
+       "tag": "h1"
+      },
+      "left": 16,
+      "right": 16,
+      "textLeft": 16,
+      "textRight": 16,
+      "fullBleed": false,
+      "footer": false,
+      "hero": true,
+      "continues": false,
+      "pinned": false
+     },
+     {
+      "sel": "footer.bg-chrome.py-10",
+      "tag": "footer",
+      "top": 5699,
+      "height": 158,
+      "words": 14,
+      "media": 0,
+      "middle": 0,
+      "heading": null,
+      "left": 36,
+      "right": 35,
+      "textLeft": 36,
+      "textRight": 35,
+      "fullBleed": false,
+      "footer": true,
+      "hero": false,
+      "continues": false,
+      "pinned": false
+     }
+    ],
+    "gaps": [],
+    "h1s": [
+     {
+      "text": "Race-proof squads, formed cleanly.",
+      "size": 36,
+      "top": 112,
+      "firstScreen": true
+     }
+    ],
+    "edgeText": [],
+    "edges": [
+     {
+      "x": 16,
+      "n": 19
+     }
+    ],
+    "leftBlocks": 19,
+    "bodySize": 16,
+    "stage": false,
+    "explains": true,
+    "slivers": [],
+    "voidShare": 0,
+    "voidBox": null
+   },
+   "app": null,
+   "consoleErrors": []
+  }
+ ],
+ "findings": [
+  {
+   "level": "WARN",
+   "id": "no-real-pictures",
+   "width": 1440,
+   "message": "Only 0 real photograph(s) or clip(s); the rest are interface fragments.",
+   "fix": "Add two or more real pictures of the customer's world from scripts/assets.mjs, not stock of people at laptops."
+  },
+  {
+   "level": "WARN",
+   "id": "no-footage",
+   "width": 1440,
+   "message": "No video anywhere on the page.",
+   "fix": "Look for one honest clip with scripts/assets.mjs --video (the place, the material, the process) and use it as a muted loop with a poster frame. Defend its absence only if no clip fits the subject."
+  },
+  {
+   "level": "WARN",
+   "id": "off-centre",
+   "width": 1440,
+   "message": "The margins differ: 176px on the left, 197px on the right, at 1440px.",
+   "fix": "Put the navigation and the content on one pair of margins; check for padding on one side only, a scrollbar gutter, or a header on another inset than the page.",
+   "alsoAt": [
+    768
+   ]
+  }
+ ],
+ "images": [
+  {
+   "viewport": "desktop",
+   "width": 1440,
+   "fold": "C:\\Users\\mauli\\OneDrive\\Documents\\CrewConnect\\docs\\design\\phase-2.1-screenshots\\desktop-fold.jpg",
+   "pages": [
+    "C:\\Users\\mauli\\OneDrive\\Documents\\CrewConnect\\docs\\design\\phase-2.1-screenshots\\desktop-page-01.jpg"
+   ],
+   "film": []
+  },
+  {
+   "viewport": "tablet",
+   "width": 768,
+   "fold": "C:\\Users\\mauli\\OneDrive\\Documents\\CrewConnect\\docs\\design\\phase-2.1-screenshots\\tablet-fold.jpg",
+   "pages": [
+    "C:\\Users\\mauli\\OneDrive\\Documents\\CrewConnect\\docs\\design\\phase-2.1-screenshots\\tablet-page-01.jpg"
+   ],
+   "film": []
+  },
+  {
+   "viewport": "mobile",
+   "width": 390,
+   "fold": "C:\\Users\\mauli\\OneDrive\\Documents\\CrewConnect\\docs\\design\\phase-2.1-screenshots\\mobile-fold.jpg",
+   "pages": [
+    "C:\\Users\\mauli\\OneDrive\\Documents\\CrewConnect\\docs\\design\\phase-2.1-screenshots\\mobile-page-01.jpg"
+   ],
+   "film": []
+  }
+ ]
+}

@@ -26,18 +26,20 @@ describe("Frontend Shell Rendering", () => {
     });
   });
 
-  it("renders the hero heading and core challenge description", async () => {
+  it("renders the hero heading and primary action", async () => {
     render(<App />);
     await waitFor(() => {
-      expect(screen.getByText("Race-Proof Team Formation")).toBeInTheDocument();
+      expect(screen.getByText(/Race-proof squads,/i)).toBeInTheDocument();
+      expect(screen.getByText(/formed cleanly\./i)).toBeInTheDocument();
       expect(screen.getByText("Explore Team Board")).toBeInTheDocument();
     });
   });
 
-  it("renders infrastructure telemetry card", async () => {
+  it("renders interactive squad showcase and reservation engine explanation", async () => {
     render(<App />);
     await waitFor(() => {
-      expect(screen.getByText("Infrastructure Telemetry")).toBeInTheDocument();
+      expect(screen.getByText("Inspect a squad before you claim a seat.")).toBeInTheDocument();
+      expect(screen.getByText("Engineered to prevent phantom memberships.")).toBeInTheDocument();
       expect(screen.getByText("MongoDB 7.0 (rs0)")).toBeInTheDocument();
       expect(screen.getByText("Two-Tier Reservation")).toBeInTheDocument();
     });

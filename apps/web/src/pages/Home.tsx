@@ -1,15 +1,6 @@
 import React, { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
-import {
-  ShieldCheck,
-  Cpu,
-  Layers,
-  ArrowRight,
-  Database,
-  Server,
-  Plus,
-  Users,
-} from "lucide-react";
+import { ArrowRight, Plus, Users } from "lucide-react";
 import {
   fetchHealth,
   apiGetHackathons,
@@ -23,6 +14,146 @@ import {
 import { useAuth } from "../context/AuthContext";
 import { CapacityBadge } from "../components/CapacityBadge";
 import { CreateTeamModal } from "../components/CreateTeamModal";
+import { SquadConstellation } from "../components/landing/SquadConstellation";
+import { LiveSquadShowcase } from "../components/landing/LiveSquadShowcase";
+import { WorkflowShowcase } from "../components/landing/WorkflowShowcase";
+import { ReservationEngineDemo } from "../components/landing/ReservationEngineDemo";
+import { useInViewOnce } from "../hooks/useInViewOnce";
+
+const PublicLanding: React.FC<{ apiOnline: boolean; loadingHealth: boolean }> = ({
+  apiOnline,
+  loadingHealth,
+}) => {
+  const showcaseReveal = useInViewOnce<HTMLDivElement>(0.15);
+  const ctaReveal = useInViewOnce<HTMLDivElement>(0.15);
+
+  return (
+    <div>
+      {/* 1. Editorial Hero + Squad Formation Constellation */}
+      <section className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 pt-12 sm:pt-20 pb-20 sm:pb-28">
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-12 lg:gap-10 items-center">
+          {/* Left Copy & Actions */}
+          <div className="lg:col-span-6 space-y-6">
+            <h1 className="text-[36px] sm:text-5xl lg:text-[62px] font-serif font-normal text-ink-primary tracking-tight leading-[1.06]">
+              <span className="hero-line-mask">
+                <span className="hero-line-inner">Race-proof squads,</span>
+              </span>
+              <span className="hero-line-mask">
+                <span className="hero-line-inner" style={{ animationDelay: "90ms" }}>
+                  formed cleanly.
+                </span>
+              </span>
+            </h1>
+
+            <p className="text-base sm:text-lg text-ink-secondary max-w-[54ch] leading-relaxed reveal-line reveal-delay-1">
+              CrewConnect brings hackathon builders together around real project missions. Match by technical skills, inspect remaining capacity, and claim open seats backed by atomic database reservations.
+            </p>
+
+            <div className="flex flex-wrap items-center gap-3.5 pt-2 reveal-line reveal-delay-2">
+              <Link to="/teams-preview" className="btn btn-primary h-11 px-6 text-sm">
+                <span>Explore Team Board</span>
+                <ArrowRight className="w-4 h-4" />
+              </Link>
+              <Link to="/register" className="btn btn-secondary h-11 px-6 text-sm">
+                <span>Create account</span>
+              </Link>
+            </div>
+          </div>
+
+          {/* Right Bespoke Visual Signature */}
+          <div className="lg:col-span-6 reveal-line reveal-delay-2">
+            <SquadConstellation />
+          </div>
+        </div>
+      </section>
+
+      {/* 2. Interactive Product Demonstration */}
+      <section className="bg-surface py-20 sm:py-28">
+        <div
+          ref={showcaseReveal.ref}
+          className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 grid grid-cols-1 lg:grid-cols-12 gap-12 items-start"
+        >
+          <div
+            className={`lg:col-span-4 space-y-5 lg:sticky lg:top-24 transition-[transform,opacity] duration-500 ease-out ${
+              showcaseReveal.inView ? "opacity-100 translate-y-0" : "opacity-0 translate-y-4"
+            }`}
+          >
+            <h2 className="font-serif text-[28px] sm:text-4xl font-medium text-ink-primary tracking-tight leading-tight">
+              Inspect a squad before you claim a seat.
+            </h2>
+            <p className="text-base text-ink-secondary leading-relaxed max-w-[60ch]">
+              Every squad dossier displays current members, project scope, exact skills sought, and remaining seat capacity in real time.
+            </p>
+            <p className="text-base text-ink-secondary leading-relaxed max-w-[60ch]">
+              Try reserving the remaining fourth slot on the interactive preview to observe how CrewConnect locks capacity cleanly without client-side guesswork.
+            </p>
+          </div>
+
+          <div
+            style={{ transitionDelay: "90ms" }}
+            className={`lg:col-span-8 transition-[transform,opacity] duration-500 ease-out ${
+              showcaseReveal.inView ? "opacity-100 translate-y-0" : "opacity-0 translate-y-4"
+            }`}
+          >
+            <LiveSquadShowcase />
+          </div>
+        </div>
+      </section>
+
+      {/* 3. How CrewConnect Works */}
+      <section className="bg-surface-tonal py-20 sm:py-28">
+        <WorkflowShowcase />
+      </section>
+
+      {/* 4. Technical Credibility: Race-Proof Reservation Engine */}
+      <section className="bg-surface py-20 sm:py-28">
+        <ReservationEngineDemo apiOnline={apiOnline} loadingHealth={loadingHealth} />
+      </section>
+
+      {/* 5. Closing Call to Action */}
+      <section className="bg-accent py-20 sm:py-24">
+        <div
+          ref={ctaReveal.ref}
+          className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 grid grid-cols-1 lg:grid-cols-12 gap-8 items-center"
+        >
+          <div
+            className={`lg:col-span-7 space-y-4 transition-[transform,opacity] duration-500 ease-out ${
+              ctaReveal.inView ? "opacity-100 translate-y-0" : "opacity-0 translate-y-4"
+            }`}
+          >
+            <h2 className="font-serif text-[28px] sm:text-5xl font-normal text-white tracking-tight leading-[1.08]">
+              Ready to form your hackathon squad?
+            </h2>
+            <p className="text-base sm:text-lg text-[#E6F2F0] max-w-[58ch] leading-relaxed">
+              Register your participant profile, declare your stack, or initialize a new squad for Hack4Hack 2026 in under two minutes.
+            </p>
+          </div>
+
+          <div
+            style={{ transitionDelay: "90ms" }}
+            className={`lg:col-span-5 flex flex-wrap lg:justify-end gap-3.5 transition-[transform,opacity] duration-500 ease-out ${
+              ctaReveal.inView ? "opacity-100 translate-y-0" : "opacity-0 translate-y-4"
+            }`}
+          >
+            <Link
+              to="/register"
+              className="inline-flex items-center justify-center gap-2 h-12 px-6 rounded-md bg-white text-ink-primary font-semibold text-sm hover:bg-[#F1F0EC] transition-colors active:scale-[0.97]"
+            >
+              <span>Create builder profile</span>
+              <ArrowRight className="w-4 h-4" />
+            </Link>
+            <Link
+              to="/teams-preview"
+              className="inline-flex items-center justify-center h-12 px-5 rounded-md border border-[#5FA29C] text-white font-semibold text-sm hover:bg-accent-hover transition-colors active:scale-[0.97]"
+            >
+              <span>Browse open squads</span>
+            </Link>
+          </div>
+        </div>
+      </section>
+    </div>
+  );
+};
 
 export const Home: React.FC = () => {
   const { user } = useAuth();
@@ -306,154 +437,6 @@ export const Home: React.FC = () => {
 
   // If user is NOT authenticated, render the Public Landing Page
   return (
-    <div className="space-y-16 pb-20">
-      {/* Editorial Hero Section */}
-      <section className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 pt-16 sm:pt-24 space-y-8">
-        <div className="flex items-center gap-2">
-          <span className="text-xs font-mono text-ink-muted">
-            Hack4Hack 2026 · Problem Statement 1
-          </span>
-          <span className="text-border-control">•</span>
-          <span className="text-xs font-medium text-accent">Race-Proof Team Formation</span>
-        </div>
-
-        <div className="space-y-6 max-w-4xl">
-          <h1 className="text-4xl sm:text-6xl lg:text-7xl font-serif font-normal text-ink-primary tracking-tight leading-[1.08] reveal-line">
-            Race-proof squads, formed cleanly.
-          </h1>
-
-          <p className="text-lg sm:text-xl text-ink-secondary max-w-2xl leading-relaxed reveal-line reveal-delay-1">
-            CrewConnect helps hackathon participants find balanced teammates, align on project
-            vision, and claim open squad seats with atomic database reservation — eliminating
-            double-bookings and phantom memberships.
-          </p>
-        </div>
-
-        <div className="flex flex-wrap items-center gap-4 pt-4 border-t border-border-subtle reveal-line reveal-delay-2">
-          <Link to="/teams-preview" className="btn btn-primary h-11 px-6 text-sm">
-            <span>Explore Team Board</span>
-            <ArrowRight className="w-4 h-4" />
-          </Link>
-          <Link to="/register" className="btn btn-secondary h-11 px-6 text-sm">
-            <span>Create account</span>
-          </Link>
-          <a
-            href="https://github.com/m4ulikP/CrewConnect"
-            target="_blank"
-            rel="noreferrer"
-            className="btn btn-ghost h-11 px-4 text-sm"
-          >
-            <span>Architecture Specs</span>
-          </a>
-        </div>
-      </section>
-
-      {/* Process / Pillars Grid */}
-      <section className="bg-surface border-y border-border-subtle py-16 px-4 sm:px-6 lg:px-8">
-        <div className="max-w-6xl mx-auto grid grid-cols-1 md:grid-cols-12 gap-12 items-start">
-          <div className="md:col-span-5 space-y-3">
-            <h2 className="text-2xl sm:text-3xl font-serif text-ink-primary">
-              Calm team collaboration
-            </h2>
-            <p className="text-sm text-ink-secondary leading-relaxed">
-              Designed around mathematical guarantees rather than optimistic guesses. How
-              high-concurrency squad formation works under heavy submission deadlines.
-            </p>
-          </div>
-
-          <div className="md:col-span-7 divide-y divide-border-subtle">
-            <div className="pb-6 space-y-1">
-              <span className="font-mono text-xs text-accent">01 — Discovery</span>
-              <h3 className="text-base font-semibold text-ink-primary">Find the right people</h3>
-              <p className="text-sm text-ink-secondary leading-relaxed">
-                Filter squads across upcoming and active hackathons by technical stack, shared
-                timezones, and remaining open positions.
-              </p>
-            </div>
-
-            <div className="py-6 space-y-1">
-              <span className="font-mono text-xs text-accent">02 — Reservation</span>
-              <h3 className="text-base font-semibold text-ink-primary">Atomic seat claims</h3>
-              <p className="text-sm text-ink-secondary leading-relaxed">
-                Database-level conditional writes guarantee only one applicant wins the final seat.
-                Zero phantom memberships or counter drift.
-              </p>
-            </div>
-
-            <div className="pt-6 space-y-1">
-              <span className="font-mono text-xs text-accent">03 — Real-Time</span>
-              <h3 className="text-base font-semibold text-ink-primary">Instant roster sync</h3>
-              <p className="text-sm text-ink-secondary leading-relaxed">
-                WebSocket rooms broadcast authoritative capacity changes so every participant sees
-                accurate vacancy counts instantly.
-              </p>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      {/* Platform & Concurrency Infrastructure Telemetry Card */}
-      <section className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="bg-surface border border-border-strong rounded-lg p-6 sm:p-8 space-y-6">
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between pb-6 border-b border-border-subtle gap-4">
-            <div>
-              <h2 className="text-lg font-serif font-semibold text-ink-primary flex items-center gap-2">
-                <Server className="w-4 h-4 text-accent" />
-                <span>Infrastructure Telemetry</span>
-              </h2>
-              <p className="text-xs text-ink-secondary mt-1">
-                Authoritative runtime health from the Express backend and containerized environment.
-              </p>
-            </div>
-            <div className="flex items-center gap-2 text-xs font-mono">
-              <span className="w-2 h-2 rounded-full bg-positive animate-pulse"></span>
-              <span className="text-positive font-medium">
-                {loadingHealth ? "Probing..." : health ? "API Online (200 OK)" : "API Standby"}
-              </span>
-            </div>
-          </div>
-
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-            <div className="p-4 rounded border border-border-subtle bg-ground/50">
-              <span className="text-xs text-ink-muted block">Transaction Engine</span>
-              <span className="text-sm font-semibold text-ink-primary mt-1 flex items-center gap-1.5">
-                <Database className="w-3.5 h-3.5 text-accent" />
-                <span>MongoDB 7.0 (rs0)</span>
-              </span>
-              <span className="text-[11px] text-ink-secondary mt-1 block">ACID Session Support</span>
-            </div>
-
-            <div className="p-4 rounded border border-border-subtle bg-ground/50">
-              <span className="text-xs text-ink-muted block">Concurrency Control</span>
-              <span className="text-sm font-semibold text-ink-primary mt-1 flex items-center gap-1.5">
-                <Cpu className="w-3.5 h-3.5 text-accent" />
-                <span>Two-Tier Reservation</span>
-              </span>
-              <span className="text-[11px] text-ink-secondary mt-1 block">Atomic $inc + Fencing</span>
-            </div>
-
-            <div className="p-4 rounded border border-border-subtle bg-ground/50">
-              <span className="text-xs text-ink-muted block">Idempotency Protocol</span>
-              <span className="text-sm font-semibold text-ink-primary mt-1 flex items-center gap-1.5">
-                <ShieldCheck className="w-3.5 h-3.5 text-accent" />
-                <span>In-Txn Completion</span>
-              </span>
-              <span className="text-[11px] text-ink-secondary mt-1 block">
-                Crash-Consistent Guarantee
-              </span>
-            </div>
-
-            <div className="p-4 rounded border border-border-subtle bg-ground/50">
-              <span className="text-xs text-ink-muted block">Architecture Style</span>
-              <span className="text-sm font-semibold text-ink-primary mt-1 flex items-center gap-1.5">
-                <Layers className="w-3.5 h-3.5 text-accent" />
-                <span>Modular Monolith</span>
-              </span>
-              <span className="text-[11px] text-ink-secondary mt-1 block">TypeScript Workspaces</span>
-            </div>
-          </div>
-        </div>
-      </section>
-    </div>
+    <PublicLanding apiOnline={Boolean(health)} loadingHealth={loadingHealth} />
   );
 };
