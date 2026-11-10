@@ -1,4 +1,5 @@
-import mongoose, { Types } from "mongoose";
+import { Types } from "mongoose";
+import { connectToDatabase, disconnectDatabase } from "../apps/api/src/db/connection.js";
 import {
   User,
   Hackathon,
@@ -11,12 +12,50 @@ import {
 export const LOAD_BENCH_SLUG = "hack4hack-load-bench-2026";
 export const LOAD_BENCH_EMAIL_REGEX = /@load-bench\.crewconnect\.test$/;
 
-const DEFAULT_TEAM_COUNT = Number(process.env.SEED_TEAM_COUNT || "1000");
-const DEFAULT_CONTENDER_COUNT = Number(process.env.SEED_CONTENDERS || "100");
+export const DEFAULT_TEAM_COUNT = Number(process.env.SEED_TEAM_COUNT || "2000");
+export const DEFAULT_PARTICIPANT_COUNT = Number(process.env.SEED_PARTICIPANT_COUNT || "10000");
+const CHUNK_SIZE = 2000;
 
-export async function cleanupLoadData() {
-  const existingHackathon = await Hackathon.findOne({ slug: LOAD_BENCH_SLUG });
+export interface SeedLoadOptions {
+  teamCount?: number;
+  participantCount?: number;
+  minFreeContenders?: number;
+  benchmarkSlug?: string;
+}
+
+async function insertInChunks<T>(
+  model: { insertMany: (docs: T[], opts?: { ordered?: boolean }) => Promise<unknown> },
+  docs: T[],
+  chunkSize = CHUNK_SIZE
+): Promise<void> {
+  for (let i = 0; i < docs.length; i += chunkSize) {
+    await model.insertMany(docs.slice(i, i + chunkSize), { ordered: false });
+  }
+}
+
+/**
+ * Idempotently cleans up ONLY synthetic benchmark data identified by an explicit benchmark slug
+ * and the synthetic `@load-bench.crewconnect.test` email suffix. Ordinary development users,
+ * teams, and unrelated idempotency records are strictly preserved.
+ */
+export async function cleanupLoadData(benchmarkSlug: string = LOAD_BENCH_SLUG): Promise<void> {
+  const normalizedSlug = benchmarkSlug?.trim();
+  if (!normalizedSlug || !/^[a-z0-9-]+$/i.test(normalizedSlug)) {
+    throw new Error(
+      `Invalid benchmark identifier "${benchmarkSlug}". Explicit alphanumeric/hyphen slug required.`
+    );
+  }
+
+  const syntheticUserIds = await User.find({ email: LOAD_BENCH_EMAIL_REGEX }).distinct("_id");
+  const existingHackathon = await Hackathon.findOne({ slug: normalizedSlug });
+
+  let benchmarkTeamEndpoints: string[] = [];
   if (existingHackathon) {
+    const benchmarkTeamIds = await Team.find({ hackathonId: existingHackathon._id }).distinct(
+      "_id"
+    );
+    benchmarkTeamEndpoints = benchmarkTeamIds.map((id) => `/api/v1/teams/${String(id)}/join`);
+
     await Promise.all([
       Team.deleteMany({ hackathonId: existingHackathon._id }),
       Membership.deleteMany({ hackathonId: existingHackathon._id }),
@@ -24,20 +63,45 @@ export async function cleanupLoadData() {
       Hackathon.deleteOne({ _id: existingHackathon._id }),
     ]);
   }
-  await User.deleteMany({ email: LOAD_BENCH_EMAIL_REGEX });
-  await IdempotencyRecord.deleteMany({ route: /teams/ });
+
+  if (syntheticUserIds.length > 0) {
+    const idempotencyFilter: Record<string, unknown> = {
+      userId: { $in: syntheticUserIds },
+    };
+
+    if (benchmarkTeamEndpoints.length > 0) {
+      idempotencyFilter.endpoint = { $in: benchmarkTeamEndpoints };
+    } else {
+      // If hackathon teams were already cleaned up in a partial run, still restrict strictly
+      // to synthetic users AND the exact team-join endpoint ObjectId pattern.
+      idempotencyFilter.endpoint = /^\/api\/v1\/teams\/[a-f0-9]{24}\/join$/i;
+    }
+
+    await IdempotencyRecord.deleteMany(idempotencyFilter);
+    await User.deleteMany({ _id: { $in: syntheticUserIds }, email: LOAD_BENCH_EMAIL_REGEX });
+  }
 }
 
-export async function seedLoadData(
-  teamCount = DEFAULT_TEAM_COUNT,
-  contenderCount = DEFAULT_CONTENDER_COUNT
-) {
-  await cleanupLoadData();
+/**
+ * Seeds a configurable synthetic benchmark hackathon (`2,000` teams and `10,000` participants
+ * by default) while enforcing exact `Team.memberCount === activeMemberships` and single-team
+ * hackathon invariants. Team 0 is reserved as the 4/5 Last-Seat Race Arena Team.
+ */
+export async function seedLoadData(options: SeedLoadOptions = {}) {
+  const benchmarkSlug = (options.benchmarkSlug || LOAD_BENCH_SLUG).trim();
+  const teamCount = Math.max(1, options.teamCount ?? DEFAULT_TEAM_COUNT);
+  const minRequiredUsers = teamCount + 3 + (options.minFreeContenders ?? 100);
+  const participantCount = Math.max(
+    minRequiredUsers,
+    options.participantCount ?? DEFAULT_PARTICIPANT_COUNT
+  );
+
+  await cleanupLoadData(benchmarkSlug);
 
   const hackathon = await Hackathon.create({
-    slug: LOAD_BENCH_SLUG,
+    slug: benchmarkSlug,
     title: "Hack4Hack 2026 Load Benchmark Arena",
-    description: "Isolated load-testing hackathon dataset",
+    description: "Isolated challenge-scale load & concurrency benchmark dataset",
     minTeamSize: 1,
     maxTeamSize: 5,
     status: "ACTIVE",
@@ -45,7 +109,6 @@ export async function seedLoadData(
     endDate: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
   });
 
-  // 1. Seed Leader Users & Teams (using bulk insertMany for speed)
   const skillsPool = [
     ["TypeScript", "React", "Node.js"],
     ["Python", "PyTorch", "FastAPI"],
@@ -54,19 +117,48 @@ export async function seedLoadData(
     ["Next.js", "Tailwind", "MongoDB"],
   ];
 
-  const leaderUsersPayload = Array.from({ length: teamCount }, (_, i) => ({
+  // Partition total participants deterministically:
+  // - `teamCount` team leaders (1 per team)
+  // - Remaining participants split between active teammates (capped cleanly at team capacity)
+  //   and guaranteed `freeContenders` (at least `minFreeContenders`, e.g., 100+ for races).
+  const freeContenderTarget = Math.min(
+    participantCount - teamCount - 3,
+    Math.max(options.minFreeContenders ?? 100, Math.floor(participantCount * 0.1))
+  );
+
+  const availableTeammatesBudget = Math.max(3, participantCount - teamCount - freeContenderTarget);
+
+  // Assign teammate counts per team strictly honoring `1 + extra <= maxCapacity (5)`
+  const extraMembersPerTeam = new Array<number>(teamCount).fill(0);
+  // Arena Team 0 gets exactly 3 extra members -> total 4/5 seats occupied
+  extraMembersPerTeam[0] = 3;
+  let assignedTeammates = 3;
+
+  // Fill up to 3 extra members across teams 1..N-1 in round-robin passes so capacities stay balanced
+  for (let pass = 0; pass < 3 && assignedTeammates < availableTeammatesBudget; pass++) {
+    for (let i = 1; i < teamCount && assignedTeammates < availableTeammatesBudget; i++) {
+      // Leave some open ~80% open teams + varied capacities (1..4 members)
+      if (pass === 0 || i % 4 !== 0) {
+        extraMembersPerTeam[i] += 1;
+        assignedTeammates += 1;
+      }
+    }
+  }
+
+  const totalContenders = participantCount - teamCount - assignedTeammates;
+
+  // Generate all User docs in chunks (Leaders + Teammates + Free Contenders = exact `participantCount`)
+  const leaderDocs = Array.from({ length: teamCount }, (_, i) => ({
     _id: new Types.ObjectId(),
     email: `leader-${i}@load-bench.crewconnect.test`,
     displayName: `Bench Leader ${i}`,
     passwordHash: "synthetic-bench-hash-not-for-login",
     skills: skillsPool[i % skillsPool.length],
-    status: "ACTIVE",
+    status: "ACTIVE" as const,
     tokenVersion: 0,
   }));
 
-  await User.insertMany(leaderUsersPayload, { ordered: false });
-
-  const teamsPayload = leaderUsersPayload.map((leader, i) => ({
+  const teamDocs = leaderDocs.map((leader, i) => ({
     _id: new Types.ObjectId(),
     hackathonId: hackathon._id,
     leaderId: leader._id,
@@ -74,64 +166,87 @@ export async function seedLoadData(
     tagline: `High-concurrency engineered team #${i}`,
     description: `Load benchmark team ${i} operating on MongoDB replica set.`,
     skillsNeeded: skillsPool[(i + 1) % skillsPool.length],
-    memberCount: i === 0 ? 4 : (i % 4) + 1, // Team 0 is the 4/5 Arena Team!
+    memberCount: 1 + extraMembersPerTeam[i],
     maxCapacity: 5,
-    isOpen: i % 5 !== 0 || i === 0, // ~80% open + Arena Team 0 strictly open
-    status: "ACTIVE",
+    isOpen: i === 0 || i % 5 !== 0, // Arena Team 0 strictly open; ~80% teams open
+    status: "ACTIVE" as const,
   }));
 
-  await Team.insertMany(teamsPayload, { ordered: false });
+  const teammateUserDocs: Array<{
+    _id: Types.ObjectId;
+    email: string;
+    displayName: string;
+    passwordHash: string;
+    skills: string[];
+    status: "ACTIVE";
+    tokenVersion: number;
+  }> = [];
 
-  const membershipsPayload = teamsPayload.map((team, i) => ({
-    hackathonId: hackathon._id,
-    teamId: team._id,
-    userId: leaderUsersPayload[i]._id,
-    role: "LEADER",
-    status: "ACTIVE",
-    joinedAt: new Date(),
-  }));
+  const membershipDocs: Array<{
+    hackathonId: Types.ObjectId;
+    teamId: Types.ObjectId;
+    userId: Types.ObjectId;
+    role: "LEADER" | "MEMBER";
+    status: "ACTIVE";
+    joinedAt: Date;
+  }> = [];
 
-  await Membership.insertMany(membershipsPayload, { ordered: false });
-
-  // For Arena Team 0 (memberCount: 4, maxCapacity: 5), seed 3 existing teammates so membership count == 4 cleanly
-  const arenaTeammates = Array.from({ length: 3 }, (_, idx) => ({
-    _id: new Types.ObjectId(),
-    email: `arena-member-${idx}@load-bench.crewconnect.test`,
-    displayName: `Arena Member ${idx}`,
-    passwordHash: "synthetic-bench-hash-not-for-login",
-    skills: ["TypeScript", "MongoDB"],
-    status: "ACTIVE",
-    tokenVersion: 0,
-  }));
-  await User.insertMany(arenaTeammates, { ordered: false });
-  await Membership.insertMany(
-    arenaTeammates.map((m) => ({
-      hackathonId: hackathon._id,
-      teamId: teamsPayload[0]._id,
-      userId: m._id,
-      role: "MEMBER",
+  const now = new Date();
+  for (let i = 0; i < teamCount; i++) {
+    membershipDocs.push({
+      hackathonId: hackathon._id as Types.ObjectId,
+      teamId: teamDocs[i]._id,
+      userId: leaderDocs[i]._id,
+      role: "LEADER",
       status: "ACTIVE",
-      joinedAt: new Date(),
-    }))
-  );
+      joinedAt: now,
+    });
 
-  // 2. Seed Contender Users (free agents without any active membership)
-  const contendersPayload = Array.from({ length: contenderCount }, (_, i) => ({
+    for (let k = 0; k < extraMembersPerTeam[i]; k++) {
+      const uid = new Types.ObjectId();
+      const idx = teammateUserDocs.length;
+      teammateUserDocs.push({
+        _id: uid,
+        email: `teammate-${idx}@load-bench.crewconnect.test`,
+        displayName: `Bench Teammate ${idx}`,
+        passwordHash: "synthetic-bench-hash-not-for-login",
+        skills: skillsPool[idx % skillsPool.length],
+        status: "ACTIVE",
+        tokenVersion: 0,
+      });
+      membershipDocs.push({
+        hackathonId: hackathon._id as Types.ObjectId,
+        teamId: teamDocs[i]._id,
+        userId: uid,
+        role: "MEMBER",
+        status: "ACTIVE",
+        joinedAt: now,
+      });
+    }
+  }
+
+  const contenderDocs = Array.from({ length: totalContenders }, (_, i) => ({
     _id: new Types.ObjectId(),
     email: `contender-${i}@load-bench.crewconnect.test`,
     displayName: `Race Contender ${i}`,
     passwordHash: "synthetic-bench-hash-not-for-login",
     skills: skillsPool[i % skillsPool.length],
-    status: "ACTIVE",
+    status: "ACTIVE" as const,
     tokenVersion: 0,
   }));
-  const contenders = await User.insertMany(contendersPayload, { ordered: false });
+
+  // Bulk insert in chunks
+  await insertInChunks(User, [...leaderDocs, ...teammateUserDocs, ...contenderDocs]);
+  await insertInChunks(Team, teamDocs);
+  await insertInChunks(Membership, membershipDocs);
 
   return {
     hackathon,
-    arenaTeam: teamsPayload[0],
-    teamCount,
-    contenders,
+    arenaTeam: teamDocs[0],
+    teamCount: teamDocs.length,
+    participantCount: leaderDocs.length + teammateUserDocs.length + contenderDocs.length,
+    membershipCount: membershipDocs.length,
+    contenders: contenderDocs,
   };
 }
 
@@ -142,27 +257,30 @@ if (process.argv[1] && process.argv[1].endsWith("seed-load-data.ts")) {
 
   (async () => {
     try {
-      await mongoose.connect(uri);
+      await connectToDatabase(uri);
       if (isCleanup) {
-        console.log("Cleaning up synthetic load benchmark data...");
-        await cleanupLoadData();
-        console.log("Cleanup complete.");
+        console.log(`Cleaning up synthetic load benchmark data (slug: ${LOAD_BENCH_SLUG})...`);
+        await cleanupLoadData(LOAD_BENCH_SLUG);
+        console.log("Cleanup complete. Ordinary dev records untouched.");
       } else {
         console.log(
-          `Seeding ${DEFAULT_TEAM_COUNT} teams and ${DEFAULT_CONTENDER_COUNT} contender users into ${uri}...`
+          `Seeding ${DEFAULT_TEAM_COUNT} teams and ${DEFAULT_PARTICIPANT_COUNT} participants into ${uri}...`
         );
         const start = performance.now();
-        const result = await seedLoadData();
+        const result = await seedLoadData({
+          teamCount: DEFAULT_TEAM_COUNT,
+          participantCount: DEFAULT_PARTICIPANT_COUNT,
+        });
         const elapsed = (performance.now() - start).toFixed(0);
         console.log(
-          `Seed complete in ${elapsed}ms! Hackathon ID: ${result.hackathon._id}, Arena Team ID: ${result.arenaTeam._id} (4/5 seats filled)`
+          `Seed complete in ${elapsed}ms! Participants: ${result.participantCount}, Teams: ${result.teamCount}, Memberships: ${result.membershipCount}, Contenders: ${result.contenders.length}, Arena Team ID: ${result.arenaTeam._id} (4/5)`
         );
       }
-      await mongoose.disconnect();
+      await disconnectDatabase();
       process.exit(0);
     } catch (err) {
       console.error("Seed failed:", err);
-      await mongoose.disconnect();
+      await disconnectDatabase();
       process.exit(1);
     }
   })();

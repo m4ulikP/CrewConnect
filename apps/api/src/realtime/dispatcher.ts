@@ -27,7 +27,7 @@ export class EventDispatcher {
     // Notify private team room
     io.to(`team:${payload.teamId}`).emit(REALTIME_EVENTS.TEAM_MEMBER_JOINED, payload);
 
-    // Broadcast capacity update to entire hackathon directory
+    // Broadcast capacity update to entire hackathon directory and team room (deduplicated)
     const capacityPayload: TeamCapacityUpdatedPayload = {
       teamId: payload.teamId,
       hackathonId: payload.hackathonId,
@@ -36,22 +36,24 @@ export class EventDispatcher {
       isOpen: payload.isOpen,
       timestamp: payload.timestamp,
     };
-    io.to(`hackathon:${payload.hackathonId}`).emit(
-      REALTIME_EVENTS.TEAM_CAPACITY_UPDATED,
-      capacityPayload
-    );
-    io.to(`team:${payload.teamId}`).emit(REALTIME_EVENTS.TEAM_CAPACITY_UPDATED, capacityPayload);
+    io.to(`hackathon:${payload.hackathonId}`)
+      .to(`team:${payload.teamId}`)
+      .emit(REALTIME_EVENTS.TEAM_CAPACITY_UPDATED, capacityPayload);
   }
 
   /**
-   * Broadcasts a member leaving or being removed from a team.
+   * Broadcasts a member leaving or being removed from a team, notifies all sockets of
+   * the affected user and remaining members, and revokes team-room membership for all
+   * of the departing user's connected sockets strictly after dispatch.
    */
   static dispatchMemberLeft(payload: TeamMemberLeftPayload): void {
     const io = getSocketServer();
     if (!io) return;
 
-    io.to(`team:${payload.teamId}`).emit(REALTIME_EVENTS.TEAM_MEMBER_LEFT, payload);
-    io.to(`user:${payload.userId}`).emit(REALTIME_EVENTS.TEAM_MEMBER_LEFT, payload);
+    // Deliver departure event once per socket across current team room and user's private room
+    io.to(`team:${payload.teamId}`)
+      .to(`user:${payload.userId}`)
+      .emit(REALTIME_EVENTS.TEAM_MEMBER_LEFT, payload);
 
     const capacityPayload: TeamCapacityUpdatedPayload = {
       teamId: payload.teamId,
@@ -61,11 +63,13 @@ export class EventDispatcher {
       isOpen: payload.isOpen,
       timestamp: payload.timestamp,
     };
-    io.to(`hackathon:${payload.hackathonId}`).emit(
-      REALTIME_EVENTS.TEAM_CAPACITY_UPDATED,
-      capacityPayload
-    );
-    io.to(`team:${payload.teamId}`).emit(REALTIME_EVENTS.TEAM_CAPACITY_UPDATED, capacityPayload);
+    io.to(`hackathon:${payload.hackathonId}`)
+      .to(`team:${payload.teamId}`)
+      .emit(REALTIME_EVENTS.TEAM_CAPACITY_UPDATED, capacityPayload);
+
+    // Evict all connected sockets belonging to the departed user from the team room
+    // strictly after the departure broadcast has been queued.
+    io.in(`user:${payload.userId}`).socketsLeave(`team:${payload.teamId}`);
   }
 
   /**
@@ -75,23 +79,28 @@ export class EventDispatcher {
     const io = getSocketServer();
     if (!io) return;
 
-    io.to(`team:${payload.teamId}`).emit(REALTIME_EVENTS.TEAM_UPDATED, payload);
-    io.to(`hackathon:${payload.hackathonId}`).emit(REALTIME_EVENTS.TEAM_UPDATED, payload);
+    io.to(`team:${payload.teamId}`)
+      .to(`hackathon:${payload.hackathonId}`)
+      .emit(REALTIME_EVENTS.TEAM_UPDATED, payload);
   }
 
   /**
-   * Broadcasts team disbanding.
+   * Broadcasts team disbanding and evicts all subscribers from the team room afterward.
    */
   static dispatchTeamDisbanded(payload: TeamDisbandedPayload): void {
     const io = getSocketServer();
     if (!io) return;
 
-    io.to(`team:${payload.teamId}`).emit(REALTIME_EVENTS.TEAM_DISBANDED, payload);
-    io.to(`hackathon:${payload.hackathonId}`).emit(REALTIME_EVENTS.TEAM_DISBANDED, payload);
+    io.to(`team:${payload.teamId}`)
+      .to(`hackathon:${payload.hackathonId}`)
+      .emit(REALTIME_EVENTS.TEAM_DISBANDED, payload);
+
+    // Evict all sockets remaining in the disbanded team's room
+    io.in(`team:${payload.teamId}`).socketsLeave(`team:${payload.teamId}`);
   }
 
   /**
-   * Broadcasts leadership transfer to team members.
+   * Broadcasts leadership transfer to active team members.
    */
   static dispatchLeadershipTransferred(payload: LeadershipTransferredPayload): void {
     const io = getSocketServer();
@@ -110,12 +119,13 @@ export class EventDispatcher {
     const io = getSocketServer();
     if (!io) return;
 
-    io.to(`user:${leaderId}`).emit(REALTIME_EVENTS.JOIN_REQUEST_SUBMITTED, payload);
-    io.to(`team:${payload.teamId}`).emit(REALTIME_EVENTS.JOIN_REQUEST_SUBMITTED, payload);
+    io.to(`user:${leaderId}`)
+      .to(`team:${payload.teamId}`)
+      .emit(REALTIME_EVENTS.JOIN_REQUEST_SUBMITTED, payload);
   }
 
   /**
-   * Dispatches join request resolution (approved or rejected) to the applicant.
+   * Dispatches join request resolution (approved or rejected) to the applicant and team room.
    */
   static dispatchJoinRequestResolved(
     targetUserId: string,
@@ -129,8 +139,7 @@ export class EventDispatcher {
         ? REALTIME_EVENTS.JOIN_REQUEST_APPROVED
         : REALTIME_EVENTS.JOIN_REQUEST_REJECTED;
 
-    io.to(`user:${targetUserId}`).emit(eventName, payload);
-    io.to(`team:${payload.teamId}`).emit(eventName, payload);
+    io.to(`user:${targetUserId}`).to(`team:${payload.teamId}`).emit(eventName, payload);
   }
 
   /**
@@ -140,7 +149,8 @@ export class EventDispatcher {
     const io = getSocketServer();
     if (!io) return;
 
-    io.to(`hackathon:${payload.hackathonId}`).emit(REALTIME_EVENTS.TEAM_CAPACITY_UPDATED, payload);
-    io.to(`team:${payload.teamId}`).emit(REALTIME_EVENTS.TEAM_CAPACITY_UPDATED, payload);
+    io.to(`hackathon:${payload.hackathonId}`)
+      .to(`team:${payload.teamId}`)
+      .emit(REALTIME_EVENTS.TEAM_CAPACITY_UPDATED, payload);
   }
 }

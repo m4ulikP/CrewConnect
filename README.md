@@ -21,7 +21,7 @@ Consider a team with **4 members** and a maximum capacity of **5**. Suppose **50
 4. **Global Single-Team Invariant**: Enforced by a database-level unique compound index `{ hackathonId: 1, userId: 1 }` on `memberships`, ensuring no user can belong to more than one team within the same hackathon under any race condition.
 5. **Fenced Lease Idempotency with In-Transaction Completion**: Atomic lease acquisition outside the business transaction with unique `ownerToken` fencing, 30s crash recovery, and SHA-256 payload verification. The transition to `COMPLETED` occurs inside the business transaction, guaranteeing that business mutations and the cached result commit atomically.
 6. **Team Leadership Invariants**: The team leader must always be an active member. Leaders cannot leave without transferring leadership, transfers are atomic, and last-member departure disbands the team safely.
-7. **Post-Commit Real-Time Synchronization (Phase 6)**: Authenticated Socket.IO rooms (`user:<id>`, `team:<id>`, `hackathon:<id>`) dispatch events strictly after transaction commit confirmation, ensuring clients observe only confirmed database states without dirty reads, duplicate retries, or phantom notifications.
+7. **Post-Commit Real-Time Synchronization (Phases 6 & 6.1)**: Authenticated Socket.IO rooms (`user:<id>`, `team:<id>`, `hackathon:<id>`) dispatch events strictly **after** transaction commit confirmation and dynamically revoke `team:<id>` access across all sockets of departed/removed users or disbanded teams. The in-memory dispatcher is best-effort (non-durable, not guaranteed exactly-once if a process crashes between commit and emit); failed/uncertain commits emit zero events, and REST resynchronization serves as recovery on reconnect.
 
 ---
 
@@ -86,15 +86,15 @@ All engineering specifications, design trade-offs, and architecture decisions ar
 - [x] **Phase 4: Team Lifecycle and Management** _(Completed & Approved — Invariant Enforcement, Atomic Succession, Disbandment)_
 - [x] **Phase 5: Race-Proof Membership and Idempotency Engine** _(Completed & Approved — 50-Concurrent-Requests Capacity Engine)_
 - [x] **Phase 5.1 & 5.2: Correctness Fixes & CI Pipeline Repair** _(Completed & Approved)_
-- [x] **Phase 6: Real-Time Event Dispatching, Load Testing and Demo Preparation** _(Completed — Socket.IO Server/Client, Discovery API p95 = 164.3ms @ 759.8 req/sec under 100 concurrent clients, 50-Way Last-Seat Race, Evaluator Demo Guide)_
+- [x] **Phase 6 & 6.1: Real-Time Event Dispatching, Room Revocation, Challenge-Scale Load Testing & Safe Cleanup** _(Completed — Socket.IO Room Eviction, 10k-Participant / 2k-Team Dataset @ 739.7 req/sec, Discovery p95 = 165.5ms, Scoped Cleanup Safety, Evaluator Demo Guide)_
 - [ ] **Phase 7: Production Hardening, Performance Tuning & Deployment Verification**
 - [ ] **Phase 8: Final Submission & Evaluator Handover**
 
 ---
 
-## 📊 Verified Phase 6 Load & Concurrency Benchmarks (`scripts/run-load-test.ts`)
+## 📊 Verified Challenge-Scale Load & Concurrency Benchmarks (`scripts/run-load-test.ts`)
 
-| Benchmark Scenario                                                            | Load Profile                                                 | Measured Result                                                                                                                         |
-| :---------------------------------------------------------------------------- | :----------------------------------------------------------- | :-------------------------------------------------------------------------------------------------------------------------------------- |
-| **Team Discovery API** (`GET /api/v1/hackathons/:id/teams?hasVacancies=true`) | 100 concurrent clients, 500 queries over 1,000 teams         | **759.8 req/s**, p50 `123.9 ms`, p95 **`164.3 ms`** (< 200 ms SLA), `0` failed requests                                                 |
-| **50-Way Last-Seat Race** (`POST /api/v1/teams/:id/join`, `4/5 -> 5/5`)       | 50 simultaneous contenders + 6 live WebSocket room listeners | `333.2 ms` total; exactly **1** `201 Created`, **49** `409 Conflict`, **0** `5xx`, `5/5` DB count, exact post-commit Socket.IO dispatch |
+| Benchmark Scenario                                                            | Load Profile                                                  | Measured Result                                                                                                                         |
+| :---------------------------------------------------------------------------- | :------------------------------------------------------------ | :-------------------------------------------------------------------------------------------------------------------------------------- |
+| **Team Discovery API** (`GET /api/v1/hackathons/:id/teams?hasVacancies=true`) | 100 concurrent clients, 500 queries (2,000 teams / 10k users) | **739.7 req/s**, p50 `121.9 ms`, **p95 `165.5 ms`** (`< 200 ms` SLA achieved), p99 `192.3 ms`, `0` failed requests (`0.00%` error rate) |
+| **50-Way Last-Seat Race** (`POST /api/v1/teams/:id/join`, `4/5 -> 5/5`)       | 50 simultaneous contenders + 6 live WebSocket room listeners  | `336.8 ms` total; exactly **1** `201 Created`, **49** `409 Conflict`, **0** `5xx`, `5/5` DB count, exact post-commit Socket.IO dispatch |

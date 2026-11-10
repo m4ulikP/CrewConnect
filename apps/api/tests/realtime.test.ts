@@ -1,10 +1,15 @@
-import { describe, it, expect, beforeAll, afterAll, beforeEach } from "vitest";
+import { describe, it, expect, beforeAll, afterAll, beforeEach, vi } from "vitest";
 import http from "node:http";
 import type { AddressInfo } from "node:net";
 import { io as ioClient, type Socket as ClientSocket } from "socket.io-client";
 import { Types } from "mongoose";
 import { app } from "../src/app.js";
-import { initSocketServer, closeSocketServer, EventDispatcher } from "../src/realtime/index.js";
+import {
+  initSocketServer,
+  closeSocketServer,
+  EventDispatcher,
+  getSocketServer,
+} from "../src/realtime/index.js";
 import { AuthService } from "../src/services/auth.service.js";
 import { SeatReservationService } from "../src/services/seat-reservation.service.js";
 import { TeamService } from "../src/services/team.service.js";
@@ -14,6 +19,8 @@ import {
   REALTIME_EVENTS,
   type JoinRequestSubmittedPayload,
   type TeamMemberJoinedPayload,
+  type TeamMemberLeftPayload,
+  type TeamUpdatedPayload,
   type TeamCapacityUpdatedPayload,
   type TeamDisbandedPayload,
 } from "@crewconnect/shared";
@@ -33,6 +40,7 @@ describe("Phase 6: Real-Time Event Dispatching & Socket Authorization Test Suite
   let leaderToken: string;
 
   let memberUser: IUser;
+  let memberToken: string;
 
   let outsiderUser: IUser;
   let outsiderToken: string;
@@ -133,6 +141,7 @@ describe("Phase 6: Real-Time Event Dispatching & Socket Authorization Test Suite
       tokenVersion: 0,
       skills: ["Node.js", "MongoDB"],
     });
+    memberToken = AuthService.generateToken(memberUser);
 
     outsiderUser = await User.create({
       email: `outsider-${Date.now()}@test-realtime.com`,
@@ -445,6 +454,246 @@ describe("Phase 6: Real-Time Event Dispatching & Socket Authorization Test Suite
 
       await new Promise((resolve) => setTimeout(resolve, 300));
       expect(eventCount).toBe(1);
+    });
+  });
+
+  describe("5. Room Revocation Lifecycle & Regression Invariants", () => {
+    it("revokes team room access for all sockets of a member who voluntarily leaves while preserving departure notification and remaining member updates", async () => {
+      const { team } = await TeamService.createTeam(testHackathonId, leaderUser._id.toString(), {
+        name: "Realtime Team Theta",
+        tagline: "Theta Team",
+        maxCapacity: 4,
+      });
+      const teamId = team._id.toString();
+
+      await SeatReservationService.reserveSeatAndJoin({
+        teamId,
+        userId: memberUser._id.toString(),
+        action: "MEMBER_JOINED",
+      });
+
+      // Connect Leader + TWO simultaneous sockets for Member
+      const leaderClient = await createClient(leaderToken);
+      const memberSocketA = await createClient(memberToken);
+      const memberSocketB = await createClient(memberToken);
+
+      const joinAll = await Promise.all([
+        new Promise<RoomAck>((r) => leaderClient.emit("join:team", { teamId }, r)),
+        new Promise<RoomAck>((r) => memberSocketA.emit("join:team", { teamId }, r)),
+        new Promise<RoomAck>((r) => memberSocketB.emit("join:team", { teamId }, r)),
+      ]);
+      expect(joinAll.every((a) => a.success)).toBe(true);
+
+      // Track departure events
+      const leaderSawDeparture = new Promise<TeamMemberLeftPayload>((r) =>
+        leaderClient.once(REALTIME_EVENTS.TEAM_MEMBER_LEFT, r)
+      );
+      const socketASawDeparture = new Promise<TeamMemberLeftPayload>((r) =>
+        memberSocketA.once(REALTIME_EVENTS.TEAM_MEMBER_LEFT, r)
+      );
+      const socketBSawDeparture = new Promise<TeamMemberLeftPayload>((r) =>
+        memberSocketB.once(REALTIME_EVENTS.TEAM_MEMBER_LEFT, r)
+      );
+
+      // Member voluntarily leaves
+      await TeamService.leaveTeam(teamId, memberUser._id.toString());
+
+      const [leaderDep, depA, depB] = await Promise.all([
+        leaderSawDeparture,
+        socketASawDeparture,
+        socketBSawDeparture,
+      ]);
+      expect(leaderDep.userId).toBe(memberUser._id.toString());
+      expect(depA.reason).toBe("LEFT");
+      expect(depB.reason).toBe("LEFT");
+
+      // Listen for subsequent private team-room event
+      let socketAReceivedPrivate = false;
+      let socketBReceivedPrivate = false;
+      memberSocketA.on(REALTIME_EVENTS.LEADERSHIP_TRANSFERRED, () => {
+        socketAReceivedPrivate = true;
+      });
+      memberSocketB.on(REALTIME_EVENTS.LEADERSHIP_TRANSFERRED, () => {
+        socketBReceivedPrivate = true;
+      });
+
+      const leaderReceivedSubsequent = new Promise<void>((r) =>
+        leaderClient.once(REALTIME_EVENTS.LEADERSHIP_TRANSFERRED, () => r())
+      );
+
+      // Dispatch subsequent private team-room-only event
+      EventDispatcher.dispatchLeadershipTransferred({
+        teamId,
+        hackathonId: testHackathonId,
+        previousLeaderId: leaderUser._id.toString(),
+        newLeaderId: leaderUser._id.toString(),
+        newLeaderDisplayName: "Realtime Leader",
+        timestamp: new Date().toISOString(),
+      });
+
+      await leaderReceivedSubsequent;
+      await new Promise((r) => setTimeout(r, 250));
+
+      expect(socketAReceivedPrivate).toBe(false);
+      expect(socketBReceivedPrivate).toBe(false);
+
+      // Reconnecting as former member must also be denied team room access
+      const reconnectedFormerMember = await createClient(memberToken);
+      const reconnectAck = await new Promise<RoomAck>((r) =>
+        reconnectedFormerMember.emit("join:team", { teamId }, r)
+      );
+      expect(reconnectAck.success).toBe(false);
+      expect(reconnectAck.error).toContain("FORBIDDEN");
+    });
+
+    it("revokes team room access for all sockets when a member is removed by leader", async () => {
+      const { team } = await TeamService.createTeam(testHackathonId, leaderUser._id.toString(), {
+        name: "Realtime Team Iota",
+        tagline: "Iota Team",
+        maxCapacity: 4,
+      });
+      const teamId = team._id.toString();
+
+      await SeatReservationService.reserveSeatAndJoin({
+        teamId,
+        userId: memberUser._id.toString(),
+        action: "MEMBER_JOINED",
+      });
+
+      const leaderClient = await createClient(leaderToken);
+      const memberSocketA = await createClient(memberToken);
+      const memberSocketB = await createClient(memberToken);
+
+      await Promise.all([
+        new Promise<RoomAck>((r) => leaderClient.emit("join:team", { teamId }, r)),
+        new Promise<RoomAck>((r) => memberSocketA.emit("join:team", { teamId }, r)),
+        new Promise<RoomAck>((r) => memberSocketB.emit("join:team", { teamId }, r)),
+      ]);
+
+      const depPromiseA = new Promise<TeamMemberLeftPayload>((r) =>
+        memberSocketA.once(REALTIME_EVENTS.TEAM_MEMBER_LEFT, r)
+      );
+      const depPromiseB = new Promise<TeamMemberLeftPayload>((r) =>
+        memberSocketB.once(REALTIME_EVENTS.TEAM_MEMBER_LEFT, r)
+      );
+
+      await TeamService.removeMember(teamId, leaderUser._id.toString(), memberUser._id.toString());
+
+      const [depA, depB] = await Promise.all([depPromiseA, depPromiseB]);
+      expect(depA.reason).toBe("REMOVED");
+      expect(depB.reason).toBe("REMOVED");
+
+      let unauthorizedEventReceived = false;
+      memberSocketA.on(REALTIME_EVENTS.TEAM_UPDATED, () => {
+        unauthorizedEventReceived = true;
+      });
+      memberSocketB.on(REALTIME_EVENTS.TEAM_UPDATED, () => {
+        unauthorizedEventReceived = true;
+      });
+
+      const leaderUpdated = new Promise<TeamUpdatedPayload>((r) =>
+        leaderClient.once(REALTIME_EVENTS.TEAM_UPDATED, r)
+      );
+
+      // Update team -> dispatches TEAM_UPDATED to team room and hackathon room
+      await TeamService.updateTeamDetails(teamId, leaderUser._id.toString(), {
+        tagline: "Updated After Removal",
+      });
+
+      const upd = await leaderUpdated;
+      expect(upd.tagline).toBe("Updated After Removal");
+
+      await new Promise((r) => setTimeout(r, 250));
+      expect(unauthorizedEventReceived).toBe(false);
+    });
+
+    it("does not evict sockets from team room when removal transaction rolls back", async () => {
+      const { team } = await TeamService.createTeam(testHackathonId, leaderUser._id.toString(), {
+        name: "Realtime Team Kappa",
+        tagline: "Kappa Team",
+        maxCapacity: 4,
+      });
+      const teamId = team._id.toString();
+
+      await SeatReservationService.reserveSeatAndJoin({
+        teamId,
+        userId: memberUser._id.toString(),
+        action: "MEMBER_JOINED",
+      });
+
+      const memberClient = await createClient(memberToken);
+      const ack = await new Promise<RoomAck>((r) => memberClient.emit("join:team", { teamId }, r));
+      expect(ack.success).toBe(true);
+
+      // Simulate transactional rollback during AuditLog insert inside removeMember
+      const auditSpy = vi
+        .spyOn(AuditLog, "create")
+        .mockRejectedValueOnce(new Error("Simulated rollback during member removal"));
+
+      await expect(
+        TeamService.removeMember(teamId, leaderUser._id.toString(), memberUser._id.toString())
+      ).rejects.toThrow("Simulated rollback during member removal");
+
+      auditSpy.mockRestore();
+
+      // Member MUST STILL be in team room and receive private team events
+      const stillSubscribedPromise = new Promise<void>((r) =>
+        memberClient.once(REALTIME_EVENTS.LEADERSHIP_TRANSFERRED, () => r())
+      );
+
+      EventDispatcher.dispatchLeadershipTransferred({
+        teamId,
+        hackathonId: testHackathonId,
+        previousLeaderId: leaderUser._id.toString(),
+        newLeaderId: leaderUser._id.toString(),
+        newLeaderDisplayName: "Realtime Leader",
+        timestamp: new Date().toISOString(),
+      });
+
+      await expect(stillSubscribedPromise).resolves.toBeUndefined();
+    });
+
+    it("removes all connected sockets from team room after broadcasting disbandment event", async () => {
+      const { team } = await TeamService.createTeam(testHackathonId, leaderUser._id.toString(), {
+        name: "Realtime Team Lambda",
+        tagline: "Lambda Team",
+        maxCapacity: 4,
+      });
+      const teamId = team._id.toString();
+
+      await SeatReservationService.reserveSeatAndJoin({
+        teamId,
+        userId: memberUser._id.toString(),
+        action: "MEMBER_JOINED",
+      });
+
+      const leaderClient = await createClient(leaderToken);
+      const memberClientA = await createClient(memberToken);
+      const memberClientB = await createClient(memberToken);
+
+      await Promise.all([
+        new Promise<RoomAck>((r) => leaderClient.emit("join:team", { teamId }, r)),
+        new Promise<RoomAck>((r) => memberClientA.emit("join:team", { teamId }, r)),
+        new Promise<RoomAck>((r) => memberClientB.emit("join:team", { teamId }, r)),
+      ]);
+
+      const disbandedLeader = new Promise<TeamDisbandedPayload>((r) =>
+        leaderClient.once(REALTIME_EVENTS.TEAM_DISBANDED, r)
+      );
+      const disbandedA = new Promise<TeamDisbandedPayload>((r) =>
+        memberClientA.once(REALTIME_EVENTS.TEAM_DISBANDED, r)
+      );
+      const disbandedB = new Promise<TeamDisbandedPayload>((r) =>
+        memberClientB.once(REALTIME_EVENTS.TEAM_DISBANDED, r)
+      );
+
+      await TeamService.disbandTeam(teamId, leaderUser._id.toString());
+
+      await Promise.all([disbandedLeader, disbandedA, disbandedB]);
+
+      // Verify all sockets were evicted from `team:<teamId>`
+      const remainingSockets = await getSocketServer()?.in(`team:${teamId}`).fetchSockets();
+      expect(remainingSockets?.length ?? 0).toBe(0);
     });
   });
 });

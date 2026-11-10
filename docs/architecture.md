@@ -218,13 +218,17 @@ sequenceDiagram
 
 1. **Handshake**: The client initiates a WebSocket / HTTP long-polling connection (`io({ withCredentials: true })`) sending the signed session cookie (`token`), `Authorization: Bearer <token>`, or `handshake.auth.token`.
 2. **Authentication Middleware (`apps/api/src/realtime/socket.ts`)**: The Socket.IO server verifies the JWT against `JWT_SECRET`, loads the user, confirms the account is `ACTIVE` (not `SUSPENDED`), and checks `payload.tokenVersion === user.tokenVersion`. Unauthenticated or revoked connections are rejected cleanly before joining any rooms.
-3. **Least-Privilege Room Subscription**:
+3. **Least-Privilege Room Subscription & Revocation Lifecycle**:
    - Each authenticated socket automatically joins a private user room: `user:${userId}`.
-   - Joining `team:${teamId}` (`join:team`) queries `Membership.exists({ teamId, userId, status: "ACTIVE" })` and rejects non-members with `FORBIDDEN`.
+   - Joining `team:${teamId}` (`join:team`) queries `Membership.exists({ teamId, userId, status: "ACTIVE" })` and rejects non-members with `FORBIDDEN`. Client claims about membership are never trusted.
    - Joining `hackathon:${hackathonId}` (`join:hackathon`) validates hackathon existence (`Hackathon.exists(...)`) before permitting directory capacity updates.
-4. **Post-Commit Dispatch Invariant**:
-   - Real-time notifications (`EventDispatcher`) are strictly executed **only after** `withTransactionRetry()` confirms `commitTransaction()` succeeded.
-   - Aborted, rolled back, or uncertain commits (`TRANSACTION_COMMIT_UNCERTAIN`) **never** emit socket events. Transient retries inside `withTransactionRetry()` never produce duplicate events.
+   - **Dynamic Room Eviction (`EventDispatcher.dispatchMemberLeft` / `dispatchTeamDisbanded`)**: Strictly after transaction commit and after emitting the departure or disbandment broadcast to current room subscribers, the server removes all sockets belonging to the departed user (`io.in("user:" + userId).socketsLeave("team:" + teamId)`) or removes all subscribers when a team disbands (`io.in("team:" + teamId).socketsLeave("team:" + teamId)`). If a transaction rolls back or fails with uncertain commit (`TRANSACTION_COMMIT_UNCERTAIN`), zero room evictions occur.
+4. **Post-Commit Dispatch Invariant & Delivery Guarantee Semantics**:
+   - **Post-Commit Emission**: Events are emitted strictly **after** `withTransactionRetry()` confirms `commitTransaction()` succeeded. Failed, aborted/rolled-back, and uncertain (`TRANSACTION_COMMIT_UNCERTAIN`) transactions **never** emit real-time events. Transient transaction retries never emit duplicate events for the same request.
+   - **Best-Effort, Non-Durable Dispatcher**: The current in-memory Socket.IO `EventDispatcher` is best-effort rather than durable (there is no transactional outbox or persistent message broker).
+   - **Failure Window & Recovery**: If the Node.js process crashes or restarts after MongoDB commits the transaction but before `io.emit(...)` executes—or while a client socket is disconnected—that real-time notification can be missed.
+   - **No Exactly-Once Guarantee**: Network drops, reconnects, or multi-tab subscriptions rely on idempotent UI state replacement rather than exactly-once broker delivery guarantees.
+   - **REST API Source of Truth**: Clients automatically re-fetch authoritative REST endpoints (`TeamsPreview` / `TeamDetails`) upon Socket.IO reconnection as the recovery mechanism.
 
 ### Real-Time Event Matrix
 

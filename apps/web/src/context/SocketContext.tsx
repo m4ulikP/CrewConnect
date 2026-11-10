@@ -63,11 +63,16 @@ export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       setConnectionState("connected");
 
       // Automatically re-join tracked rooms after initial connect or reconnect
+      // (Server still authorizes membership on every join:team call)
       activeHackathonsRef.current.forEach((hackathonId) => {
         newSocket.emit("join:hackathon", { hackathonId });
       });
       activeTeamsRef.current.forEach((teamId) => {
-        newSocket.emit("join:team", { teamId });
+        newSocket.emit("join:team", { teamId }, (ack?: { success: boolean; error?: string }) => {
+          if (ack && !ack.success) {
+            activeTeamsRef.current.delete(teamId);
+          }
+        });
       });
     });
 
@@ -127,7 +132,11 @@ export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       if (!teamId) return;
       activeTeamsRef.current.add(teamId);
       if (socket && socket.connected) {
-        socket.emit("join:team", { teamId });
+        socket.emit("join:team", { teamId }, (ack?: { success: boolean; error?: string }) => {
+          if (ack && !ack.success) {
+            activeTeamsRef.current.delete(teamId);
+          }
+        });
       }
     },
     [socket]

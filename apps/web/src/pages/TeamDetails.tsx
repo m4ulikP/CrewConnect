@@ -236,6 +236,9 @@ export const TeamDetails: React.FC = () => {
 
     const handleMemberLeft = (payload: TeamMemberLeftPayload) => {
       if (payload.teamId !== teamId) return;
+      if (user?.id === payload.userId) {
+        leaveTeamRoom(teamId);
+      }
       setTeam((prev) =>
         prev
           ? {
@@ -288,6 +291,7 @@ export const TeamDetails: React.FC = () => {
 
     const handleTeamDisbanded = (payload: TeamDisbandedPayload) => {
       if (payload.teamId !== teamId) return;
+      leaveTeamRoom(teamId);
       setTeam((prev) =>
         prev ? { ...prev, status: "DISBANDED", isOpen: false, memberCount: 0 } : prev
       );
@@ -329,7 +333,7 @@ export const TeamDetails: React.FC = () => {
       socket.off(REALTIME_EVENTS.JOIN_REQUEST_APPROVED, handleJoinRequestResolved);
       socket.off(REALTIME_EVENTS.JOIN_REQUEST_REJECTED, handleJoinRequestResolved);
     };
-  }, [socket, teamId, fetchTeamData]);
+  }, [socket, teamId, user?.id, leaveTeamRoom, fetchTeamData]);
 
   if (loading) {
     return (
