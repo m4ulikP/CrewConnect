@@ -72,3 +72,95 @@ jobs:
           docker image inspect crewconnect-api:ci >/dev/null
           docker image inspect crewconnect-web:ci >/dev/null
           echo "Production Docker images built and inspected successfully."
+
+      - name: Production Docker Compose runtime smoke test
+        run: |
+          PROJECT_NAME="crewconnect-smoke-${{ github.run_id }}"
+          export JWT_SECRET="ci_production_smoke_secret_32_characters_long!"
+          export CLIENT_URL="http://localhost:8080"
+          export WEB_PORT="8080"
+
+          cleanup() {
+            echo "Tearing down production smoke compose stack..."
+            docker compose -p "$PROJECT_NAME" -f docker-compose.prod.yml down -v --remove-orphans || true
+          }
+          trap cleanup EXIT
+
+          echo "Starting production Docker Compose stack (project: $PROJECT_NAME, port: $WEB_PORT)..."
+          docker compose -p "$PROJECT_NAME" -f docker-compose.prod.yml up -d --build
+
+          echo "Waiting for services to become healthy..."
+          for i in $(seq 1 30); do
+            WEB_HEALTH=$(docker inspect --format='{{json .State.Health.Status}}' "${PROJECT_NAME}-web-1" 2>/dev/null || echo '"starting"')
+            if [ "$WEB_HEALTH" = '"healthy"' ]; then
+              echo "Web container is healthy after $((i * 2)) seconds."
+              break
+            fi
+            echo "Waiting for stack readiness ($i/30)... current web health: $WEB_HEALTH"
+            sleep 2
+          done
+
+          echo "Inspecting container status:"
+          docker compose -p "$PROJECT_NAME" -f docker-compose.prod.yml ps
+
+          echo "1. Verify mongo-init completed and elected primary:"
+          INIT_EXIT=$(docker inspect --format='{{.State.ExitCode}}' "${PROJECT_NAME}-mongo-init-1")
+          if [ "$INIT_EXIT" != "0" ]; then
+            echo "mongo-init container failed with exit code $INIT_EXIT"
+            docker compose -p "$PROJECT_NAME" -f docker-compose.prod.yml logs mongo-init
+            exit 1
+          fi
+
+          echo "2. Verify /health/ready probe returns 200 with writable primary:"
+          READY_RES=$(curl -s -w "\nHTTP_STATUS:%{http_code}" http://localhost:8080/health/ready)
+          READY_STATUS=$(echo "$READY_RES" | grep "HTTP_STATUS:" | cut -d: -f2)
+          READY_BODY=$(echo "$READY_RES" | grep -v "HTTP_STATUS:")
+          echo "Ready response: $READY_BODY"
+          if [ "$READY_STATUS" != "200" ]; then
+            echo "Expected ready status 200, got $READY_STATUS"
+            docker compose -p "$PROJECT_NAME" -f docker-compose.prod.yml logs
+            exit 1
+          fi
+          echo "$READY_BODY" | grep '"isReplicaSet":true'
+          echo "$READY_BODY" | grep '"isWritablePrimary":true'
+          echo "$READY_BODY" | grep '"replicaSet":"rs0"'
+
+          echo "3. Verify /health/live probe returns 200:"
+          LIVE_STATUS=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:8080/health/live)
+          if [ "$LIVE_STATUS" != "200" ]; then
+            echo "Expected live status 200, got $LIVE_STATUS"
+            exit 1
+          fi
+
+          echo "4. Verify Web index.html is accessible via NGINX on port 8080:"
+          WEB_STATUS=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:8080/)
+          if [ "$WEB_STATUS" != "200" ]; then
+            echo "Expected web status 200, got $WEB_STATUS"
+            exit 1
+          fi
+
+          echo "5. Verify Socket.IO polling handshake through NGINX reverse proxy:"
+          SOCKET_BODY=$(curl -s "http://localhost:8080/socket.io/?EIO=4&transport=polling")
+          echo "Socket handshake response: $SOCKET_BODY"
+          echo "$SOCKET_BODY" | grep '"sid":'
+
+          echo "6. Verify failure path: stopping MongoDB must cause /health/ready to return 503 while /health/live returns 200:"
+          docker compose -p "$PROJECT_NAME" -f docker-compose.prod.yml stop mongodb
+          sleep 2
+
+          DOWN_READY_STATUS=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:8080/health/ready)
+          echo "Ready status with DB stopped: $DOWN_READY_STATUS"
+          if [ "$DOWN_READY_STATUS" != "503" ]; then
+            echo "Expected 503 from /health/ready when database is down, got $DOWN_READY_STATUS"
+            docker compose -p "$PROJECT_NAME" -f docker-compose.prod.yml logs api
+            exit 1
+          fi
+
+          DOWN_LIVE_STATUS=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:8080/health/live)
+          echo "Live status with DB stopped: $DOWN_LIVE_STATUS"
+          if [ "$DOWN_LIVE_STATUS" != "200" ]; then
+            echo "Expected 200 from /health/live when database is down, got $DOWN_LIVE_STATUS"
+            exit 1
+          fi
+
+          echo "Production Docker Compose runtime smoke test PASSED successfully!"

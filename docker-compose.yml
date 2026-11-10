@@ -28,19 +28,51 @@ services:
       - mongodb:27017
       - --eval
       - |
+        let needInitiate = false;
         try {
           const status = rs.status();
-          if (status.ok === 1) {
-            print("Replica set rs0 is already initialized and healthy.");
+          if (status.ok !== 1) {
+            needInitiate = true;
           }
         } catch (e) {
+          needInitiate = true;
+        }
+
+        if (needInitiate) {
           print("Initializing replica set rs0 for host and container access...");
           const res = rs.initiate({
             _id: "rs0",
             members: [{ _id: 0, host: "localhost:27017" }]
           });
           printjson(res);
+        } else {
+          print("Replica set rs0 is already initialized and healthy.");
         }
+
+        print("Waiting for replica set primary election...");
+        const maxAttempts = 30;
+        let elected = false;
+
+        for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+          try {
+            const hello = db.adminCommand({ hello: 1 });
+            if (hello.ok === 1 && (hello.isWritablePrimary === true || hello.primary)) {
+              print("Replica set rs0 primary elected: " + (hello.primary || "local node"));
+              elected = true;
+              break;
+            }
+          } catch (err) {
+            print("Attempt " + attempt + ": error querying hello command: " + err);
+          }
+          sleep(1000);
+        }
+
+        if (!elected) {
+          print("FATAL: Replica set primary was NOT elected within timeout (30s)!");
+          quit(1);
+        }
+
+        print("Replica set rs0 is ready with a writable primary.");
 
 volumes:
   mongo-data:

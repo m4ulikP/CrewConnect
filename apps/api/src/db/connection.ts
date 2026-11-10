@@ -14,6 +14,11 @@ export async function connectToDatabase(uri = env.MONGODB_URI): Promise<typeof m
     return mongoose;
   }
 
+  if (mongoose.connection.readyState !== 0) {
+    await mongoose.disconnect();
+    state.isConnected = false;
+  }
+
   try {
     const conn = await mongoose.connect(uri, {
       dbName: env.MONGODB_DB_NAME,
@@ -48,46 +53,149 @@ export async function disconnectDatabase(): Promise<void> {
   }
 }
 
-export async function checkDatabaseHealth(): Promise<{
+export interface DatabaseHealthResult {
   ok: boolean;
-  status: string;
+  status:
+    | "connected"
+    | "disconnected"
+    | "standalone"
+    | "no_primary"
+    | "replica_set_mismatch"
+    | "no_admin_db"
+    | "error";
   isReplicaSet: boolean;
   replicaSetName?: string;
-}> {
+  expectedReplicaSetName?: string;
+  isWritablePrimary: boolean;
+  primary?: string;
+  error?: string;
+}
+
+export function getExpectedReplicaSetName(uri = env.MONGODB_URI): string | undefined {
+  if (process.env.EXPECTED_REPLICA_SET_NAME) {
+    return process.env.EXPECTED_REPLICA_SET_NAME;
+  }
+  const match = uri.match(/[?&]replicaSet=([^&#]+)/);
+  return match ? decodeURIComponent(match[1]) : undefined;
+}
+
+export async function checkDatabaseHealth(): Promise<DatabaseHealthResult> {
   try {
     if (mongoose.connection.readyState !== 1) {
-      return { ok: false, status: "disconnected", isReplicaSet: false };
+      return {
+        ok: false,
+        status: "disconnected",
+        isReplicaSet: false,
+        isWritablePrimary: false,
+        error: "Mongoose connection is not in readyState 1 (connected)",
+      };
     }
 
     const admin = mongoose.connection.db?.admin();
     if (!admin) {
-      return { ok: false, status: "no_admin_db", isReplicaSet: false };
+      return {
+        ok: false,
+        status: "no_admin_db",
+        isReplicaSet: false,
+        isWritablePrimary: false,
+        error: "Cannot access admin database interface",
+      };
     }
 
-    const ping = await admin.ping();
-    const isOk = ping.ok === 1;
-
-    // Check replica set status
-    let isReplicaSet = false;
-    let replicaSetName: string | undefined;
-
+    // Run unprivileged topology probe: hello (or legacy isMaster fallback)
+    let hello: Record<string, unknown> | null = null;
     try {
-      const serverStatus = await admin.serverStatus();
-      if (serverStatus.repl) {
-        isReplicaSet = true;
-        replicaSetName = serverStatus.repl.setName;
-      }
+      hello = (await admin.command({ hello: 1 })) as Record<string, unknown>;
     } catch {
-      // Replica set status command may require special privileges or standalone
+      try {
+        hello = (await admin.command({ isMaster: 1 })) as Record<string, unknown>;
+      } catch (cmdErr) {
+        return {
+          ok: false,
+          status: "error",
+          isReplicaSet: false,
+          isWritablePrimary: false,
+          error: `Topology probe failed: ${(cmdErr as Error).message}`,
+        };
+      }
+    }
+
+    if (!hello || hello.ok !== 1) {
+      return {
+        ok: false,
+        status: "error",
+        isReplicaSet: false,
+        isWritablePrimary: false,
+        error: "MongoDB hello command returned non-ok status",
+      };
+    }
+
+    // Standalone instances lack setName in hello/isMaster response
+    if (!hello.setName) {
+      return {
+        ok: false,
+        status: "standalone",
+        isReplicaSet: false,
+        isWritablePrimary: Boolean(hello.isWritablePrimary ?? hello.ismaster),
+        error:
+          "Connected instance is a standalone MongoDB server without replica set support for transactions",
+      };
+    }
+
+    const replicaSetName = String(hello.setName);
+    const expectedReplicaSetName = getExpectedReplicaSetName();
+
+    // Verify expected replica set name if explicitly configured or embedded in connection URI
+    if (expectedReplicaSetName && replicaSetName !== expectedReplicaSetName) {
+      return {
+        ok: false,
+        status: "replica_set_mismatch",
+        isReplicaSet: true,
+        replicaSetName,
+        expectedReplicaSetName,
+        isWritablePrimary: Boolean(hello.isWritablePrimary ?? hello.ismaster),
+        primary: typeof hello.primary === "string" ? hello.primary : undefined,
+        error: `Connected to replica set '${replicaSetName}' but expected '${expectedReplicaSetName}'`,
+      };
+    }
+
+    const isWritablePrimary = Boolean(hello.isWritablePrimary ?? hello.ismaster);
+    const primary =
+      typeof hello.primary === "string"
+        ? hello.primary
+        : isWritablePrimary
+          ? String(hello.me || "self")
+          : undefined;
+
+    // Verify that a writable primary is available to process multi-document ACID transactions
+    if (!isWritablePrimary && !primary) {
+      return {
+        ok: false,
+        status: "no_primary",
+        isReplicaSet: true,
+        replicaSetName,
+        expectedReplicaSetName,
+        isWritablePrimary: false,
+        error: "Replica set does not currently have an elected writable primary",
+      };
     }
 
     return {
-      ok: isOk,
-      status: isOk ? "connected" : "error",
-      isReplicaSet,
+      ok: true,
+      status: "connected",
+      isReplicaSet: true,
       replicaSetName,
+      expectedReplicaSetName,
+      isWritablePrimary,
+      primary,
     };
-  } catch {
-    return { ok: false, status: "error", isReplicaSet: false };
+  } catch (err) {
+    return {
+      ok: false,
+      status: "error",
+      isReplicaSet: false,
+      isWritablePrimary: false,
+      error: `Database health check exception: ${(err as Error).message}`,
+    };
   }
 }

@@ -167,10 +167,10 @@ docker compose -f docker-compose.prod.yml ps
 
 Output confirms all containers are healthy:
 
-- `crewconnect-prod-mongodb`: Up (healthy)
-- `crewconnect-prod-mongo-init`: Exited (0) (replica set initialized)
-- `crewconnect-prod-api`: Up (healthy)
-- `crewconnect-prod-web`: Up (healthy)
+- `crewconnect-prod-mongodb` (or `<project>-mongodb-1`): Up (healthy)
+- `crewconnect-prod-mongo-init` (or `<project>-mongo-init-1`): Exited (0) (replica set initialized & primary elected)
+- `crewconnect-prod-api` (or `<project>-api-1`): Up (healthy)
+- `crewconnect-prod-web` (or `<project>-web-1`): Up (healthy)
 
 ---
 
@@ -197,10 +197,10 @@ curl -I https://api.yourdomain.com/health/live
 ### 2. Container Readiness Probe
 
 ```bash
-curl -I https://api.yourdomain.com/health/ready
+curl -i https://api.yourdomain.com/health/ready
 ```
 
-**Expected Response**: `HTTP/1.1 200 OK`
+**Expected Response when Healthy**: `HTTP/1.1 200 OK`
 
 ```json
 {
@@ -211,10 +211,24 @@ curl -I https://api.yourdomain.com/health/ready
     "connected": true,
     "status": "connected",
     "isReplicaSet": true,
-    "replicaSet": "rs0"
+    "replicaSet": "rs0",
+    "expectedReplicaSet": "rs0",
+    "isWritablePrimary": true,
+    "primary": "mongodb:27017"
   }
 }
 ```
+
+**Readiness Semantics & 503 Service Unavailable Contract**:
+
+A database ping alone is strictly insufficient to declare readiness. CrewConnect uses an unprivileged MongoDB `hello` (fallback `isMaster`) topology probe to verify that transactions can safely execute. The readiness probe returns `HTTP/1.1 503 Service Unavailable` with `status: "not_ready"` in any of the following failure scenarios:
+
+- **Disconnected**: Mongoose connection is not in `readyState 1` (`database.status: "disconnected"`).
+- **Standalone Instance**: MongoDB is running as a standalone node without replica set configuration (`database.status: "standalone"`). Transactions cannot execute on standalone MongoDB.
+- **Replica Set Name Mismatch**: The active replica set name does not match `MONGODB_REPLICA_SET_NAME` (default `rs0`) (`database.status: "replica_set_mismatch"`).
+- **No Writable Primary**: An election is in progress or no writable primary is currently available (`database.status: "no_primary"`).
+
+This ensures ingress reverse proxies (such as NGINX, ALB, or cloud load balancers) will not route user traffic to an instance that cannot process seat-reservation transactions. In contrast, the liveness probe (`/health/live`) continues returning `HTTP/1.1 200 OK` independently of database availability to prevent premature container restarts during transient network blips.
 
 ### 3. Comprehensive Health Status
 
@@ -226,15 +240,19 @@ Returns 200 with full replica set metadata and system version.
 
 ---
 
-## 6. Database Initialization & Index Synchronization
+## 6. Database Initialization, Startup Sequence & Index Synchronization
 
-On server startup, `apps/api/src/server.ts` automatically executes `syncAllIndexes()`, ensuring:
+The API server startup sequence in `apps/api/src/server.ts` guarantees that the HTTP and Socket.IO server will **never** silently listen on a port if the database connection or transaction readiness fails:
 
-1. `User.email`: Unique, lowercase, sparse index.
-2. `Membership`: Unique compound partial index `{ hackathonId: 1, userId: 1 }` where `status: "ACTIVE"` (Invariant: 1 active team per hackathon).
-3. `Team`: Compound discovery sort index `{ hackathonId: 1, status: 1, isOpen: 1, createdAt: -1 }` (powers sub-200ms latency at 2,000 teams).
-4. `Invitation.tokenHash`: Unique index on SHA-256 hashed secret tokens.
-5. `IdempotencyRecord`: TTL expiration index on `expiresAt` (24-hour automatic document expiration).
+1. **Bounded Retry with Exponential Backoff**: When starting, `initializeDatabaseAndIndexes()` attempts to connect to MongoDB with a bounded retry policy (default 5 attempts, initial delay 1,000ms, max delay 10,000ms, and ±20% randomized jitter).
+2. **Topology & Primary Election Validation**: After connecting, it calls `checkDatabaseHealth()`. If MongoDB is a standalone instance, has a replica set mismatch, or lacks a writable primary, the check throws an explicit error and triggers a retry.
+3. **Index Synchronization**: Once database readiness is confirmed, `syncAllIndexes()` synchronizes all indexes before the server binds to its listening port:
+   - `User.email`: Unique, lowercase, sparse index.
+   - `Membership`: Unique compound partial index `{ hackathonId: 1, userId: 1 }` where `status: "ACTIVE"` (Invariant: 1 active team per hackathon).
+   - `Team`: Compound discovery sort index `{ hackathonId: 1, status: 1, isOpen: 1, createdAt: -1 }` (powers sub-200ms latency at 2,000 teams).
+   - `Invitation.tokenHash`: Unique index on SHA-256 hashed secret tokens.
+   - `IdempotencyRecord`: TTL expiration index on `expiresAt` (24-hour automatic document expiration).
+4. **Port Binding**: Only after the database connection, replica set topology, and indexes are fully verified does `server.listen()` bind the HTTP port. If retries are exhausted without readiness, the process exits with a fatal error code.
 
 To manually verify all database indexes from the CLI:
 
@@ -272,14 +290,31 @@ An audit of the project dependencies (`npm audit --json`) identifies 14 vulnerab
 
 - **Vulnerability**: Potential resource consumption / memory exhaustion in Zod when parsing deeply nested, unbounded collections.
 - **Upstream Resolution**: Upstream patch available in major version `zod@4.6.7` (`isSemVerMajor: true`).
-- **Audit Decision**: Running `npm audit fix --force` was intentionally **not** executed. Upgrading to Zod 4 is a breaking semver major rewrite that would introduce schema incompatibilities across the shared domain library (`@crewconnect/shared`), API, and Web client.
+- **Controlled Migration Evaluation**:
+  - Evaluated in an isolated experiment branch against `zod@4.6.7`.
+  - Upgrading directly to Zod 4 caused critical compile-time breaking changes:
+    1. `AnyZodObject` was removed from Zod 4's export hierarchy, breaking existing API validation middlewares and shared type utilities.
+    2. Changes to `ZodType` and `z.infer` typing structures caused widespread `TS2724` typecheck failures across `@crewconnect/shared`, `apps/api`, and `apps/web`.
+  - Forcing the upgrade via `npm audit fix --force` would silently break API validation contracts and crash TypeScript compilation.
+- **Engineering Decision**:
+  - CrewConnect maintains the locked `zod@3.25.76` baseline with active defense-in-depth mitigations that completely eliminate the vulnerability's attack vector without breaking application stability.
 - **CrewConnect Multi-Tier Mitigations**:
   1. **Strict Request Body Bounding (Layer 7)**: Express `express.json({ limit: "1mb" })` rejects oversized payloads before Zod parsing occurs.
   2. **Bounded Collection Lengths**: All array schemas enforce explicit length caps (e.g. `z.array(z.string()).max(20)` for skills, bounded strings for team names and bios).
   3. **ReDoS Neutralization**: User inputs evaluated in search queries are sanitized with `escapeRegex()` before regex compilation.
   4. **Tiered Rate Limiting**: Production rate limiting restricts request frequency per IP and per user, preventing automated schema exhaustion attacks.
 
-### B. Development & Build Tooling Advisories
+### B. In-Memory Rate Limiting Scope & Horizontal Scaling Note
+
+- **Current Implementation**: The production rate limiter (`apps/api/src/middleware/rateLimiter.ts`) uses Express `express-rate-limit` backed by an in-memory `MemoryStore`.
+- **Single-Node Scope**: In single-instance deployments (such as the default Docker Compose deployment or single-container PaaS), this provides effective, zero-latency protection against abusive traffic spikes and brute force attacks.
+- **Horizontal Scaling Path**: If scaling horizontally across multiple Node.js instances or containers behind a load balancer, each instance maintains its own rate limit counter. For distributed rate limit enforcement across a cluster, configure a centralized Redis store using `rate-limit-redis`:
+  ```typescript
+  import { RedisStore } from "rate-limit-redis";
+  // store: new RedisStore({ sendCommand: (...args: string[]) => redisClient.sendCommand(args) })
+  ```
+
+### C. Development & Build Tooling Advisories
 
 - **Affected Packages**: `esbuild`, `vite`, `vite-node`, `flatted`, `brace-expansion`, `cross-spawn`, `micromatch`, `nanoid`, `supertest`.
 - **Mitigation via Multi-Stage Container Isolation**: These packages are strictly development/build dependencies (`devDependencies`). The production API Docker image executes `npm ci --omit=dev` in its runner stage, and the Web production image serves static assets via Alpine NGINX. Development tooling is never included or executed in production runtime environments.

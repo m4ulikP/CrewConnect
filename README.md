@@ -87,7 +87,7 @@ All engineering specifications, design trade-offs, and architecture decisions ar
 - [x] **Phase 5: Race-Proof Membership and Idempotency Engine** _(Completed & Approved — 50-Concurrent-Requests Capacity Engine)_
 - [x] **Phase 5.1 & 5.2: Correctness Fixes & CI Pipeline Repair** _(Completed & Approved)_
 - [x] **Phase 6 & 6.1: Real-Time Event Dispatching, Room Revocation, Challenge-Scale Load Testing & Safe Cleanup** _(Completed — Socket.IO Room Eviction, 10k-Participant / 2k-Team Dataset @ 739.7 req/sec, Discovery p95 = 165.5ms, Scoped Cleanup Safety, Evaluator Demo Guide)_
-- [x] **Phase 7 & 7.1: Production Hardening, Security Corrections & Deployment Verification** _(Completed — ReDoS neutralized, tiered rate limiting with production bypass prevention, fail-closed Compose variables, internal MongoDB network isolation, NGINX /health probe proxy, multi-stage Dockerfiles, Render blueprint, CI container verification & dependency audit documentation)_
+- [x] **Phase 7, 7.1 & 7.1.1: Production Hardening, Database Readiness & CI Runtime Smoke Tests** _(Completed — ReDoS neutralized, tiered rate limiting with production bypass prevention, fail-closed Compose variables, internal MongoDB network isolation, deep `hello` replica-set/writable-primary readiness probe returning 503 on standalone/no-primary, bounded startup retry with exponential backoff & index sync before listening, NGINX /health probe proxy, multi-stage Dockerfiles, Render blueprint, automated CI production compose runtime smoke testing & dependency audit analysis)_
 - [ ] **Phase 8: Final Submission & Evaluator Handover**
 
 ---
@@ -118,10 +118,10 @@ CrewConnect enforces defense-in-depth security across every layer of the applica
    - OWASP Origin and Referer validation on all cookie-authenticated state-changing requests.
    - Environment-aware CORS configuration restricting origins to `CLIENT_URL` in production.
 7. **Container Liveness & Readiness Probes**:
-   - `GET /health/live`: Fast process liveness check for orchestrator restarts.
-   - `GET /health/ready`: Deep container readiness check validating database connectivity and replica set election state.
-8. **Automatic Database Index Synchronization**:
-   - `syncAllIndexes()` executes upon server startup, automatically verifying all unique, compound sort, and TTL indexes before traffic is served.
+   - `GET /health/live`: Fast process liveness check for orchestrator restarts (returns 200 independently of DB).
+   - `GET /health/ready`: Deep container readiness probe evaluating MongoDB topology via unprivileged `hello` command. Verifies replica set `rs0` and elected writable primary; returns HTTP 503 if standalone, mismatch, or no primary.
+8. **Startup Reliability & Automatic Index Synchronization**:
+   - `initializeDatabaseAndIndexes()` executes bounded retries with exponential backoff and jitter before `server.listen()`. Asserts database readiness and synchronizes all unique, compound sort, and TTL indexes before traffic is served.
 
 ---
 
@@ -159,12 +159,12 @@ For complete multi-provider cloud guides (Render, Railway, AWS ECS, Self-Hosted 
 
 ### Deployment Verification Matrix
 
-| Verification Tier          |    Status    | Details                                                                                                            |
-| :------------------------- | :----------: | :----------------------------------------------------------------------------------------------------------------- |
-| **Local Verification**     | **VERIFIED** | 159+ unit, integration, and race tests passing; 50-way last-seat race & 100-VU discovery p95 = 165.5ms verified    |
-| **Container Verification** | **VERIFIED** | Fail-closed `docker-compose.prod.yml config` tested; multi-stage Alpine Docker images for API and Web built        |
-| **CI Verification**        | **VERIFIED** | GitHub Actions CI automatically verifies lint, typecheck, tests on rs0, build, Compose config, and container build |
-| **Cloud Deployment**       |  **READY**   | Production blueprints checked in; live deployment withheld pending evaluator authorization                         |
+| Verification Tier          |    Status    | Details                                                                                                                                                                              |
+| :------------------------- | :----------: | :----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Local Verification**     | **VERIFIED** | 163+ unit, integration, and race tests passing; 50-way last-seat race & 100-VU discovery p95 = 165.5ms verified                                                                      |
+| **Container Verification** | **VERIFIED** | Fail-closed `docker-compose.prod.yml config` tested; multi-stage Alpine Docker images for API and Web built                                                                          |
+| **CI Verification**        | **VERIFIED** | GitHub Actions CI automatically verifies lint, typecheck, tests on rs0, build, Compose config, container image builds, and runtime production Docker Compose smoke test on port 8080 |
+| **Cloud Deployment**       |  **READY**   | Production blueprints checked in; live deployment withheld pending evaluator authorization                                                                                           |
 
 ### Running Production Stack Locally via Docker Compose
 

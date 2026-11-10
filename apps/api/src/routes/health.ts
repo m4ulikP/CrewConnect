@@ -7,7 +7,7 @@ export const healthRouter = Router();
 
 /**
  * GET /health and GET /api/v1/health
- * Comprehensive health status including database connectivity and replica set state
+ * Comprehensive health status including database connectivity, replica set topology, and primary state
  */
 healthRouter.get("/", async (_req: Request, res: Response) => {
   const dbHealth = await checkDatabaseHealth();
@@ -22,16 +22,20 @@ healthRouter.get("/", async (_req: Request, res: Response) => {
       status: dbHealth.status,
       isReplicaSet: dbHealth.isReplicaSet,
       replicaSet: dbHealth.replicaSetName,
+      expectedReplicaSet: dbHealth.expectedReplicaSetName,
+      isWritablePrimary: dbHealth.isWritablePrimary,
+      primary: dbHealth.primary,
+      error: dbHealth.error,
     },
     version: "0.1.0",
   };
 
-  res.status(200).json(payload);
+  res.status(dbHealth.ok ? 200 : 503).json(payload);
 });
 
 /**
  * GET /health/live
- * Container liveness probe: returns 200 as long as Node process is responsive
+ * Container liveness probe: returns 200 as long as Node process is responsive (independent of database)
  */
 healthRouter.get("/live", (_req: Request, res: Response) => {
   res.status(200).json({
@@ -43,7 +47,8 @@ healthRouter.get("/live", (_req: Request, res: Response) => {
 
 /**
  * GET /health/ready
- * Container readiness probe: returns 200 only if MongoDB connection & replica set are healthy
+ * Container readiness probe: returns 200 ONLY if MongoDB is connected as a replica set with a writable primary.
+ * Returns 503 if disconnected, standalone, or if no writable primary is elected.
  */
 healthRouter.get("/ready", async (_req: Request, res: Response) => {
   const dbHealth = await checkDatabaseHealth();
@@ -58,6 +63,10 @@ healthRouter.get("/ready", async (_req: Request, res: Response) => {
       status: dbHealth.status,
       isReplicaSet: dbHealth.isReplicaSet,
       replicaSet: dbHealth.replicaSetName,
+      expectedReplicaSet: dbHealth.expectedReplicaSetName,
+      isWritablePrimary: dbHealth.isWritablePrimary,
+      primary: dbHealth.primary,
+      error: dbHealth.error,
     },
   });
 });
