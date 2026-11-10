@@ -23,7 +23,7 @@ export const Navbar: React.FC = () => {
           <span className="font-serif text-lg sm:text-xl font-semibold tracking-tight text-ink-primary whitespace-nowrap">
             CrewConnect
           </span>
-          <span className="hidden lg:inline-flex ml-1 text-[13px] font-medium px-2 py-0.5 rounded bg-surface text-ink-secondary whitespace-nowrap">
+          <span className="hidden lg:inline-flex ml-1 text-[13px] font-semibold px-2 py-0.5 rounded bg-highlight border border-ink-primary text-ink-primary whitespace-nowrap">
             PS1 Engine
           </span>
         </Link>

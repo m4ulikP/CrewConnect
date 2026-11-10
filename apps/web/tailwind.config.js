@@ -28,6 +28,15 @@ export default {
           hover: "#0F4C48",
           tint: "#E6F2F0",
         },
+        highlight: {
+          DEFAULT: "#FDE047",
+          hover: "#FACC15",
+          soft: "#FEF9C3",
+        },
+        tangelo: {
+          DEFAULT: "#FF5A1F",
+          soft: "#FFEDD5",
+        },
         positive: {
           DEFAULT: "#166534",
           bg: "#DCFCE7",

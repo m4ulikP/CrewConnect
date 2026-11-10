@@ -1,4 +1,4 @@
-@import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=Newsreader:opsz,wght@0,6..72,400;0,6..72,500;0,6..72,600&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=Newsreader:ital,opsz,wght@0,6..72,400;0,6..72,500;0,6..72,600;1,6..72,400&display=swap');
 
 @tailwind base;
 @tailwind components;
@@ -148,6 +148,7 @@ code, kbd, samp, pre {
   animation: fadeSlideIn var(--dur-panel) var(--ease-out) both;
 }
 
+@layer components {
 /* Button primitive */
 .btn {
   display: inline-flex;
@@ -213,6 +214,7 @@ code, kbd, samp, pre {
 }
 .btn-danger:hover:not(:disabled) {
   background-color: var(--danger);
+}
 }
 
 /* Form Controls */

@@ -14,7 +14,7 @@ import {
 import { useAuth } from "../context/AuthContext";
 import { CapacityBadge } from "../components/CapacityBadge";
 import { CreateTeamModal } from "../components/CreateTeamModal";
-import { SquadConstellation } from "../components/landing/SquadConstellation";
+import { SquadAssemblyIllustration } from "../components/landing/SquadAssemblyIllustration";
 import { LiveSquadShowcase } from "../components/landing/LiveSquadShowcase";
 import { WorkflowShowcase } from "../components/landing/WorkflowShowcase";
 import { ReservationEngineDemo } from "../components/landing/ReservationEngineDemo";
@@ -28,46 +28,85 @@ const PublicLanding: React.FC<{ apiOnline: boolean; loadingHealth: boolean }> = 
   const ctaReveal = useInViewOnce<HTMLDivElement>(0.15);
 
   return (
-    <div>
-      {/* 1. Editorial Hero + Squad Formation Constellation */}
-      <section className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 pt-12 sm:pt-20 pb-20 sm:pb-28">
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-12 lg:gap-10 items-center">
-          {/* Left Copy & Actions */}
-          <div className="lg:col-span-6 space-y-6">
-            <h1 className="text-[36px] sm:text-5xl lg:text-[62px] font-serif font-normal text-ink-primary tracking-tight leading-[1.06]">
+    <div className="overflow-x-clip">
+      {/* 1. Expressive Hero + Kinetic Geometric Squad Illustration */}
+      <section className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 pt-10 sm:pt-16 pb-20 sm:pb-24">
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-10 lg:gap-10 items-center">
+          {/* Left Copy, Brutalist Marker Highlight & Actions */}
+          <div className="lg:col-span-7 space-y-7">
+            <h1 className="text-[40px] sm:text-5xl lg:text-[64px] font-serif font-normal text-ink-primary tracking-[-0.03em] leading-[1.02]">
               <span className="hero-line-mask">
-                <span className="hero-line-inner">Race-proof squads,</span>
+                <span className="hero-line-inner">Sharp builders.</span>
               </span>
               <span className="hero-line-mask">
                 <span className="hero-line-inner" style={{ animationDelay: "90ms" }}>
-                  formed cleanly.
+                  Locked into{" "}
+                  <span className="inline-block bg-highlight px-2.5 pb-0.5 rounded-sm">
+                    squads.
+                  </span>
                 </span>
               </span>
             </h1>
 
-            <p className="text-base sm:text-lg text-ink-secondary max-w-[54ch] leading-relaxed reveal-line reveal-delay-1">
-              CrewConnect brings hackathon builders together around real project missions. Match by technical skills, inspect remaining capacity, and claim open seats backed by atomic database reservations.
+            <p className="text-base sm:text-lg text-ink-secondary max-w-[46ch] leading-relaxed reveal-line reveal-delay-1">
+              Skip endless chat scrolls. Browse active hackathon missions, match skills cleanly, and claim your team seat through atomic database locks.
             </p>
 
-            <div className="flex flex-wrap items-center gap-3.5 pt-2 reveal-line reveal-delay-2">
-              <Link to="/teams-preview" className="btn btn-primary h-11 px-6 text-sm">
+            <div className="flex flex-wrap items-center gap-3.5 pt-1 reveal-line reveal-delay-2">
+              <Link
+                to="/teams-preview"
+                className="btn btn-primary h-12 px-6 text-sm sm:text-base border-2 border-ink-primary"
+              >
                 <span>Explore Team Board</span>
                 <ArrowRight className="w-4 h-4" />
               </Link>
-              <Link to="/register" className="btn btn-secondary h-11 px-6 text-sm">
+              <Link
+                to="/register"
+                className="btn h-12 px-6 text-sm sm:text-base bg-surface text-ink-primary border-2 border-ink-primary hover:bg-highlight"
+              >
                 <span>Create account</span>
               </Link>
             </div>
+
+            {/* Tilted Editorial Sticker Annotation */}
+            <div className="pt-1 flex flex-wrap items-center gap-3 reveal-line reveal-delay-3">
+              <span className="inline-flex items-center gap-2 bg-surface-tonal border-2 border-ink-primary px-3 py-1 rounded -rotate-1 text-[13px] font-semibold text-ink-primary">
+                <span className="w-2.5 h-2.5 rounded-full bg-tangelo border border-ink-primary" />
+                <span>Hack4Hack 2026 · Fixed-capacity squad engine</span>
+              </span>
+            </div>
           </div>
 
-          {/* Right Bespoke Visual Signature */}
-          <div className="lg:col-span-6 reveal-line reveal-delay-2">
-            <SquadConstellation />
+          {/* Right Bespoke Playful Builder Assembly Illustration */}
+          <div className="lg:col-span-5 reveal-line reveal-delay-2">
+            <SquadAssemblyIllustration />
           </div>
         </div>
       </section>
 
-      {/* 2. Interactive Product Demonstration */}
+      {/* 2. Stark Architectural Contrast Band */}
+      <div className="bg-ink-primary text-ground py-5">
+        <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 grid grid-cols-2 lg:grid-cols-4 gap-4 text-[13px] sm:text-sm font-semibold">
+          <div className="flex items-center gap-2.5">
+            <span className="w-2.5 h-2.5 rounded-full bg-highlight flex-shrink-0" />
+            <span>Atomic conditional writes</span>
+          </div>
+          <div className="flex items-center gap-2.5">
+            <span className="w-2.5 h-2.5 rounded-full bg-tangelo flex-shrink-0" />
+            <span>Idempotency-key protected</span>
+          </div>
+          <div className="flex items-center gap-2.5">
+            <span className="w-2.5 h-2.5 rounded-full bg-accent-tint flex-shrink-0" />
+            <span>Live Socket.IO sync</span>
+          </div>
+          <div className="flex items-center gap-2.5">
+            <span className="w-2.5 h-2.5 rounded-full bg-highlight flex-shrink-0" />
+            <span>Zero phantom memberships</span>
+          </div>
+        </div>
+      </div>
+
+      {/* 3. Interactive Product / Discovery Showcase */}
       <section className="bg-surface py-20 sm:py-28">
         <div
           ref={showcaseReveal.ref}
@@ -78,14 +117,19 @@ const PublicLanding: React.FC<{ apiOnline: boolean; loadingHealth: boolean }> = 
               showcaseReveal.inView ? "opacity-100 translate-y-0" : "opacity-0 translate-y-4"
             }`}
           >
+            <div className="inline-flex items-baseline gap-2 font-serif text-5xl sm:text-6xl font-medium text-accent tabular">
+              <span>3</span>
+              <span className="text-ink-muted text-3xl">→</span>
+              <span className="bg-highlight text-ink-primary px-2 rounded-sm">4</span>
+            </div>
             <h2 className="font-serif text-[28px] sm:text-4xl font-medium text-ink-primary tracking-tight leading-tight">
               Inspect a squad before you claim a seat.
             </h2>
             <p className="text-base text-ink-secondary leading-relaxed max-w-[60ch]">
-              Every squad dossier displays current members, project scope, exact skills sought, and remaining seat capacity in real time.
+              Every dossier displays active members, project scope, exact skills sought, and remaining seat capacity in real time.
             </p>
             <p className="text-base text-ink-secondary leading-relaxed max-w-[60ch]">
-              Try reserving the remaining fourth slot on the interactive preview to observe how CrewConnect locks capacity cleanly without client-side guesswork.
+              Click the reserve control on the preview to test locking the remaining fourth slot cleanly.
             </p>
           </div>
 
@@ -100,32 +144,56 @@ const PublicLanding: React.FC<{ apiOnline: boolean; loadingHealth: boolean }> = 
         </div>
       </section>
 
-      {/* 3. How CrewConnect Works */}
+      {/* 4. Staggered Asymmetric Workflow Chapters */}
       <section className="bg-surface-tonal py-20 sm:py-28">
         <WorkflowShowcase />
       </section>
 
-      {/* 4. Technical Credibility: Race-Proof Reservation Engine */}
-      <section className="bg-surface py-20 sm:py-28">
+      {/* 5. Technical Credibility: Race-Proof Reservation Engine */}
+      <section className="bg-ground py-20 sm:py-28">
         <ReservationEngineDemo apiOnline={apiOnline} loadingHealth={loadingHealth} />
       </section>
 
-      {/* 5. Closing Call to Action */}
-      <section className="bg-accent py-20 sm:py-24">
+      {/* 6. Bold Expressive Pine Closing Poster CTA */}
+      <section className="relative bg-accent py-20 sm:py-28 overflow-hidden">
+        {/* Decorative Clipped Graphic Geometry */}
+        <svg
+          aria-hidden="true"
+          viewBox="0 0 260 260"
+          className="hidden lg:block absolute -right-10 -bottom-12 w-64 h-64 pointer-events-none opacity-95"
+        >
+          <circle
+            cx="150"
+            cy="150"
+            r="96"
+            fill="#FDE047"
+            stroke="#18181B"
+            strokeWidth="3"
+          />
+          <circle
+            cx="64"
+            cy="88"
+            r="34"
+            fill="#FF5A1F"
+            stroke="#18181B"
+            strokeWidth="3"
+          />
+        </svg>
+
         <div
           ref={ctaReveal.ref}
-          className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 grid grid-cols-1 lg:grid-cols-12 gap-8 items-center"
+          className="relative z-10 max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 grid grid-cols-1 lg:grid-cols-12 gap-8 items-center"
         >
           <div
             className={`lg:col-span-7 space-y-4 transition-[transform,opacity] duration-500 ease-out ${
               ctaReveal.inView ? "opacity-100 translate-y-0" : "opacity-0 translate-y-4"
             }`}
           >
-            <h2 className="font-serif text-[28px] sm:text-5xl font-normal text-white tracking-tight leading-[1.08]">
+            <h2 className="font-serif text-[30px] sm:text-5xl font-normal text-white tracking-tight leading-[1.06]">
               Ready to form your hackathon squad?
             </h2>
-            <p className="text-base sm:text-lg text-[#E6F2F0] max-w-[58ch] leading-relaxed">
-              Register your participant profile, declare your stack, or initialize a new squad for Hack4Hack 2026 in under two minutes.
+            <p className="text-base sm:text-lg text-[#E6F2F0] max-w-[54ch] leading-relaxed">
+              Register your builder profile, declare your stack, or initialize a new team for Hack4Hack 2026 in under two minutes.
             </p>
           </div>
 
@@ -137,14 +205,14 @@ const PublicLanding: React.FC<{ apiOnline: boolean; loadingHealth: boolean }> = 
           >
             <Link
               to="/register"
-              className="inline-flex items-center justify-center gap-2 h-12 px-6 rounded-md bg-white text-ink-primary font-semibold text-sm hover:bg-[#F1F0EC] transition-colors active:scale-[0.97]"
+              className="btn h-12 px-6 bg-highlight text-ink-primary border-2 border-ink-primary font-bold text-sm sm:text-base hover:bg-highlight-hover"
             >
               <span>Create builder profile</span>
               <ArrowRight className="w-4 h-4" />
             </Link>
             <Link
               to="/teams-preview"
-              className="inline-flex items-center justify-center h-12 px-5 rounded-md border border-[#5FA29C] text-white font-semibold text-sm hover:bg-accent-hover transition-colors active:scale-[0.97]"
+              className="btn h-12 px-5 bg-surface text-ink-primary border-2 border-ink-primary font-semibold text-sm sm:text-base hover:bg-surface-tonal"
             >
               <span>Browse open squads</span>
             </Link>

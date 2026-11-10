@@ -29,9 +29,8 @@ describe("Frontend Shell Rendering", () => {
   it("renders the hero heading and primary action", async () => {
     render(<App />);
     await waitFor(() => {
-      expect(screen.getByText(/Race-proof squads,/i)).toBeInTheDocument();
-      expect(screen.getByText(/formed cleanly\./i)).toBeInTheDocument();
-      expect(screen.getByText("Explore Team Board")).toBeInTheDocument();
+      expect(screen.getByText(/Sharp builders\./i)).toBeInTheDocument();
+      expect(screen.getByText(/Explore Team Board/i)).toBeInTheDocument();
     });
   });
 
