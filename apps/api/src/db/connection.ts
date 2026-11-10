@@ -9,6 +9,42 @@ const state: DbState = {
   isConnected: false,
 };
 
+/**
+ * Extracts a sanitized host target from a MongoDB URI without exposing credentials,
+ * usernames, passwords, or sensitive query parameters.
+ */
+export function sanitizeMongoUriForLog(uri: string): string {
+  if (!uri || typeof uri !== "string") {
+    return "[redacted]";
+  }
+
+  try {
+    const match = uri.match(/^(mongodb(?:\+srv)?):\/\/(?:[^/@\s]+@)?([^/?\s]+)/i);
+    if (match && match[2]) {
+      return match[2];
+    }
+    const parsed = new URL(uri);
+    return parsed.host || "[redacted]";
+  } catch {
+    return "[redacted]";
+  }
+}
+
+/**
+ * Strips any embedded MongoDB URIs (including userinfo credentials and query tokens)
+ * or sensitive key=value parameters from error messages before logging.
+ */
+export function sanitizeMongoErrorForLog(error: unknown): string {
+  const rawMessage = error instanceof Error ? error.message : String(error ?? "Unknown error");
+
+  return rawMessage
+    .replace(/mongodb(?:\+srv)?:\/\/[^\s'"`]+/gi, (matchedUri) => {
+      const sanitizedHost = sanitizeMongoUriForLog(matchedUri);
+      return `[mongodb://${sanitizedHost}]`;
+    })
+    .replace(/\b(password|pwd|secret|token|authToken|apiKey)=([^&\s'"]+)/gi, "$1=[REDACTED]");
+}
+
 export async function connectToDatabase(uri = env.MONGODB_URI): Promise<typeof mongoose> {
   if (state.isConnected && mongoose.connection.readyState === 1) {
     return mongoose;
@@ -29,7 +65,7 @@ export async function connectToDatabase(uri = env.MONGODB_URI): Promise<typeof m
     state.isConnected = true;
 
     mongoose.connection.on("error", (err) => {
-      console.error("MongoDB Connection Error:", err);
+      console.error("MongoDB Connection Error:", sanitizeMongoErrorForLog(err));
       state.isConnected = false;
     });
 
@@ -41,7 +77,7 @@ export async function connectToDatabase(uri = env.MONGODB_URI): Promise<typeof m
     return conn;
   } catch (error) {
     state.isConnected = false;
-    console.error("Failed to connect to MongoDB:", error);
+    console.error("Failed to connect to MongoDB:", sanitizeMongoErrorForLog(error));
     throw error;
   }
 }
@@ -167,8 +203,9 @@ export async function checkDatabaseHealth(): Promise<DatabaseHealthResult> {
           ? String(hello.me || "self")
           : undefined;
 
-    // Verify that a writable primary is available to process multi-document ACID transactions
-    if (!isWritablePrimary && !primary) {
+    // Verify that the connected node is a writable primary to safely execute transactions.
+    // Note: Do NOT confuse a reported primary hostname (on a secondary) with this node being writable.
+    if (!isWritablePrimary) {
       return {
         ok: false,
         status: "no_primary",
@@ -176,7 +213,10 @@ export async function checkDatabaseHealth(): Promise<DatabaseHealthResult> {
         replicaSetName,
         expectedReplicaSetName,
         isWritablePrimary: false,
-        error: "Replica set does not currently have an elected writable primary",
+        primary,
+        error: primary
+          ? `Connected MongoDB node is not a writable primary (reported primary: ${primary})`
+          : "Replica set does not currently have an elected writable primary",
       };
     }
 
@@ -186,7 +226,7 @@ export async function checkDatabaseHealth(): Promise<DatabaseHealthResult> {
       isReplicaSet: true,
       replicaSetName,
       expectedReplicaSetName,
-      isWritablePrimary,
+      isWritablePrimary: true,
       primary,
     };
   } catch (err) {

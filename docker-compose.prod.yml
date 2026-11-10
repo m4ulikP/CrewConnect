@@ -103,11 +103,11 @@ services:
       JOIN_RATE_LIMIT_MAX_REQUESTS: ${JOIN_RATE_LIMIT_MAX_REQUESTS:-10}
     # No public port published for API: NGINX web service reverse-proxies /api/ and /socket.io/ internally
     healthcheck:
-      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:5000/health/ready"]
-      interval: 15s
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://127.0.0.1:5000/health/ready"]
+      interval: 10s
       timeout: 5s
       retries: 3
-      start_period: 10s
+      start_period: 5s
     networks:
       - crewconnect-net
 
@@ -122,8 +122,8 @@ services:
     ports:
       - "${WEB_PORT:-80}:80"
     healthcheck:
-      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:80/health/ready"]
-      interval: 15s
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://127.0.0.1:80/health/ready"]
+      interval: 10s
       timeout: 5s
       retries: 3
       start_period: 5s

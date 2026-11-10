@@ -108,6 +108,38 @@ describe("Health Check & Database Readiness Semantics", () => {
     spy.mockRestore();
   });
 
+  it("4b. Secondary node reporting a primary hostname while isWritablePrimary is false must NOT be reported as ready (returns 503)", async () => {
+    const spy = vi
+      .spyOn(mongoose.mongo.Admin.prototype, "command")
+      .mockImplementation(async (cmd: Record<string, unknown>) => {
+        if (cmd && (cmd.hello || cmd.isMaster)) {
+          return {
+            ok: 1,
+            setName: "rs0",
+            isWritablePrimary: false,
+            ismaster: false,
+            secondary: true,
+            primary: "mongo-primary:27017",
+            me: "mongo-secondary:27017",
+          };
+        }
+        return { ok: 1 };
+      });
+
+    const response = await request(app).get("/health/ready");
+
+    expect(response.status).toBe(503);
+    expect(response.body).toHaveProperty("status", "not_ready");
+    expect(response.body.database).toHaveProperty("connected", false);
+    expect(response.body.database).toHaveProperty("status", "no_primary");
+    expect(response.body.database).toHaveProperty("isReplicaSet", true);
+    expect(response.body.database).toHaveProperty("isWritablePrimary", false);
+    expect(response.body.database).toHaveProperty("primary", "mongo-primary:27017");
+    expect(response.body.database.error).toContain("not a writable primary");
+
+    spy.mockRestore();
+  });
+
   it("2 & 5. Disconnected MongoDB returns 503 not_ready, and recovers to 200 once reconnected", async () => {
     // Disconnect database to verify disconnected readiness
     await disconnectDatabase();

@@ -2,7 +2,12 @@ import { describe, it, expect, vi, afterEach } from "vitest";
 import mongoose from "mongoose";
 import { initializeDatabaseAndIndexes, startServer, server } from "../src/server.js";
 import * as connectionModule from "../src/db/connection.js";
-import { connectToDatabase, disconnectDatabase } from "../src/db/connection.js";
+import {
+  connectToDatabase,
+  disconnectDatabase,
+  sanitizeMongoUriForLog,
+  sanitizeMongoErrorForLog,
+} from "../src/db/connection.js";
 
 describe("API Startup Reliability & Database Readiness Invariants", () => {
   afterEach(async () => {
@@ -84,5 +89,63 @@ describe("API Startup Reliability & Database Readiness Invariants", () => {
 
     expect(appServer).toBeDefined();
     expect(mongoose.connection.readyState).toBe(1);
+  });
+
+  it("5. Sanitization helpers scrub credentials, passwords, and query tokens from URIs and error messages", () => {
+    const srvUri =
+      "mongodb+srv://dbAdmin:UltraSecretPass123!@cluster0.abc.mongodb.net/crewconnect?retryWrites=true&authSource=admin&authToken=xyz987";
+    expect(sanitizeMongoUriForLog(srvUri)).toBe("cluster0.abc.mongodb.net");
+    expect(sanitizeMongoUriForLog(srvUri)).not.toContain("dbAdmin");
+    expect(sanitizeMongoUriForLog(srvUri)).not.toContain("UltraSecretPass123!");
+    expect(sanitizeMongoUriForLog(srvUri)).not.toContain("authToken");
+
+    const errorWithCreds = new Error(
+      `Failed connecting to ${srvUri} due to password=PlaintextSecret`
+    );
+    const sanitizedError = sanitizeMongoErrorForLog(errorWithCreds);
+    expect(sanitizedError).toContain("[mongodb://cluster0.abc.mongodb.net]");
+    expect(sanitizedError).not.toContain("dbAdmin");
+    expect(sanitizedError).not.toContain("UltraSecretPass123!");
+    expect(sanitizedError).not.toContain("PlaintextSecret");
+    expect(sanitizedError).not.toContain("xyz987");
+  });
+
+  it("6. Startup logs NEVER expose database credentials or raw URIs during attempts or failures", async () => {
+    await disconnectDatabase();
+
+    const secretUri =
+      "mongodb+srv://prod_user:SuperSecretPassword99@cluster0.internal.net/crewconnect?replicaSet=rs0&secretToken=abc";
+
+    const connectSpy = vi
+      .spyOn(connectionModule, "connectToDatabase")
+      .mockRejectedValue(new Error(`Authentication failed for ${secretUri} (auth failure)`));
+
+    const logSpy = vi.spyOn(console, "log").mockImplementation(() => {});
+    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+    const errSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+
+    await expect(
+      initializeDatabaseAndIndexes({
+        uri: secretUri,
+        maxRetries: 1,
+        initialRetryDelayMs: 10,
+      })
+    ).rejects.toThrow(/Fatal: Unable to establish database connection/);
+
+    const allLogs = [
+      ...logSpy.mock.calls.flat(),
+      ...warnSpy.mock.calls.flat(),
+      ...errSpy.mock.calls.flat(),
+    ].join("\n");
+
+    expect(allLogs).toContain("cluster0.internal.net");
+    expect(allLogs).not.toContain("prod_user");
+    expect(allLogs).not.toContain("SuperSecretPassword99");
+    expect(allLogs).not.toContain("secretToken=abc");
+
+    connectSpy.mockRestore();
+    logSpy.mockRestore();
+    warnSpy.mockRestore();
+    errSpy.mockRestore();
   });
 });

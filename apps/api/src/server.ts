@@ -1,7 +1,13 @@
 import http from "http";
 import { app } from "./app.js";
 import { env } from "./config/env.js";
-import { connectToDatabase, disconnectDatabase, checkDatabaseHealth } from "./db/connection.js";
+import {
+  connectToDatabase,
+  disconnectDatabase,
+  checkDatabaseHealth,
+  sanitizeMongoUriForLog,
+  sanitizeMongoErrorForLog,
+} from "./db/connection.js";
 import { syncAllIndexes } from "./models/index.js";
 import { initSocketServer, closeSocketServer } from "./realtime/index.js";
 
@@ -32,11 +38,13 @@ export async function initializeDatabaseAndIndexes(
   let attempt = 0;
   let lastError: Error | null = null;
 
+  const sanitizedHost = sanitizeMongoUriForLog(uri);
+
   while (attempt < maxRetries) {
     attempt++;
     try {
       console.log(
-        `[Startup] Connecting to MongoDB (attempt ${attempt}/${maxRetries}) at ${uri}...`
+        `[Startup] Connecting to MongoDB (attempt ${attempt}/${maxRetries}, host: ${sanitizedHost})...`
       );
       await connectToDatabase(uri);
 
@@ -58,8 +66,9 @@ export async function initializeDatabaseAndIndexes(
       return;
     } catch (err) {
       lastError = err as Error;
+      const sanitizedError = sanitizeMongoErrorForLog(lastError);
       console.warn(
-        `[Startup] Database connection / readiness attempt ${attempt}/${maxRetries} failed: ${lastError.message}`
+        `[Startup] Database connection / readiness attempt ${attempt}/${maxRetries} failed: ${sanitizedError}`
       );
 
       if (attempt < maxRetries) {
@@ -70,7 +79,7 @@ export async function initializeDatabaseAndIndexes(
     }
   }
 
-  const fatalMessage = `Fatal: Unable to establish database connection and transaction readiness after ${maxRetries} attempts. Last error: ${lastError?.message}`;
+  const fatalMessage = `Fatal: Unable to establish database connection and transaction readiness after ${maxRetries} attempts. Last error: ${sanitizeMongoErrorForLog(lastError)}`;
   console.error(fatalMessage);
   throw new Error(fatalMessage);
 }
@@ -97,7 +106,7 @@ export async function startServer(options: ServerStartupOptions = {}): Promise<h
     }
     return server;
   } catch (error) {
-    console.error("Fatal error during API startup:", (error as Error).message);
+    console.error("Fatal error during API startup:", sanitizeMongoErrorForLog(error));
     if (process.env.NODE_ENV !== "test") {
       process.exit(1);
     }
@@ -119,7 +128,7 @@ export async function gracefulShutdown(signal: string): Promise<void> {
         resolve();
         process.exit(0);
       } catch (err) {
-        console.error("Error during database disconnection:", err);
+        console.error("Error during database disconnection:", sanitizeMongoErrorForLog(err));
         reject(err);
         process.exit(1);
       }

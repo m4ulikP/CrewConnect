@@ -89,19 +89,60 @@ jobs:
           echo "Starting production Docker Compose stack (project: $PROJECT_NAME, port: $WEB_PORT)..."
           docker compose -p "$PROJECT_NAME" -f docker-compose.prod.yml up -d --build
 
-          echo "Waiting for services to become healthy..."
-          for i in $(seq 1 30); do
-            WEB_HEALTH=$(docker inspect --format='{{json .State.Health.Status}}' "${PROJECT_NAME}-web-1" 2>/dev/null || echo '"starting"')
-            if [ "$WEB_HEALTH" = '"healthy"' ]; then
-              echo "Web container is healthy after $((i * 2)) seconds."
+          echo "Waiting for API and Web containers to reach healthy status..."
+          API_HEALTH="starting"
+          WEB_HEALTH="starting"
+          for i in $(seq 1 40); do
+            API_HEALTH=$(docker inspect --format='{{json .State.Health.Status}}' "${PROJECT_NAME}-api-1" 2>/dev/null || echo '"missing"')
+            WEB_HEALTH=$(docker inspect --format='{{json .State.Health.Status}}' "${PROJECT_NAME}-web-1" 2>/dev/null || echo '"missing"')
+
+            if [ "$API_HEALTH" = '"unhealthy"' ] || [ "$WEB_HEALTH" = '"unhealthy"' ]; then
+              echo "ERROR: Required container entered unhealthy state (api=$API_HEALTH, web=$WEB_HEALTH)!"
+              echo "=== API Container Health Log ==="
+              docker inspect --format='{{json .State.Health}}' "${PROJECT_NAME}-api-1" || true
+              echo "=== Web Container Health Log ==="
+              docker inspect --format='{{json .State.Health}}' "${PROJECT_NAME}-web-1" || true
+              echo "=== Container Logs ==="
+              docker compose -p "$PROJECT_NAME" -f docker-compose.prod.yml logs || true
+              exit 1
+            fi
+
+            if [ "$API_HEALTH" = '"healthy"' ] && [ "$WEB_HEALTH" = '"healthy"' ]; then
+              echo "Both API and Web containers are healthy after $((i * 2)) seconds."
               break
             fi
-            echo "Waiting for stack readiness ($i/30)... current web health: $WEB_HEALTH"
+
+            echo "Waiting for container health ($i/40)... api=$API_HEALTH, web=$WEB_HEALTH"
             sleep 2
           done
 
+          if [ "$API_HEALTH" != '"healthy"' ] || [ "$WEB_HEALTH" != '"healthy"' ]; then
+            echo "ERROR: Timed out waiting for API and Web containers to become healthy (api=$API_HEALTH, web=$WEB_HEALTH)!"
+            echo "=== API Container Health Log ==="
+            docker inspect --format='{{json .State.Health}}' "${PROJECT_NAME}-api-1" || true
+            echo "=== Web Container Health Log ==="
+            docker inspect --format='{{json .State.Health}}' "${PROJECT_NAME}-web-1" || true
+            echo "=== Container Logs ==="
+            docker compose -p "$PROJECT_NAME" -f docker-compose.prod.yml logs || true
+            exit 1
+          fi
+
+          echo "=== Verified API & Web Docker Health Logs ==="
+          echo "API Health: $(docker inspect --format='{{json .State.Health}}' "${PROJECT_NAME}-api-1")"
+          echo "Web Health: $(docker inspect --format='{{json .State.Health}}' "${PROJECT_NAME}-web-1")"
+
           echo "Inspecting container status:"
           docker compose -p "$PROJECT_NAME" -f docker-compose.prod.yml ps
+
+          echo "0. Assert API and Web containers are explicitly healthy:"
+          if [ "$(docker inspect --format='{{.State.Health.Status}}' "${PROJECT_NAME}-api-1")" != "healthy" ]; then
+            echo "ERROR: API container is not healthy!"
+            exit 1
+          fi
+          if [ "$(docker inspect --format='{{.State.Health.Status}}' "${PROJECT_NAME}-web-1")" != "healthy" ]; then
+            echo "ERROR: Web container is not healthy!"
+            exit 1
+          fi
 
           echo "1. Verify mongo-init completed and elected primary:"
           INIT_EXIT=$(docker inspect --format='{{.State.ExitCode}}' "${PROJECT_NAME}-mongo-init-1")
