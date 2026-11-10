@@ -265,7 +265,7 @@ export const ReservationEngineDemo: React.FC<ReservationEngineDemoProps> = ({
           <div className="bg-surface border-2 border-ink-primary rounded-md px-4 py-3 flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-[13px]">
             <span className="font-medium text-ink-secondary">
               Atomic guard:{" "}
-              <code className="font-semibold text-ink-primary">
+              <code className="font-semibold text-ink-primary break-words">
                 {"{ memberCount: { $lt: maxCapacity }, isOpen: true }"}
               </code>
             </span>

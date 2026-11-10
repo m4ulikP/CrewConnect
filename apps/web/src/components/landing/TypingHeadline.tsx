@@ -77,7 +77,7 @@ export const TypingHeadline: React.FC = () => {
   return (
     <h1
       aria-label="Form your squad. Find your builder."
-      className="font-display text-[34px] sm:text-5xl lg:text-[62px] font-bold text-ink-primary tracking-[-0.03em] leading-[1.04]"
+      className="font-display text-[30px] min-[400px]:text-[34px] sm:text-5xl lg:text-[62px] font-bold text-ink-primary tracking-[-0.03em] leading-[1.04]"
     >
       <span aria-hidden="true" className="block hero-line-mask">
         <span className="hero-line-inner">Form your squad.</span>

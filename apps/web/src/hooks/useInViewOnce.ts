@@ -5,7 +5,7 @@ import { useEffect, useRef, useState } from "react";
  * Falls back immediately to visible when IntersectionObserver is unavailable
  * (e.g., jsdom tests) or when the user prefers reduced motion.
  */
-export function useInViewOnce<T extends HTMLElement>(threshold = 0.12) {
+export function useInViewOnce<T extends HTMLElement>(threshold = 0.05) {
   const ref = useRef<T | null>(null);
   const [inView, setInView] = useState(() => {
     if (typeof window === "undefined") return true;
@@ -32,7 +32,7 @@ export function useInViewOnce<T extends HTMLElement>(threshold = 0.12) {
           }
         }
       },
-      { threshold, rootMargin: "0px 0px -40px 0px" }
+      { threshold, rootMargin: "0px 0px -12px 0px" }
     );
 
     observer.observe(node);

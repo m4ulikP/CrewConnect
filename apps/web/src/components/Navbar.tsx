@@ -51,24 +51,22 @@ export const Navbar: React.FC = () => {
         >
           <Link
             to="/"
-            className={`hidden sm:inline-flex items-center gap-1.5 py-1 text-sm font-semibold whitespace-nowrap transition-colors focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-accent rounded-sm ${
+            className={`hidden sm:inline-flex items-center py-1 text-sm font-semibold whitespace-nowrap transition-colors focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-accent rounded-sm ${
               isActive("/")
-                ? "text-ink-primary underline decoration-2 decoration-accent underline-offset-[6px]"
+                ? "text-ink-primary font-bold underline decoration-2 decoration-accent underline-offset-[6px]"
                 : "text-ink-secondary hover:text-ink-primary"
             }`}
           >
-            {isActive("/") && <span className="w-1.5 h-1.5 rounded-full bg-accent" />}
             <span>Platform</span>
           </Link>
           <Link
             to="/teams-preview"
-            className={`inline-flex items-center gap-1.5 px-1.5 sm:px-0 py-1 text-[13px] sm:text-sm font-semibold whitespace-nowrap transition-colors focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-accent rounded-sm ${
+            className={`inline-flex items-center px-1.5 sm:px-0 py-1 text-[13px] sm:text-sm font-semibold whitespace-nowrap transition-colors focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-accent rounded-sm ${
               isActive("/teams-preview")
-                ? "text-ink-primary underline decoration-2 decoration-accent underline-offset-[6px]"
+                ? "text-ink-primary font-bold underline decoration-2 decoration-accent underline-offset-[6px]"
                 : "text-ink-secondary hover:text-ink-primary"
             }`}
           >
-            {isActive("/teams-preview") && <span className="w-1.5 h-1.5 rounded-full bg-accent" />}
             <span className="sm:hidden">Teams</span>
             <span className="hidden sm:inline">Team Discovery</span>
           </Link>
