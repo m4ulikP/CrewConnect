@@ -13,7 +13,6 @@ COPY packages/shared/package.json ./packages/shared/
 COPY packages/shared/tsconfig.json ./packages/shared/
 COPY apps/web/package.json ./apps/web/
 COPY apps/web/tsconfig.json ./apps/web/
-COPY apps/web/tsconfig.node.json ./apps/web/
 
 # Install dependencies
 RUN npm ci

@@ -31,12 +31,18 @@ export function createRateLimiter(config: RateLimitConfig) {
   cleanupTimer.unref();
 
   return (req: Request, res: Response, next: NextFunction): void => {
-    // In test environment or load test benchmark runner, allow requests to pass unless explicitly testing rate limits
-    if (
-      req.headers["x-benchmark-bypass"] === "crewconnect-load-test" ||
-      (process.env.NODE_ENV === "test" && !req.headers["x-test-rate-limit"])
-    ) {
-      return next();
+    const isProduction = env.NODE_ENV === "production" || process.env.NODE_ENV === "production";
+
+    // In non-production environments only:
+    // Allow the local benchmark runner (via header) or normal unit tests to bypass limits.
+    // In production, rate limit bypass is strictly disabled regardless of incoming headers.
+    if (!isProduction) {
+      if (
+        req.headers["x-benchmark-bypass"] === "crewconnect-load-test" ||
+        (process.env.NODE_ENV === "test" && !req.headers["x-test-rate-limit"])
+      ) {
+        return next();
+      }
     }
 
     const key = config.keyGenerator

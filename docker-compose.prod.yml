@@ -4,8 +4,7 @@ services:
     container_name: crewconnect-prod-mongodb
     restart: unless-stopped
     command: ["mongod", "--replSet", "rs0", "--bind_ip_all", "--port", "27017"]
-    ports:
-      - "27017:27017"
+    # Internal network isolation: No host port published for unauthenticated MongoDB
     volumes:
       - prod-mongo-data:/data/db
     healthcheck:
@@ -33,14 +32,15 @@ services:
         try {
           const status = rs.status();
           if (status.ok === 1) {
-            print("Replica set rs0 is healthy.");
+            print("Replica set rs0 is already healthy.");
           }
         } catch (e) {
-          print("Initiating replica set rs0...");
-          rs.initiate({
+          print("Initiating replica set rs0 for container network...");
+          const res = rs.initiate({
             _id: "rs0",
             members: [{ _id: 0, host: "mongodb:27017" }]
           });
+          printjson(res);
         }
     networks:
       - crewconnect-net
@@ -54,22 +54,23 @@ services:
     depends_on:
       mongodb:
         condition: service_healthy
+      mongo-init:
+        condition: service_completed_successfully
     environment:
       NODE_ENV: production
       PORT: 5000
-      CLIENT_URL: http://localhost:80
+      CLIENT_URL: ${CLIENT_URL:?CLIENT_URL environment variable is mandatory in production and must be set to the public deployment origin (e.g. https://crewconnect.yourdomain.com)}
       MONGODB_URI: mongodb://mongodb:27017/crewconnect?replicaSet=rs0
       MONGODB_DB_NAME: crewconnect
-      JWT_SECRET: ${JWT_SECRET:-production_jwt_secret_must_be_set_in_production_env_file_32_chars!}
-      JWT_EXPIRES_IN: 1d
-      COOKIE_SECURE: "false"
-      COOKIE_SAME_SITE: "lax"
-      RATE_LIMIT_WINDOW_MS: 900000
-      RATE_LIMIT_MAX_REQUESTS: 100
-      JOIN_RATE_LIMIT_WINDOW_MS: 60000
-      JOIN_RATE_LIMIT_MAX_REQUESTS: 10
-    ports:
-      - "5000:5000"
+      JWT_SECRET: ${JWT_SECRET:?JWT_SECRET environment variable is mandatory in production and must be provided with a secure random key}
+      JWT_EXPIRES_IN: ${JWT_EXPIRES_IN:-1d}
+      COOKIE_SECURE: ${COOKIE_SECURE:-true}
+      COOKIE_SAME_SITE: ${COOKIE_SAME_SITE:-lax}
+      RATE_LIMIT_WINDOW_MS: ${RATE_LIMIT_WINDOW_MS:-900000}
+      RATE_LIMIT_MAX_REQUESTS: ${RATE_LIMIT_MAX_REQUESTS:-100}
+      JOIN_RATE_LIMIT_WINDOW_MS: ${JOIN_RATE_LIMIT_WINDOW_MS:-60000}
+      JOIN_RATE_LIMIT_MAX_REQUESTS: ${JOIN_RATE_LIMIT_MAX_REQUESTS:-10}
+    # No public port published for API: NGINX web service reverse-proxies /api/ and /socket.io/ internally
     healthcheck:
       test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:5000/health/live"]
       interval: 15s
@@ -89,9 +90,9 @@ services:
       api:
         condition: service_healthy
     ports:
-      - "80:80"
+      - "${WEB_PORT:-80}:80"
     healthcheck:
-      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:80/"]
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:80/health/live"]
       interval: 15s
       timeout: 5s
       retries: 3

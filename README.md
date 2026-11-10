@@ -87,12 +87,12 @@ All engineering specifications, design trade-offs, and architecture decisions ar
 - [x] **Phase 5: Race-Proof Membership and Idempotency Engine** _(Completed & Approved — 50-Concurrent-Requests Capacity Engine)_
 - [x] **Phase 5.1 & 5.2: Correctness Fixes & CI Pipeline Repair** _(Completed & Approved)_
 - [x] **Phase 6 & 6.1: Real-Time Event Dispatching, Room Revocation, Challenge-Scale Load Testing & Safe Cleanup** _(Completed — Socket.IO Room Eviction, 10k-Participant / 2k-Team Dataset @ 739.7 req/sec, Discovery p95 = 165.5ms, Scoped Cleanup Safety, Evaluator Demo Guide)_
-- [x] **Phase 7: Production Hardening, Performance Tuning & Deployment Verification** _(Completed — Regex injection & ReDoS neutralized, tiered rate limiting, cookie & CORS origin hardening, liveness/readiness health probes, auto-index sync on startup, multi-stage production Dockerfiles, Render blueprint & deployment guide)_
+- [x] **Phase 7 & 7.1: Production Hardening, Security Corrections & Deployment Verification** _(Completed — ReDoS neutralized, tiered rate limiting with production bypass prevention, fail-closed Compose variables, internal MongoDB network isolation, NGINX /health probe proxy, multi-stage Dockerfiles, Render blueprint, CI container verification & dependency audit documentation)_
 - [ ] **Phase 8: Final Submission & Evaluator Handover**
 
 ---
 
-## 🛡️ Production Security & Hardening Controls (Phase 7)
+## 🛡️ Production Security & Hardening Controls (Phases 7 & 7.1)
 
 CrewConnect enforces defense-in-depth security across every layer of the application:
 
@@ -101,20 +101,26 @@ CrewConnect enforces defense-in-depth security across every layer of the applica
    - Dummy Argon2id timing attack mitigation on failed login attempts to prevent user enumeration.
    - JWT issued exclusively via `httpOnly`, `SameSite=Lax` cookies (no storage in `localStorage` or response bodies).
    - Atomic session revocation via `tokenVersion` counter incrementing.
-2. **Mandatory Production Secrets**:
+2. **Mandatory Production Secrets & Fail-Closed Compose**:
    - Development fallback secrets are rejected at startup in `NODE_ENV=production`. If `JWT_SECRET` is unset or equals the dev default, the server fails safely and refuses to start.
-3. **ReDoS & MongoDB Query Injection Defense**:
-   - All user-supplied search parameters and team names are sanitized via `escapeRegex()` before `$regex` evaluation, neutralizing catastrophic backtracking and syntax exceptions.
-4. **Dual-Tiered Rate Limiting**:
+   - `docker-compose.prod.yml` enforces fail-closed variable interpolation (`${JWT_SECRET:?...}` and `${CLIENT_URL:?...}`). Omission immediately halts Compose before any container starts.
+3. **Internal Network Isolation**:
+   - MongoDB (port 27017) and Express API (port 5000) have zero published host ports in production Compose.
+   - All database and backend traffic is confined to the internal `crewconnect-net` bridge. External traffic reaches the platform exclusively through the NGINX Web container reverse proxy on port 80.
+4. **Production Rate Limiting & Bypass Protection**:
    - General API limiter (`RATE_LIMIT_MAX_REQUESTS` per `RATE_LIMIT_WINDOW_MS`) on all `/api/v1/*` routes.
    - User-fenced join rate limiter (`JOIN_RATE_LIMIT_MAX_REQUESTS` per minute) on sensitive race endpoints (`/teams/:id/join`, `/invitations/accept`, `/join-requests`).
-5. **CSRF & CORS Hardening**:
+   - Benchmark headers (`x-benchmark-bypass`) are strictly ignored in production environments (`NODE_ENV=production`), preventing unauthorized rate-limit bypass.
+5. **ReDoS & Injection Defense**:
+   - All user-supplied search parameters and team names are sanitized via `escapeRegex()` before `$regex` evaluation, neutralizing catastrophic backtracking and syntax exceptions.
+   - Express body size strictly bounded to `1mb` (`express.json({ limit: "1mb" })`), mitigating unconstrained collection parsing risks (Zod GHSA-mrhx-c7xc-m3w5).
+6. **CSRF & CORS Hardening**:
    - OWASP Origin and Referer validation on all cookie-authenticated state-changing requests.
    - Environment-aware CORS configuration restricting origins to `CLIENT_URL` in production.
-6. **Container Liveness & Readiness Probes**:
+7. **Container Liveness & Readiness Probes**:
    - `GET /health/live`: Fast process liveness check for orchestrator restarts.
    - `GET /health/ready`: Deep container readiness check validating database connectivity and replica set election state.
-7. **Automatic Database Index Synchronization**:
+8. **Automatic Database Index Synchronization**:
    - `syncAllIndexes()` executes upon server startup, automatically verifying all unique, compound sort, and TTL indexes before traffic is served.
 
 ---
@@ -147,13 +153,26 @@ npm run dev
 
 ---
 
-## 🚢 Production Deployment
+## 🚢 Production Deployment & Verification
 
 For complete multi-provider cloud guides (Render, Railway, AWS ECS, Self-Hosted Docker), see **[`docs/deployment.md`](./docs/deployment.md)**.
+
+### Deployment Verification Matrix
+
+| Verification Tier          |    Status    | Details                                                                                                            |
+| :------------------------- | :----------: | :----------------------------------------------------------------------------------------------------------------- |
+| **Local Verification**     | **VERIFIED** | 159+ unit, integration, and race tests passing; 50-way last-seat race & 100-VU discovery p95 = 165.5ms verified    |
+| **Container Verification** | **VERIFIED** | Fail-closed `docker-compose.prod.yml config` tested; multi-stage Alpine Docker images for API and Web built        |
+| **CI Verification**        | **VERIFIED** | GitHub Actions CI automatically verifies lint, typecheck, tests on rs0, build, Compose config, and container build |
+| **Cloud Deployment**       |  **READY**   | Production blueprints checked in; live deployment withheld pending evaluator authorization                         |
 
 ### Running Production Stack Locally via Docker Compose
 
 ```bash
+# Set mandatory production variables (fail-closed if omitted)
+export JWT_SECRET=$(openssl rand -hex 32)
+export CLIENT_URL="http://localhost:80"
+
 docker compose -f docker-compose.prod.yml up -d --build
 ```
 

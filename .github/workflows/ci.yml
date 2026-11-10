@@ -49,3 +49,26 @@ jobs:
 
       - name: Build all packages and applications
         run: npm run build
+
+      - name: Validate production Docker Compose config
+        run: |
+          # Verify fail-closed behavior when mandatory env vars are missing
+          if docker compose -f docker-compose.prod.yml config >/dev/null 2>&1; then
+            echo "Expected docker compose config to fail without required env vars"
+            exit 1
+          fi
+          # Verify successful config rendering with valid dummy env vars
+          JWT_SECRET="ci_production_verification_secret_32_chars!" \
+          CLIENT_URL="https://crewconnect.ci.test" \
+          docker compose -f docker-compose.prod.yml config --quiet
+
+      - name: Build production Docker images
+        run: |
+          docker build -f apps/api/Dockerfile -t crewconnect-api:ci .
+          docker build -f apps/web/Dockerfile -t crewconnect-web:ci .
+
+      - name: Verify production Docker container images
+        run: |
+          docker image inspect crewconnect-api:ci >/dev/null
+          docker image inspect crewconnect-web:ci >/dev/null
+          echo "Production Docker images built and inspected successfully."
