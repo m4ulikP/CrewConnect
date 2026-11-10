@@ -30,7 +30,7 @@ export const App: React.FC = () => {
         <ErrorBoundary>
           <AuthProvider>
             <SocketProvider>
-              <div className="min-h-screen flex flex-col bg-slate-950 text-slate-100 selection:bg-indigo-500 selection:text-white">
+              <div className="min-h-screen flex flex-col bg-ground text-ink-primary selection:bg-accent-tint selection:text-accent">
                 <Navbar />
                 <main className="flex-1">
                   <Routes>
@@ -51,11 +51,16 @@ export const App: React.FC = () => {
                     <Route
                       path="*"
                       element={
-                        <div className="py-20 text-center space-y-4">
-                          <h2 className="text-2xl font-bold text-white">404 — Page Not Found</h2>
-                          <p className="text-xs text-slate-400">
-                            The requested view does not exist.
+                        <div className="py-24 text-center space-y-4 max-w-md mx-auto">
+                          <h1 className="text-3xl font-serif text-ink-primary">404 — Page Not Found</h1>
+                          <p className="text-sm text-ink-secondary">
+                            The requested squad or view does not exist in this hackathon.
                           </p>
+                          <div className="pt-2">
+                            <a href="/" className="btn btn-secondary text-xs">
+                              Return to platform
+                            </a>
+                          </div>
                         </div>
                       }
                     />

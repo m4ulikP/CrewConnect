@@ -1,0 +1,104 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>CrewConnect — Sign In</title>
+  <link rel="stylesheet" href="preview-theme.css">
+  <style>
+    .auth-wrapper {
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      padding: var(--space-8);
+      background-color: var(--ground);
+    }
+    .auth-card {
+      width: 100%;
+      max-width: 440px;
+      margin: var(--space-8) auto;
+      background-color: var(--surface);
+      border: 1px solid var(--border-subtle);
+      border-radius: var(--radius-sheet);
+      padding: var(--space-10);
+    }
+    .error-alert {
+      background-color: var(--danger-bg);
+      color: var(--danger);
+      border: 1px solid #FECACA;
+      border-radius: var(--radius-md);
+      padding: 12px 14px;
+      font-size: 14px;
+      margin-bottom: var(--space-5);
+      display: none;
+    }
+
+    @media (max-width: 600px) {
+      .auth-wrapper { padding: var(--space-4); }
+      .auth-card { padding: var(--space-6); }
+    }
+  </style>
+</head>
+<body class="auth-wrapper">
+
+  <header style="display: flex; justify-content: space-between; align-items: center; max-width: 1200px; width: 100%; margin: 0 auto;">
+    <a href="landing.html" class="brand-wordmark">
+      <span class="brand-dot"></span>
+      <span>CrewConnect</span>
+    </a>
+    <a href="discovery.html" class="nav-link">Browse open teams &rarr;</a>
+  </header>
+
+  <main class="auth-card pane-enter">
+    <h1 style="font-size: 32px; line-height: 1.15; margin-bottom: 8px;">Sign in</h1>
+    <p style="font-size: 15px; color: var(--ink-secondary); margin-bottom: 28px;">
+      Return to your hackathon squad and invitations.
+    </p>
+
+    <div class="error-alert" id="errorAlert" role="alert">
+      Invalid email or password. Please verify your credentials and try again.
+    </div>
+
+    <form onsubmit="return false;">
+      <div style="margin-bottom: 20px;">
+        <label class="form-label" for="email">Email address</label>
+        <input type="email" id="email" class="form-input" placeholder="you@hackathon.org" value="maulik@hackathon.org" required>
+      </div>
+
+      <div style="margin-bottom: 24px;">
+        <div style="display: flex; justify-content: space-between; margin-bottom: 6px;">
+          <label class="form-label" for="password" style="margin-bottom: 0;">Password</label>
+        </div>
+        <input type="password" id="password" class="form-input" placeholder="Enter your password" value="CorrectHorseBatteryStaple123!" required>
+      </div>
+
+      <button type="submit" class="btn btn-primary" style="width: 100%; height: 44px; font-size: 15px;">
+        Sign in to workspace &rarr;
+      </button>
+    </form>
+
+    <div style="margin-top: 24px; padding-top: 20px; border-top: 1px solid var(--border-subtle); display: flex; justify-content: space-between; align-items: center; font-size: 14px;">
+      <span style="color: var(--ink-secondary);">New participant?</span>
+      <a href="register.html" style="color: var(--accent); font-weight: 600; text-decoration: none;">Create an account</a>
+    </div>
+
+    <div style="margin-top: 20px; text-align: center;">
+      <button class="btn btn-ghost" style="height: 30px; font-size: 12px;" onclick="toggleError()">
+        Toggle Error State Preview
+      </button>
+    </div>
+  </main>
+
+  <footer style="text-align: center; font-size: 13px; color: var(--ink-muted);">
+    Sessions authenticated via Argon2id hashing and strict HTTP-only cookies.
+  </footer>
+
+  <script>
+    function toggleError() {
+      const el = document.getElementById('errorAlert');
+      el.style.display = el.style.display === 'block' ? 'none' : 'block';
+    }
+  </script>
+</body>
+</html>

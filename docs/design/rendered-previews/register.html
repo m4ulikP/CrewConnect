@@ -1,0 +1,108 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>CrewConnect — Create Account</title>
+  <link rel="stylesheet" href="preview-theme.css">
+  <style>
+    .auth-wrapper {
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      padding: var(--space-8);
+      background-color: var(--ground);
+    }
+    .auth-card {
+      width: 100%;
+      max-width: 540px;
+      margin: var(--space-8) auto;
+      background-color: var(--surface);
+      border: 1px solid var(--border-subtle);
+      border-radius: var(--radius-sheet);
+      padding: var(--space-10);
+    }
+    .two-col {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: var(--space-4);
+    }
+
+    @media (max-width: 600px) {
+      .auth-wrapper { padding: var(--space-4); }
+      .auth-card { padding: var(--space-6); }
+      .two-col { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body class="auth-wrapper">
+
+  <header style="display: flex; justify-content: space-between; align-items: center; max-width: 1200px; width: 100%; margin: 0 auto;">
+    <a href="landing.html" class="brand-wordmark">
+      <span class="brand-dot"></span>
+      <span>CrewConnect</span>
+    </a>
+    <a href="login.html" class="nav-link">Already registered? Sign in</a>
+  </header>
+
+  <main class="auth-card pane-enter">
+    <h1 style="font-size: 32px; line-height: 1.15; margin-bottom: 8px;">Join CrewConnect</h1>
+    <p style="font-size: 15px; color: var(--ink-secondary); margin-bottom: 28px;">
+      Share your core engineering skills to connect with hackathon squads.
+    </p>
+
+    <form onsubmit="return false;">
+      <div class="two-col" style="margin-bottom: 20px;">
+        <div>
+          <label class="form-label" for="displayName">Full name</label>
+          <input type="text" id="displayName" class="form-input" placeholder="e.g. Maulik P." value="Maulik P." required>
+        </div>
+        <div>
+          <label class="form-label" for="email">Email address</label>
+          <input type="email" id="email" class="form-input" placeholder="you@hackathon.org" value="maulik@hackathon.org" required>
+        </div>
+      </div>
+
+      <div style="margin-bottom: 20px;">
+        <label class="form-label" for="password">Password</label>
+        <input type="password" id="password" class="form-input" placeholder="Minimum 8 characters" value="CorrectHorseBatteryStaple123!" required aria-describedby="pwHelp">
+        <div id="pwHelp" style="font-size: 13px; color: var(--ink-muted); margin-top: 6px;">
+          At least 8 characters. Protected with Argon2id password hashing.
+        </div>
+      </div>
+
+      <div class="two-col" style="margin-bottom: 20px;">
+        <div>
+          <label class="form-label" for="skills">Primary skills (1&ndash;20)</label>
+          <input type="text" id="skills" class="form-input" placeholder="Node.js, React, Rust" value="Node.js, MongoDB, React" required>
+        </div>
+        <div>
+          <label class="form-label" for="tz">Timezone</label>
+          <select id="tz" class="form-input">
+            <option selected>Asia/Kolkata (UTC+5:30)</option>
+            <option>America/New_York (UTC-5)</option>
+            <option>America/Los_Angeles (UTC-8)</option>
+            <option>Europe/London (UTC+0)</option>
+            <option>Europe/Berlin (UTC+1)</option>
+          </select>
+        </div>
+      </div>
+
+      <div style="margin-bottom: 24px;">
+        <label class="form-label" for="bio">Short introduction <span style="font-weight: 400; color: var(--ink-muted);">(optional)</span></label>
+        <textarea id="bio" class="form-input" style="height: 76px; padding: 10px 14px; resize: none;" placeholder="What kind of projects or roles are you looking for?">Backend architecture and consensus tooling.</textarea>
+      </div>
+
+      <button type="submit" class="btn btn-primary" style="width: 100%; height: 44px; font-size: 15px;">
+        Create account &rarr;
+      </button>
+    </form>
+  </main>
+
+  <footer style="text-align: center; font-size: 13px; color: var(--ink-muted);">
+    You can browse teams immediately after signing up.
+  </footer>
+
+</body>
+</html>

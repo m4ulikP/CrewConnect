@@ -1,0 +1,379 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>CrewConnect — Squad Workspace</title>
+  <link rel="stylesheet" href="preview-theme.css">
+  <style>
+    .ws-container {
+      max-width: 960px;
+      margin: 0 auto;
+      padding: var(--space-10) var(--space-8) var(--space-16);
+    }
+    .ws-tabs {
+      display: flex;
+      gap: var(--space-6);
+      border-bottom: 1px solid var(--border-subtle);
+      margin-top: var(--space-8);
+      margin-bottom: var(--space-8);
+      overflow-x: auto;
+    }
+    .ws-tab {
+      padding: 12px 2px;
+      font-size: 14px;
+      font-weight: 500;
+      color: var(--ink-secondary);
+      background: transparent;
+      border: none;
+      border-bottom: 2px solid transparent;
+      cursor: pointer;
+      white-space: nowrap;
+      transition: color var(--dur-fast), border-color var(--dur-fast);
+    }
+    .ws-tab:hover {
+      color: var(--ink-primary);
+    }
+    .ws-tab.active {
+      color: var(--ink-primary);
+      font-weight: 600;
+      border-bottom-color: var(--accent);
+    }
+    .tab-panel {
+      display: none;
+    }
+    .tab-panel.active {
+      display: block;
+      animation: fadeSlideIn var(--dur-panel) var(--ease-out) both;
+    }
+    .roster-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 18px 0;
+      border-bottom: 1px solid var(--border-subtle);
+      gap: 16px;
+      flex-wrap: wrap;
+    }
+    .roster-row:last-child {
+      border-bottom: none;
+    }
+    .setting-row {
+      display: grid;
+      grid-template-columns: 1fr 1.5fr;
+      gap: var(--space-8);
+      padding: var(--space-6) 0;
+      border-bottom: 1px solid var(--border-subtle);
+    }
+    .setting-row:last-child {
+      border-bottom: none;
+    }
+
+    @media (max-width: 900px) {
+      .ws-container { padding: var(--space-6) var(--space-4); }
+      .setting-row { grid-template-columns: 1fr; gap: var(--space-3); }
+    }
+  </style>
+</head>
+<body>
+
+  <div class="app-chrome">
+    <!-- Left Navigation Rail -->
+    <aside class="chrome-sidebar">
+      <div>
+        <div style="padding: 8px 12px 24px;">
+          <a href="landing.html" class="brand-wordmark">
+            <span class="brand-dot"></span>
+            <span>CrewConnect</span>
+          </a>
+        </div>
+        <nav style="display: flex; flex-direction: column; gap: 4px;">
+          <a href="dashboard.html" class="nav-link">Overview</a>
+          <a href="discovery.html" class="nav-link">Discover Teams</a>
+          <a href="workspace.html" class="nav-link active">My Squad</a>
+        </nav>
+      </div>
+
+      <div style="padding: 12px; border-top: 1px solid var(--border-subtle); display: flex; align-items: center; gap: 10px;">
+        <span class="avatar av-pine">MP</span>
+        <div>
+          <div style="font-size: 13px; font-weight: 600;">Maulik P.</div>
+          <div style="font-size: 12px; color: var(--ink-muted);" id="sidebarRole">Squad Leader</div>
+        </div>
+      </div>
+    </aside>
+
+    <!-- Top Chrome Bar -->
+    <header class="chrome-topbar">
+      <div style="display: flex; align-items: center; gap: 12px;">
+        <span style="font-size: 14px; font-weight: 600;">Atlas Consensus</span>
+        <span class="status-label status-open" style="font-size: 12px;">Recruiting</span>
+      </div>
+      <div>
+        <button class="btn btn-secondary" style="height: 32px; font-size: 12px; padding: 0 12px;" onclick="toggleRoleView()">
+          Switch to Member View
+        </button>
+      </div>
+    </header>
+
+    <!-- Main Framed Sheet -->
+    <main class="app-sheet">
+      <div class="ws-container">
+
+        <!-- Squad Header -->
+        <div style="display: flex; justify-content: space-between; align-items: start; flex-wrap: wrap; gap: 16px;">
+          <div>
+            <div style="font-size: 13px; color: var(--ink-muted); margin-bottom: 4px;">Hack4Hack 2026 &bull; Workspace</div>
+            <h1 style="font-size: 36px; line-height: 1.15;">Atlas Consensus</h1>
+            <p style="color: var(--ink-secondary); margin-top: 6px; font-size: 15px; max-width: 58ch;">
+              Interactive Raft consensus visualizer across simulated partitions. Async-first across UTC-5 to UTC+5:30.
+            </p>
+          </div>
+          <div style="text-align: right;">
+            <span class="status-label status-warning tabular" style="font-size: 14px; padding: 6px 12px;">4 / 5 seats filled</span>
+            <div style="font-size: 13px; color: var(--ink-muted); margin-top: 6px;">1 vacancy remaining</div>
+          </div>
+        </div>
+
+        <!-- Workspace Tabs -->
+        <div class="ws-tabs" role="tablist">
+          <button class="ws-tab active" onclick="switchTab('roster', this)">Roster &amp; Mission</button>
+          <button class="ws-tab" onclick="switchTab('requests', this)">Join Requests (1)</button>
+          <button class="ws-tab" onclick="switchTab('invites', this)">Invitations</button>
+          <button class="ws-tab" onclick="switchTab('history', this)">Activity History</button>
+          <button class="ws-tab leader-only" onclick="switchTab('settings', this)">Settings</button>
+        </div>
+
+        <!-- TAB 1: ROSTER & MISSION -->
+        <div class="tab-panel active" id="tab-roster">
+          <div style="display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 12px;">
+            <h2 style="font-size: 22px;">Team Members</h2>
+            <span style="font-size: 13px; color: var(--ink-muted);" id="rosterModeText">Leader permissions active</span>
+          </div>
+
+          <div style="border-top: 1px solid var(--border-subtle);">
+            <!-- Member 1 -->
+            <div class="roster-row">
+              <div style="display: flex; align-items: center; gap: 14px;">
+                <span class="avatar av-pine" style="width: 38px; height: 38px;">MP</span>
+                <div>
+                  <div style="font-weight: 600; font-size: 15px;">Maulik P. <span class="status-label status-open" style="font-size: 11px; margin-left: 6px;">Leader</span></div>
+                  <div style="font-size: 13px; color: var(--ink-secondary);">Node.js, MongoDB, TypeScript &bull; UTC+5:30</div>
+                </div>
+              </div>
+              <div style="font-size: 13px; color: var(--ink-muted);">Joined Nov 09</div>
+            </div>
+
+            <!-- Member 2 -->
+            <div class="roster-row">
+              <div style="display: flex; align-items: center; gap: 14px;">
+                <span class="avatar av-ochre" style="width: 38px; height: 38px;">SC</span>
+                <div>
+                  <div style="font-weight: 600; font-size: 15px;">Sarah C.</div>
+                  <div style="font-size: 13px; color: var(--ink-secondary);">React, Design Systems, Typography &bull; UTC-5</div>
+                </div>
+              </div>
+              <div class="leader-only" style="display: flex; gap: 8px;">
+                <button class="btn btn-ghost" style="height: 32px; font-size: 13px; padding: 0 10px;">Transfer leadership</button>
+                <button class="btn btn-ghost" style="height: 32px; font-size: 13px; padding: 0 10px; color: var(--danger);">Remove</button>
+              </div>
+            </div>
+
+            <!-- Member 3 -->
+            <div class="roster-row">
+              <div style="display: flex; align-items: center; gap: 14px;">
+                <span class="avatar av-slate" style="width: 38px; height: 38px;">TC</span>
+                <div>
+                  <div style="font-weight: 600; font-size: 15px;">Tom C.</div>
+                  <div style="font-size: 13px; color: var(--ink-secondary);">Distributed Systems, Raft &bull; UTC+1</div>
+                </div>
+              </div>
+              <div class="leader-only" style="display: flex; gap: 8px;">
+                <button class="btn btn-ghost" style="height: 32px; font-size: 13px; padding: 0 10px;">Transfer leadership</button>
+                <button class="btn btn-ghost" style="height: 32px; font-size: 13px; padding: 0 10px; color: var(--danger);">Remove</button>
+              </div>
+            </div>
+
+            <!-- Member 4 -->
+            <div class="roster-row">
+              <div style="display: flex; align-items: center; gap: 14px;">
+                <span class="avatar av-clay" style="width: 38px; height: 38px;">ER</span>
+                <div>
+                  <div style="font-weight: 600; font-size: 15px;">Elena R.</div>
+                  <div style="font-size: 13px; color: var(--ink-secondary);">Go, Fault Injection, Benchmarks &bull; UTC-8</div>
+                </div>
+              </div>
+              <div class="leader-only" style="display: flex; gap: 8px;">
+                <button class="btn btn-ghost" style="height: 32px; font-size: 13px; padding: 0 10px;">Transfer leadership</button>
+                <button class="btn btn-ghost" style="height: 32px; font-size: 13px; padding: 0 10px; color: var(--danger);">Remove</button>
+              </div>
+            </div>
+
+            <!-- Seat 5 Open -->
+            <div class="roster-row" style="background-color: var(--ground); padding: 18px; border-radius: var(--radius-md); margin-top: 12px; border: 1px dashed var(--border-strong);">
+              <div>
+                <div style="font-weight: 600; font-size: 15px; color: var(--accent);">Open Seat 5 &mdash; Seeking Rust or WebAssembly Engineer</div>
+                <div style="font-size: 13px; color: var(--ink-secondary); margin-top: 2px;">Share a single-use invite token or await candidate join requests.</div>
+              </div>
+              <button class="btn btn-primary leader-only" style="height: 36px; font-size: 13px;" onclick="switchTab('invites', document.querySelectorAll('.ws-tab')[2])">
+                Create invite link
+              </button>
+            </div>
+          </div>
+
+          <!-- Ordinary Member Self-Leave Section (Visible in Member View) -->
+          <div class="member-only" style="display: none; margin-top: 40px; padding-top: 24px; border-top: 1px solid var(--border-subtle);">
+            <h3 style="font-size: 18px; margin-bottom: 6px;">Leave Squad</h3>
+            <p style="font-size: 14px; color: var(--ink-secondary); margin-bottom: 16px;">
+              Leaving opens your seat to other hackathon participants and immediately closes your access to team rooms.
+            </p>
+            <button class="btn btn-danger" style="height: 38px;">Leave Atlas Consensus</button>
+          </div>
+        </div>
+
+        <!-- TAB 2: JOIN REQUESTS -->
+        <div class="tab-panel" id="tab-requests">
+          <h2 style="font-size: 22px; margin-bottom: 16px;">Pending Join Requests</h2>
+          <div style="background-color: var(--ground); border: 1px solid var(--border-subtle); border-radius: var(--radius-lg); padding: var(--space-6);">
+            <div style="display: flex; justify-content: space-between; align-items: start; margin-bottom: 12px; flex-wrap: wrap; gap: 12px;">
+              <div style="display: flex; align-items: center; gap: 12px;">
+                <span class="avatar av-moss" style="width: 38px; height: 38px;">JK</span>
+                <div>
+                  <div style="font-weight: 600; font-size: 16px;">Jason K.</div>
+                  <div style="font-size: 13px; color: var(--ink-secondary);">Rust, WebAssembly, C++ &bull; UTC-4</div>
+                </div>
+              </div>
+              <span style="font-size: 13px; color: var(--ink-muted);">Submitted 45 minutes ago</span>
+            </div>
+            <p style="font-size: 15px; color: var(--ink-primary); margin-bottom: 20px; line-height: 1.55;">
+              "Hi Maulik! I wrote an experimental Raft log replication crate in Rust last year. Would love to join Atlas Consensus to build the WASM simulation engine."
+            </p>
+            <div style="display: flex; gap: 12px;">
+              <button class="btn btn-primary">Approve &amp; claim seat (HTTP 201)</button>
+              <button class="btn btn-secondary">Decline request</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- TAB 3: INVITATIONS -->
+        <div class="tab-panel" id="tab-invites">
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+            <h2 style="font-size: 22px;">Invitation Links</h2>
+            <button class="btn btn-primary" style="height: 36px; font-size: 13px;">+ Generate single-use token</button>
+          </div>
+          <div style="background-color: var(--ground); border: 1px solid var(--border-subtle); border-radius: var(--radius-md); padding: var(--space-5); display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 16px;">
+            <div>
+              <div class="tabular" style="font-size: 15px; font-weight: 600; color: var(--accent);">cc-inv-9821-a7fc4</div>
+              <div style="font-size: 13px; color: var(--ink-secondary); margin-top: 4px;">
+                1 of 1 uses remaining &bull; Expires Nov 11 at 10:00 UTC
+              </div>
+            </div>
+            <div style="display: flex; gap: 10px;">
+              <button class="btn btn-secondary" style="height: 34px; font-size: 13px;">Copy link</button>
+              <button class="btn btn-ghost" style="height: 34px; font-size: 13px; color: var(--danger);">Revoke</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- TAB 4: ACTIVITY HISTORY -->
+        <div class="tab-panel" id="tab-history">
+          <h2 style="font-size: 22px; margin-bottom: 16px;">Squad Audit History</h2>
+          <div style="border-top: 1px solid var(--border-subtle);">
+            <div class="roster-row">
+              <div>
+                <div style="font-weight: 600; font-size: 15px;">Elena R. joined Atlas Consensus</div>
+                <div style="font-size: 13px; color: var(--ink-secondary);">Atomic direct join &bull; Seat count updated 3 &rarr; 4</div>
+              </div>
+              <span class="tabular" style="font-size: 13px; color: var(--ink-muted);">Nov 10, 09:44 UTC</span>
+            </div>
+            <div class="roster-row">
+              <div>
+                <div style="font-weight: 600; font-size: 15px;">Maulik P. increased max capacity</div>
+                <div style="font-size: 13px; color: var(--ink-secondary);">Updated team limit from 4 to 5 members</div>
+              </div>
+              <span class="tabular" style="font-size: 13px; color: var(--ink-muted);">Nov 10, 08:30 UTC</span>
+            </div>
+            <div class="roster-row">
+              <div>
+                <div style="font-weight: 600; font-size: 15px;">Atlas Consensus established</div>
+                <div style="font-size: 13px; color: var(--ink-secondary);">Created by Maulik P. in Hack4Hack 2026</div>
+              </div>
+              <span class="tabular" style="font-size: 13px; color: var(--ink-muted);">Nov 09, 22:15 UTC</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- TAB 5: SETTINGS -->
+        <div class="tab-panel" id="tab-settings">
+          <div class="setting-row">
+            <div>
+              <h3 style="font-size: 18px;">Squad Profile</h3>
+              <p style="font-size: 14px; color: var(--ink-secondary); margin-top: 4px;">Update how your team appears in the public directory.</p>
+            </div>
+            <div>
+              <div style="margin-bottom: 16px;">
+                <label class="form-label">Squad Name</label>
+                <input type="text" class="form-input" value="Atlas Consensus">
+              </div>
+              <div style="margin-bottom: 16px;">
+                <label class="form-label">Maximum Capacity</label>
+                <select class="form-input">
+                  <option>4 members</option>
+                  <option selected>5 members (4 currently active)</option>
+                  <option>6 members</option>
+                </select>
+              </div>
+              <button class="btn btn-primary">Save changes</button>
+            </div>
+          </div>
+
+          <div class="setting-row">
+            <div>
+              <h3 style="font-size: 18px; color: var(--danger);">Disband Squad</h3>
+              <p style="font-size: 14px; color: var(--ink-secondary); margin-top: 4px;">Permanently close the squad and remove all member affiliations.</p>
+            </div>
+            <div>
+              <button class="btn btn-danger">Disband Atlas Consensus</button>
+            </div>
+          </div>
+        </div>
+
+      </div>
+    </main>
+
+    <!-- Mobile Bottom Bar -->
+    <nav class="mobile-bar">
+      <a href="dashboard.html" class="mobile-nav-item">Overview</a>
+      <a href="discovery.html" class="mobile-nav-item">Discover</a>
+      <a href="workspace.html" class="mobile-nav-item active">My Squad</a>
+      <a href="login.html" class="mobile-nav-item">Account</a>
+    </nav>
+  </div>
+
+  <script>
+    function switchTab(id, btnEl) {
+      document.querySelectorAll('.ws-tab').forEach(t => t.classList.remove('active'));
+      btnEl.classList.add('active');
+      document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
+      document.getElementById('tab-' + id).classList.add('active');
+    }
+
+    let isMemberView = false;
+    function toggleRoleView() {
+      isMemberView = !isMemberView;
+      document.querySelectorAll('.leader-only').forEach(el => {
+        el.style.display = isMemberView ? 'none' : '';
+      });
+      document.querySelectorAll('.member-only').forEach(el => {
+        el.style.display = isMemberView ? 'block' : 'none';
+      });
+      document.getElementById('sidebarRole').textContent = isMemberView ? 'Squad Member' : 'Squad Leader';
+      document.getElementById('rosterModeText').textContent = isMemberView ? 'Member view (read-only roster)' : 'Leader permissions active';
+      event.target.textContent = isMemberView ? 'Switch to Leader View' : 'Switch to Member View';
+      if (isMemberView) {
+        switchTab('roster', document.querySelectorAll('.ws-tab')[0]);
+      }
+    }
+  </script>
+</body>
+</html>

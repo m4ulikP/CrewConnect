@@ -1,0 +1,502 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>CrewConnect — Team Discovery</title>
+  <link rel="stylesheet" href="preview-theme.css">
+  <style>
+    .discovery-split {
+      display: grid;
+      grid-template-columns: 390px 1fr;
+      height: 100%;
+    }
+    .list-column {
+      border-right: 1px solid var(--border-subtle);
+      display: flex;
+      flex-direction: column;
+      background-color: #FAF9F6;
+    }
+    .filter-header {
+      padding: var(--space-5);
+      border-bottom: 1px solid var(--border-subtle);
+      display: flex;
+      flex-direction: column;
+      gap: var(--space-3);
+      background-color: var(--surface);
+    }
+    .team-list {
+      padding: var(--space-3);
+      display: flex;
+      flex-direction: column;
+      gap: var(--space-2);
+      overflow-y: auto;
+    }
+    .team-row {
+      padding: var(--space-4);
+      border-radius: var(--radius-md);
+      border: 1px solid transparent;
+      cursor: pointer;
+      transition: background-color var(--dur-fast) var(--ease-out),
+                  border-color var(--dur-fast) var(--ease-out),
+                  transform var(--dur-press) var(--ease-out);
+      position: relative;
+    }
+    .team-row:hover {
+      background-color: var(--surface);
+      border-color: var(--border-subtle);
+    }
+    .team-row:active {
+      transform: scale(0.99);
+    }
+    .team-row.selected {
+      background-color: var(--surface);
+      border-color: var(--border-strong);
+      box-shadow: 0 1px 3px rgba(24, 24, 27, 0.04);
+    }
+    .team-row.selected::before {
+      content: "";
+      position: absolute;
+      left: 0;
+      top: 12px;
+      bottom: 12px;
+      width: 3px;
+      background-color: var(--accent);
+      border-radius: 0 2px 2px 0;
+    }
+
+    .detail-column {
+      padding: var(--space-10) var(--space-12);
+      overflow-y: auto;
+      background-color: var(--surface);
+    }
+    .dossier-wrap {
+      max-width: 720px;
+      margin: 0 auto;
+    }
+    .member-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 14px 0;
+      border-bottom: 1px solid var(--border-subtle);
+    }
+    .member-row:last-child {
+      border-bottom: none;
+    }
+    .mobile-back-btn {
+      display: none;
+      margin-bottom: var(--space-4);
+    }
+
+    .reservation-box {
+      margin-top: var(--space-8);
+      padding: var(--space-6);
+      background-color: var(--ground);
+      border: 1px solid var(--border-subtle);
+      border-radius: var(--radius-lg);
+    }
+
+    @media (max-width: 900px) {
+      .discovery-split {
+        grid-template-columns: 1fr;
+        display: block;
+      }
+      .list-column {
+        border-right: none;
+      }
+      .detail-column {
+        display: none;
+        padding: var(--space-6) var(--space-4);
+      }
+      .discovery-split.mobile-show-detail .list-column {
+        display: none;
+      }
+      .discovery-split.mobile-show-detail .detail-column {
+        display: block;
+      }
+      .mobile-back-btn {
+        display: inline-flex;
+      }
+    }
+  </style>
+</head>
+<body>
+
+  <div class="app-chrome">
+    <!-- Left Navigation Rail -->
+    <aside class="chrome-sidebar">
+      <div>
+        <div style="padding: 8px 12px 24px;">
+          <a href="landing.html" class="brand-wordmark">
+            <span class="brand-dot"></span>
+            <span>CrewConnect</span>
+          </a>
+        </div>
+        <nav style="display: flex; flex-direction: column; gap: 4px;">
+          <a href="dashboard.html" class="nav-link">Overview</a>
+          <a href="discovery.html" class="nav-link active">Discover Teams</a>
+          <a href="workspace.html" class="nav-link">My Squad</a>
+        </nav>
+
+        <div style="margin-top: 32px; padding: 0 12px;">
+          <div style="font-size: 12px; font-weight: 600; color: var(--ink-muted); margin-bottom: 8px;">ACTIVE EVENT</div>
+          <div style="font-size: 14px; font-weight: 600; color: var(--ink-primary);">Hack4Hack 2026</div>
+          <div style="font-size: 13px; color: var(--ink-secondary); margin-top: 2px;">Nov 09 &ndash; Nov 16</div>
+        </div>
+      </div>
+
+      <div style="padding: 12px; border-top: 1px solid var(--border-subtle); display: flex; align-items: center; gap: 10px;">
+        <span class="avatar av-pine">MP</span>
+        <div>
+          <div style="font-size: 13px; font-weight: 600;">Maulik P.</div>
+          <div style="font-size: 12px; color: var(--ink-muted);">@m4ulik</div>
+        </div>
+      </div>
+    </aside>
+
+    <!-- Top Chrome Bar (No border rule between chrome and sidebar) -->
+    <header class="chrome-topbar">
+      <div style="display: flex; align-items: center; gap: 10px; min-width: 0;">
+        <span style="font-size: 14px; font-weight: 600; color: var(--ink-primary); white-space: nowrap;">Team Directory</span>
+        <span class="status-label status-open" style="font-size: 12px;">Hack4Hack &bull; Active</span>
+      </div>
+      <div style="display: flex; align-items: center; gap: 12px; flex-shrink: 0;">
+        <button class="btn btn-primary" style="height: 34px; padding: 0 12px; font-size: 13px; white-space: nowrap;">+ New Squad</button>
+      </div>
+    </header>
+
+    <!-- Main Framed Sheet -->
+    <main class="app-sheet">
+      <div class="discovery-split" id="discoveryRoot">
+        
+        <!-- Master Directory List -->
+        <div class="list-column">
+          <div class="filter-header">
+            <h1 style="font-size: 24px; line-height: 1.2;">Team Directory</h1>
+            <select class="form-input" style="height: 38px; font-size: 14px; font-weight: 500;" aria-label="Select Hackathon">
+              <option>Hack4Hack Crew Hiring Challenge 2026 (Active)</option>
+              <option>Autonomous Agent Hack (Upcoming &bull; Registration Open)</option>
+            </select>
+
+            <input type="text" id="searchInput" class="form-input" style="height: 38px; font-size: 14px;" placeholder="Search teams, skills, or leaders..." oninput="filterTeams(this.value)">
+
+            <div style="display: flex; justify-content: space-between; align-items: center;">
+              <label style="display: flex; align-items: center; gap: 8px; font-size: 13px; color: var(--ink-secondary); cursor: pointer;">
+                <input type="checkbox" id="vacancyCheck" onchange="filterTeams(document.getElementById('searchInput').value)" style="accent-color: var(--accent); width: 16px; height: 16px;">
+                <span>Open vacancies only</span>
+              </label>
+              <span class="tabular" id="teamCountLabel" style="font-size: 12px; color: var(--ink-muted);">3 squads shown</span>
+            </div>
+          </div>
+
+          <div class="team-list" id="teamListContainer">
+            <!-- Team 1 -->
+            <div class="team-row selected" onclick="selectTeam('atlas', this)" data-name="atlas consensus rust webassembly">
+              <div style="display: flex; justify-content: space-between; align-items: baseline;">
+                <span style="font-family: var(--font-serif); font-size: 19px; font-weight: 500;">Atlas Consensus</span>
+                <span class="tabular" style="font-size: 13px; font-weight: 500; color: var(--warning);">4 / 5</span>
+              </div>
+              <p style="font-size: 13px; color: var(--ink-secondary); margin: 4px 0 10px; line-height: 1.45;">
+                Visualizing Raft consensus splits and recovery across network partitions.
+              </p>
+              <div style="display: flex; justify-content: space-between; align-items: center; font-size: 12px; color: var(--ink-muted);">
+                <span>Needs: Rust, WebAssembly</span>
+                <span style="color: var(--accent); font-weight: 600;">1 seat open</span>
+              </div>
+            </div>
+
+            <!-- Team 2 -->
+            <div class="team-row" onclick="selectTeam('veritas', this)" data-name="veritas zero-knowledge circom solidity">
+              <div style="display: flex; justify-content: space-between; align-items: baseline;">
+                <span style="font-family: var(--font-serif); font-size: 19px; font-weight: 500;">Veritas Zero-Knowledge</span>
+                <span class="tabular" style="font-size: 13px; font-weight: 500; color: var(--accent);">3 / 5</span>
+              </div>
+              <p style="font-size: 13px; color: var(--ink-secondary); margin: 4px 0 10px; line-height: 1.45;">
+                Browser-native private credential verification using recursive SNARK proofs.
+              </p>
+              <div style="display: flex; justify-content: space-between; align-items: center; font-size: 12px; color: var(--ink-muted);">
+                <span>Needs: Circom, Solidity</span>
+                <span style="color: var(--accent); font-weight: 600;">2 seats open</span>
+              </div>
+            </div>
+
+            <!-- Team 3 (Full) -->
+            <div class="team-row" onclick="selectTeam('kinetix', this)" data-name="kinetix robotics ros c++" data-full="true">
+              <div style="display: flex; justify-content: space-between; align-items: baseline;">
+                <span style="font-family: var(--font-serif); font-size: 19px; font-weight: 500;">Kinetix Robotics</span>
+                <span class="tabular" style="font-size: 13px; font-weight: 500; color: var(--ink-muted);">5 / 5</span>
+              </div>
+              <p style="font-size: 13px; color: var(--ink-secondary); margin: 4px 0 10px; line-height: 1.45;">
+                Cooperative spatial path-planning swarm firmware built on ROS2.
+              </p>
+              <div style="display: flex; justify-content: space-between; align-items: center; font-size: 12px; color: var(--ink-muted);">
+                <span>C++, ROS2, Kinematics</span>
+                <span>Roster full</span>
+              </div>
+            </div>
+
+            <!-- Empty Search State (Hidden initially) -->
+            <div id="emptySearchState" style="display: none; padding: 48px 20px; text-align: center;">
+              <h3 style="font-size: 20px; margin-bottom: 6px;">No squads match your filter</h3>
+              <p style="font-size: 14px; color: var(--ink-secondary); margin-bottom: 16px;">
+                Try broadening your skill query or disabling the vacancies filter.
+              </p>
+              <button class="btn btn-secondary" style="height: 34px; font-size: 13px;" onclick="resetFilters()">Clear filters</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Detail Dossier Pane -->
+        <div class="detail-column">
+          <div class="dossier-wrap pane-enter" id="dossierPane">
+            <button class="btn btn-ghost mobile-back-btn" onclick="closeMobileDetail()" style="padding: 0 8px; height: 36px;">
+              &larr; All squads
+            </button>
+
+            <div style="display: flex; justify-content: space-between; align-items: start; flex-wrap: wrap; gap: 16px;">
+              <div>
+                <div style="font-size: 13px; color: var(--ink-muted); margin-bottom: 4px;">Hack4Hack 2026 &bull; Illustrative Squad</div>
+                <h2 id="dTitle" style="font-size: 32px; line-height: 1.15;">Atlas Consensus</h2>
+              </div>
+              <div style="text-align: right;">
+                <span id="dBadge" class="status-label status-warning tabular">4 / 5 filled &bull; 1 open</span>
+              </div>
+            </div>
+
+            <p id="dDesc" style="font-size: 16px; color: var(--ink-secondary); margin-top: 16px; line-height: 1.65;">
+              We are building an interactive visualizer for distributed consensus algorithms under simulated network partitions. Our goal is an intuitive educational workbench backed by genuine Raft state replication.
+            </p>
+
+            <div style="display: flex; gap: 24px; flex-wrap: wrap; margin-top: 20px; padding-bottom: 24px; border-bottom: 1px solid var(--border-subtle); font-size: 14px; color: var(--ink-secondary);">
+              <div><strong style="color: var(--ink-primary);">Looking for:</strong> <span id="dSkills">Rust, WebAssembly, Distributed Systems</span></div>
+              <div><strong style="color: var(--ink-primary);">Timezones:</strong> <span id="dTz">UTC-5 to UTC+5:30 (Async-first)</span></div>
+            </div>
+
+            <!-- Roster Section -->
+            <div style="margin-top: 28px;">
+              <h2 style="font-size: 20px; margin-bottom: 12px;">Confirmed Roster</h2>
+              <div id="dRoster">
+                <div class="member-row">
+                  <div style="display: flex; align-items: center; gap: 12px;">
+                    <span class="avatar av-pine">MP</span>
+                    <div>
+                      <div style="font-weight: 600; font-size: 15px;">Maulik P. <span style="font-size: 12px; color: var(--accent); font-weight: 600; margin-left: 6px;">Leader</span></div>
+                      <div style="font-size: 13px; color: var(--ink-secondary);">Backend &amp; Storage Engine &bull; UTC+5:30</div>
+                    </div>
+                  </div>
+                  <div style="font-size: 13px; color: var(--ink-muted);">Node.js, MongoDB</div>
+                </div>
+                <div class="member-row">
+                  <div style="display: flex; align-items: center; gap: 12px;">
+                    <span class="avatar av-ochre">SC</span>
+                    <div>
+                      <div style="font-weight: 600; font-size: 15px;">Sarah C.</div>
+                      <div style="font-size: 13px; color: var(--ink-secondary);">Interface &amp; Visual Design &bull; UTC-5</div>
+                    </div>
+                  </div>
+                  <div style="font-size: 13px; color: var(--ink-muted);">React, Typography</div>
+                </div>
+                <div class="member-row">
+                  <div style="display: flex; align-items: center; gap: 12px;">
+                    <span class="avatar av-slate">TC</span>
+                    <div>
+                      <div style="font-weight: 600; font-size: 15px;">Tom C.</div>
+                      <div style="font-size: 13px; color: var(--ink-secondary);">Consensus State Machine &bull; UTC+1</div>
+                    </div>
+                  </div>
+                  <div style="font-size: 13px; color: var(--ink-muted);">Distributed Systems</div>
+                </div>
+                <div class="member-row">
+                  <div style="display: flex; align-items: center; gap: 12px;">
+                    <span class="avatar av-clay">ER</span>
+                    <div>
+                      <div style="font-weight: 600; font-size: 15px;">Elena R.</div>
+                      <div style="font-size: 13px; color: var(--ink-secondary);">Load &amp; Fault Injection &bull; UTC-8</div>
+                    </div>
+                  </div>
+                  <div style="font-size: 13px; color: var(--ink-muted);">Go, Benchmarks</div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Deterministic Reservation Contract Box (No Optimistic Decrement) -->
+            <div class="reservation-box" id="reservationBox">
+              <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
+                <h3 style="font-size: 18px;">Join this squad</h3>
+                <span id="serverCapacityNote" class="tabular" style="font-size: 13px; color: var(--ink-secondary);">Server confirmed: 4 / 5</span>
+              </div>
+
+              <div id="actionArea" style="display: flex; gap: 12px; flex-wrap: wrap;">
+                <button class="btn btn-primary" id="joinBtn" onclick="simulateJoin()">
+                  Instant direct join
+                </button>
+                <button class="btn btn-secondary" id="reqBtn">
+                  Request to join
+                </button>
+              </div>
+
+              <div id="joinFeedback" style="display: none; margin-top: 12px; font-size: 14px; padding: 12px; border-radius: 6px;"></div>
+
+              <p style="font-size: 13px; color: var(--ink-muted); margin-top: 12px;">
+                Direct join sends an <code class="tabular" style="font-size: 12px;">Idempotency-Key</code> and awaits server confirmation (HTTP 201) without optimistic seat decrement.
+              </p>
+            </div>
+
+          </div>
+        </div>
+
+      </div>
+    </main>
+
+    <!-- Mobile Bottom Bar -->
+    <nav class="mobile-bar">
+      <a href="dashboard.html" class="mobile-nav-item">Overview</a>
+      <a href="discovery.html" class="mobile-nav-item active">Discover</a>
+      <a href="workspace.html" class="mobile-nav-item">My Squad</a>
+      <a href="login.html" class="mobile-nav-item">Account</a>
+    </nav>
+  </div>
+
+  <script>
+    const teamsData = {
+      atlas: {
+        title: "Atlas Consensus",
+        badge: "4 / 5 filled • 1 open",
+        badgeClass: "status-label status-warning tabular",
+        desc: "We are building an interactive visualizer for distributed consensus algorithms under simulated network partitions. Our goal is an intuitive educational workbench backed by genuine Raft state replication.",
+        skills: "Rust, WebAssembly, Distributed Systems",
+        tz: "UTC-5 to UTC+5:30 (Async-first)",
+        capNote: "Server confirmed: 4 / 5",
+        full: false,
+        roster: [
+          { init: "MP", cls: "av-pine", name: "Maulik P.", lead: true, role: "Backend & Storage Engine • UTC+5:30", tech: "Node.js, MongoDB" },
+          { init: "SC", cls: "av-ochre", name: "Sarah C.", lead: false, role: "Interface & Visual Design • UTC-5", tech: "React, Typography" },
+          { init: "TC", cls: "av-slate", name: "Tom C.", lead: false, role: "Consensus State Machine • UTC+1", tech: "Distributed Systems" },
+          { init: "ER", cls: "av-clay", name: "Elena R.", lead: false, role: "Load & Fault Injection • UTC-8", tech: "Go, Benchmarks" }
+        ]
+      },
+      veritas: {
+        title: "Veritas Zero-Knowledge",
+        badge: "3 / 5 filled • 2 open",
+        badgeClass: "status-label status-open tabular",
+        desc: "Browser-native private credential verification using recursive SNARK proofs. We want to make identity verification seamless and cryptographically private without external relayers.",
+        skills: "Circom, Solidity, Cryptography",
+        tz: "UTC+5:30 (Daily sync 15:00 UTC)",
+        capNote: "Server confirmed: 3 / 5",
+        full: false,
+        roster: [
+          { init: "AK", cls: "av-slate", name: "Alex K.", lead: true, role: "Circuit Architect • UTC+5:30", tech: "Circom, Rust" },
+          { init: "MN", cls: "av-moss", name: "Maya N.", lead: false, role: "Proof Optimization • UTC+5:30", tech: "Cryptography" },
+          { init: "DL", cls: "av-ochre", name: "David L.", lead: false, role: "On-chain Verifier • UTC+1", tech: "Solidity" }
+        ]
+      },
+      kinetix: {
+        title: "Kinetix Robotics",
+        badge: "5 / 5 filled • Roster full",
+        badgeClass: "status-label status-full tabular",
+        desc: "Cooperative spatial path-planning swarm firmware built on ROS2. Focused on obstacle avoidance and tight latency telemetry across indoor drones.",
+        skills: "C++, ROS2, Kinematics",
+        tz: "UTC-8 (Pacific Standard)",
+        capNote: "Server confirmed: 5 / 5 (Full)",
+        full: true,
+        roster: [
+          { init: "DK", cls: "av-ochre", name: "Dev Ken", lead: true, role: "Flight Firmware • UTC-8", tech: "C++, RTOS" },
+          { init: "AL", cls: "av-pine", name: "Alice L.", lead: false, role: "Path Planning • UTC-8", tech: "ROS2" },
+          { init: "MR", cls: "av-slate", name: "Mike R.", lead: false, role: "Sensor Fusion • UTC-8", tech: "Python, Kalman" },
+          { init: "SW", cls: "av-moss", name: "Sophia W.", lead: false, role: "Simulation • UTC-5", tech: "Gazebo" },
+          { init: "JL", cls: "av-clay", name: "James L.", lead: false, role: "Telemetry UI • UTC-8", tech: "TypeScript" }
+        ]
+      }
+    };
+
+    function selectTeam(key, el) {
+      document.querySelectorAll('.team-row').forEach(r => r.classList.remove('selected'));
+      el.classList.add('selected');
+
+      const d = teamsData[key];
+      const pane = document.getElementById('dossierPane');
+      pane.classList.remove('pane-enter');
+      void pane.offsetWidth; // trigger smooth reflow transition
+      pane.classList.add('pane-enter');
+
+      document.getElementById('dTitle').textContent = d.title;
+      const b = document.getElementById('dBadge');
+      b.textContent = d.badge;
+      b.className = d.badgeClass;
+      document.getElementById('dDesc').textContent = d.desc;
+      document.getElementById('dSkills').textContent = d.skills;
+      document.getElementById('dTz').textContent = d.tz;
+      document.getElementById('serverCapacityNote').textContent = d.capNote;
+
+      document.getElementById('dRoster').innerHTML = d.roster.map(m => `
+        <div class="member-row">
+          <div style="display: flex; align-items: center; gap: 12px;">
+            <span class="avatar ${m.cls}">${m.init}</span>
+            <div>
+              <div style="font-weight: 600; font-size: 15px;">${m.name} ${m.lead ? '<span style="font-size: 12px; color: var(--accent); font-weight: 600; margin-left: 6px;">Leader</span>' : ''}</div>
+              <div style="font-size: 13px; color: var(--ink-secondary);">${m.role}</div>
+            </div>
+          </div>
+          <div style="font-size: 13px; color: var(--ink-muted);">${m.tech}</div>
+        </div>
+      `).join('');
+
+      const joinBtn = document.getElementById('joinBtn');
+      const reqBtn = document.getElementById('reqBtn');
+      const fb = document.getElementById('joinFeedback');
+      fb.style.display = 'none';
+
+      if (d.full) {
+        joinBtn.disabled = true;
+        joinBtn.textContent = "Squad is full (5/5)";
+        reqBtn.disabled = true;
+      } else {
+        joinBtn.disabled = false;
+        joinBtn.textContent = "Instant direct join";
+        reqBtn.disabled = false;
+      }
+
+      if (window.innerWidth <= 900) {
+        document.getElementById('discoveryRoot').classList.add('mobile-show-detail');
+      }
+    }
+
+    function closeMobileDetail() {
+      document.getElementById('discoveryRoot').classList.remove('mobile-show-detail');
+    }
+
+    function filterTeams(query) {
+      const q = query.trim().toLowerCase();
+      const openOnly = document.getElementById('vacancyCheck').checked;
+      let visible = 0;
+      document.querySelectorAll('.team-row').forEach(row => {
+        const matchesText = row.dataset.name.includes(q);
+        const isFull = row.dataset.full === 'true';
+        const show = matchesText && (!openOnly || !isFull);
+        row.style.display = show ? 'block' : 'none';
+        if (show) visible++;
+      });
+      document.getElementById('teamCountLabel').textContent = visible + (visible === 1 ? " squad shown" : " squads shown");
+      document.getElementById('emptySearchState').style.display = visible === 0 ? 'block' : 'none';
+    }
+
+    function resetFilters() {
+      document.getElementById('searchInput').value = '';
+      document.getElementById('vacancyCheck').checked = false;
+      filterTeams('');
+    }
+
+    function simulateJoin() {
+      const btn = document.getElementById('joinBtn');
+      const fb = document.getElementById('joinFeedback');
+      btn.disabled = true;
+      btn.textContent = "Reserving seat (awaiting 201)...";
+      fb.style.display = 'block';
+      fb.style.backgroundColor = "var(--surface-tonal)";
+      fb.style.color = "var(--ink-secondary)";
+      fb.innerHTML = "<strong>Pending server confirmation...</strong> Seat counter remains unchanged until the database commits.";
+    }
+  </script>
+</body>
+</html>

@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { X, Users, Sparkles, AlertCircle } from "lucide-react";
+import { X, AlertCircle } from "lucide-react";
 import { apiCreateTeam, ApiClientError, type HackathonRecord, type TeamRecord } from "../lib/api";
 
 interface CreateTeamModalProps {
@@ -91,26 +91,21 @@ export const CreateTeamModal: React.FC<CreateTeamModalProps> = ({
       role="dialog"
       aria-modal="true"
       aria-labelledby="create-team-title"
-      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm animate-in fade-in duration-200"
+      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-ink-primary/40 backdrop-blur-xs pane-enter"
     >
-      <div className="bg-slate-900 border border-slate-800 rounded-2xl w-full max-w-lg overflow-hidden shadow-2xl flex flex-col max-h-[90vh]">
+      <div className="bg-surface border border-border-strong rounded-lg w-full max-w-lg overflow-hidden shadow-xl flex flex-col max-h-[90vh]">
         {/* Modal Header */}
-        <div className="flex items-center justify-between px-6 py-4 border-b border-slate-800 bg-slate-900/80">
-          <div className="flex items-center space-x-2.5">
-            <div className="p-2 bg-indigo-500/10 rounded-xl text-indigo-400 border border-indigo-500/20">
-              <Users className="w-5 h-5" />
-            </div>
-            <div>
-              <h2 id="create-team-title" className="text-lg font-bold text-white">
-                Create a New Team
-              </h2>
-              <p className="text-xs text-slate-400">Initialize team and register as leader</p>
-            </div>
+        <div className="flex items-center justify-between px-6 py-4 border-b border-border-subtle bg-surface">
+          <div>
+            <h2 id="create-team-title" className="text-xl font-serif font-medium text-ink-primary">
+              Create a New Team
+            </h2>
+            <p className="text-xs text-ink-secondary">Initialize team and register as squad leader</p>
           </div>
           <button
             onClick={onClose}
             aria-label="Close create team dialog"
-            className="text-slate-400 hover:text-white p-1 rounded-lg hover:bg-slate-800 transition-colors"
+            className="text-ink-muted hover:text-ink-primary p-1.5 rounded hover:bg-surface-tonal transition-colors cursor-pointer"
           >
             <X className="w-5 h-5" />
           </button>
@@ -119,26 +114,23 @@ export const CreateTeamModal: React.FC<CreateTeamModalProps> = ({
         {/* Modal Body */}
         <form onSubmit={handleSubmit} className="p-6 overflow-y-auto space-y-4">
           {error && (
-            <div className="p-3 bg-rose-950/60 border border-rose-800/80 rounded-xl flex items-start space-x-2 text-rose-300 text-xs">
-              <AlertCircle className="w-4 h-4 shrink-0 mt-0.5 text-rose-400" />
+            <div className="p-3 bg-danger-bg border border-[#FCA5A5] rounded flex items-start gap-2 text-danger text-xs">
+              <AlertCircle className="w-4 h-4 shrink-0 mt-0.5 text-danger" />
               <span>{error}</span>
             </div>
           )}
 
           {/* Hackathon Selection */}
           {hackathons.length > 1 && (
-            <div className="space-y-1.5">
-              <label
-                htmlFor="team-hackathon-select"
-                className="text-xs font-semibold text-slate-300"
-              >
+            <div>
+              <label htmlFor="team-hackathon-select" className="form-label">
                 Hackathon
               </label>
               <select
                 id="team-hackathon-select"
                 value={selectedHackathonId}
                 onChange={(e) => setSelectedHackathonId(e.target.value)}
-                className="w-full px-3.5 py-2.5 bg-slate-950 border border-slate-800 rounded-xl text-white text-xs focus:ring-2 focus:ring-indigo-500 focus:outline-none"
+                className="form-input text-xs"
               >
                 {hackathons.map((h) => (
                   <option key={h.id} value={h.id}>
@@ -150,98 +142,93 @@ export const CreateTeamModal: React.FC<CreateTeamModalProps> = ({
           )}
 
           {/* Team Name */}
-          <div className="space-y-1.5">
-            <label htmlFor="team-name-input" className="text-xs font-semibold text-slate-300">
-              Team Name <span className="text-rose-400">*</span>
+          <div>
+            <label htmlFor="team-name-input" className="form-label">
+              Team Name <span className="text-danger">*</span>
             </label>
             <input
               id="team-name-input"
               type="text"
               required
-              minLength={2}
-              maxLength={50}
-              placeholder="e.g. Distributed Titans"
+              placeholder="e.g. Atlas Consensus"
               value={name}
               onChange={(e) => setName(e.target.value)}
-              className="w-full px-3.5 py-2.5 bg-slate-950 border border-slate-800 rounded-xl text-white text-xs placeholder:text-slate-500 focus:ring-2 focus:ring-indigo-500 focus:outline-none"
+              className="form-input text-xs"
             />
           </div>
 
           {/* Tagline */}
-          <div className="space-y-1.5">
-            <label htmlFor="team-tagline-input" className="text-xs font-semibold text-slate-300">
+          <div>
+            <label htmlFor="team-tagline-input" className="form-label">
               Tagline
             </label>
             <input
               id="team-tagline-input"
               type="text"
-              maxLength={100}
-              placeholder="e.g. Building sub-millisecond race-proof systems"
+              placeholder="A brief one-line squad vision"
               value={tagline}
               onChange={(e) => setTagline(e.target.value)}
-              className="w-full px-3.5 py-2.5 bg-slate-950 border border-slate-800 rounded-xl text-white text-xs placeholder:text-slate-500 focus:ring-2 focus:ring-indigo-500 focus:outline-none"
+              className="form-input text-xs"
             />
           </div>
 
           {/* Max Capacity */}
-          <div className="space-y-1.5">
-            <div className="flex justify-between items-center">
-              <label
-                htmlFor="team-max-capacity-input"
-                className="text-xs font-semibold text-slate-300"
-              >
+          <div>
+            <div className="flex items-center justify-between mb-1">
+              <label htmlFor="team-capacity-input" className="form-label mb-0">
                 Max Capacity
               </label>
-              <span className="text-[11px] text-slate-400">
-                Allowed: {minAllowed}–{maxAllowed} members
+              <span className="text-[11px] text-ink-muted tabular">
+                Allowed: {minAllowed}–{maxAllowed}
               </span>
             </div>
             <input
-              id="team-max-capacity-input"
+              id="team-capacity-input"
               type="number"
               min={minAllowed}
               max={maxAllowed}
               value={maxCapacity}
               onChange={(e) => setMaxCapacity(parseInt(e.target.value, 10) || minAllowed)}
-              className="w-full px-3.5 py-2.5 bg-slate-950 border border-slate-800 rounded-xl text-white text-xs focus:ring-2 focus:ring-indigo-500 focus:outline-none"
+              className="form-input text-xs"
             />
           </div>
 
           {/* Skills Needed */}
-          <div className="space-y-1.5">
-            <label htmlFor="team-skills-input" className="text-xs font-semibold text-slate-300">
+          <div className="space-y-2">
+            <label htmlFor="team-skills-input" className="form-label mb-0">
               Skills Needed
             </label>
-            <div className="flex space-x-2">
+            <div className="flex gap-2">
               <input
                 id="team-skills-input"
                 type="text"
-                placeholder="e.g. TypeScript, Rust, Docker (press Enter)"
+                placeholder="e.g. TypeScript, Rust, Docker"
                 value={skillInput}
                 onChange={(e) => setSkillInput(e.target.value)}
                 onKeyDown={handleAddSkill}
-                className="flex-1 px-3.5 py-2 bg-slate-950 border border-slate-800 rounded-xl text-white text-xs placeholder:text-slate-500 focus:ring-2 focus:ring-indigo-500 focus:outline-none"
+                className="form-input text-xs flex-1"
               />
               <button
                 type="button"
                 onClick={handleAddSkill}
-                className="px-3 py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-medium rounded-xl transition-colors"
+                className="btn btn-secondary text-xs h-11 px-3 cursor-pointer"
               >
                 Add
               </button>
             </div>
+
             {skills.length > 0 && (
-              <div className="flex flex-wrap gap-1.5 pt-2">
-                {skills.map((s) => (
+              <div className="flex flex-wrap gap-1.5 pt-1">
+                {skills.map((skill) => (
                   <span
-                    key={s}
-                    className="inline-flex items-center space-x-1 px-2.5 py-1 bg-indigo-500/10 border border-indigo-500/20 text-indigo-300 text-[11px] font-medium rounded-lg"
+                    key={skill}
+                    className="inline-flex items-center gap-1 px-2.5 py-1 rounded bg-surface-tonal border border-border-subtle text-xs font-medium text-ink-primary"
                   >
-                    <span>{s}</span>
+                    <span>{skill}</span>
                     <button
                       type="button"
-                      onClick={() => handleRemoveSkill(s)}
-                      className="hover:text-white"
+                      onClick={() => handleRemoveSkill(skill)}
+                      className="text-ink-muted hover:text-danger cursor-pointer ml-0.5"
                     >
                       <X className="w-3 h-3" />
                     </button>
@@ -252,41 +239,36 @@ export const CreateTeamModal: React.FC<CreateTeamModalProps> = ({
           </div>
 
           {/* Description */}
-          <div className="space-y-1.5">
-            <label
-              htmlFor="team-description-input"
-              className="text-xs font-semibold text-slate-300"
-            >
-              Description
+          <div>
+            <label htmlFor="team-desc-input" className="form-label">
+              Detailed Project Description
             </label>
             <textarea
-              id="team-description-input"
+              id="team-desc-input"
               rows={3}
-              maxLength={1000}
-              placeholder="Provide context about your team goal, tech stack, and ideal collaborators..."
+              placeholder="What are you building? What architecture or stack are you planning?"
               value={description}
               onChange={(e) => setDescription(e.target.value)}
-              className="w-full px-3.5 py-2 bg-slate-950 border border-slate-800 rounded-xl text-white text-xs placeholder:text-slate-500 focus:ring-2 focus:ring-indigo-500 focus:outline-none resize-none"
+              className="form-input text-xs py-2 h-auto"
             />
           </div>
 
-          {/* Form Actions */}
-          <div className="flex items-center justify-end space-x-3 pt-4 border-t border-slate-800">
+          {/* Footer Actions */}
+          <div className="flex items-center justify-end gap-3 pt-3 border-t border-border-subtle">
             <button
               type="button"
               onClick={onClose}
               disabled={loading}
-              className="px-4 py-2.5 text-xs font-medium text-slate-400 hover:text-white transition-colors"
+              className="btn btn-secondary text-xs h-9 px-4 cursor-pointer"
             >
               Cancel
             </button>
             <button
               type="submit"
               disabled={loading}
-              className="inline-flex items-center space-x-2 px-5 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 text-white text-xs font-semibold shadow-lg shadow-indigo-600/20 transition-all cursor-pointer"
+              className="btn btn-primary text-xs h-9 px-4 cursor-pointer"
             >
-              <Sparkles className="w-3.5 h-3.5" />
-              <span>{loading ? "Creating Team..." : "Create Team"}</span>
+              {loading ? "Creating..." : "Create Team"}
             </button>
           </div>
         </form>

@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { X, Send, AlertCircle } from "lucide-react";
+import { X, AlertCircle } from "lucide-react";
 import { apiCreateJoinRequest, ApiClientError } from "../lib/api";
 
 interface JoinRequestModalProps {
@@ -45,63 +45,69 @@ export const JoinRequestModal: React.FC<JoinRequestModalProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm animate-in fade-in duration-200">
-      <div className="relative w-full max-w-md bg-slate-900 border border-slate-800 rounded-2xl shadow-2xl overflow-hidden">
-        <div className="flex items-center justify-between p-5 border-b border-slate-800">
+    <div
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="join-request-title"
+      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-ink-primary/40 backdrop-blur-xs pane-enter"
+    >
+      <div className="relative w-full max-w-md bg-surface border border-border-strong rounded-lg shadow-xl overflow-hidden">
+        <div className="flex items-center justify-between px-6 py-4 border-b border-border-subtle bg-surface">
           <div>
-            <h3 className="text-base font-bold text-white">Request to Join</h3>
-            <p className="text-xs text-slate-400 mt-0.5">{teamName}</p>
+            <h2 id="join-request-title" className="text-xl font-serif font-medium text-ink-primary">
+              Request to Join
+            </h2>
+            <p className="text-xs text-ink-secondary mt-0.5">{teamName}</p>
           </div>
           <button
             onClick={onClose}
-            className="p-1 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 transition-colors"
+            aria-label="Close request dialog"
+            className="text-ink-muted hover:text-ink-primary p-1.5 rounded hover:bg-surface-tonal transition-colors cursor-pointer"
           >
             <X className="w-5 h-5" />
           </button>
         </div>
 
-        <form onSubmit={handleSubmit} className="p-5 space-y-4">
+        <form onSubmit={handleSubmit} className="p-6 space-y-4">
           {error && (
-            <div className="p-3 bg-rose-950/50 border border-rose-800/80 rounded-xl flex items-center space-x-2 text-rose-300 text-xs">
-              <AlertCircle className="w-4 h-4 shrink-0 text-rose-400" />
+            <div className="p-3 bg-danger-bg border border-[#FCA5A5] rounded flex items-start gap-2 text-danger text-xs">
+              <AlertCircle className="w-4 h-4 shrink-0 mt-0.5 text-danger" />
               <span>{error}</span>
             </div>
           )}
 
           <div className="space-y-1.5">
-            <label htmlFor="join-message" className="block text-xs font-medium text-slate-300">
-              Introduction / Message to Leader (Optional)
+            <label htmlFor="join-message" className="form-label">
+              Application Note (Optional)
             </label>
             <textarea
               id="join-message"
-              rows={3}
-              maxLength={300}
+              rows={4}
               value={message}
               onChange={(e) => setMessage(e.target.value)}
-              placeholder="Tell the leader about your skills, role, and why you'd like to collaborate..."
-              className="w-full px-3 py-2 bg-slate-950 border border-slate-800 rounded-xl text-white text-xs placeholder:text-slate-500 focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500"
+              placeholder="Tell the leader about your skills and what you'd like to build together..."
+              className="form-input text-xs py-2 h-auto"
             />
-            <div className="text-right text-[11px] text-slate-500 font-mono">
-              {message.length}/300
-            </div>
+            <span className="text-[11px] text-ink-muted block">
+              The squad leader will review your application before admitting you to the roster.
+            </span>
           </div>
 
-          <div className="flex items-center justify-end space-x-2 pt-2">
+          <div className="flex items-center justify-end gap-3 pt-3 border-t border-border-subtle">
             <button
               type="button"
               onClick={onClose}
               disabled={loading}
-              className="px-4 py-2 text-xs font-semibold text-slate-300 hover:text-white hover:bg-slate-800 rounded-xl transition-colors"
+              className="btn btn-secondary text-xs h-9 px-4 cursor-pointer"
             >
               Cancel
             </button>
             <button
               type="submit"
               disabled={loading}
-              className="inline-flex items-center space-x-1.5 px-4 py-2 bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 text-white text-xs font-semibold rounded-xl transition-colors shadow-lg shadow-indigo-600/20"
+              className="btn btn-primary text-xs h-9 px-4 cursor-pointer"
             >
-              <Send className="w-3.5 h-3.5" />
-              <span>{loading ? "Submitting..." : "Send Request"}</span>
+              {loading ? "Sending..." : "Send Request"}
             </button>
           </div>
         </form>

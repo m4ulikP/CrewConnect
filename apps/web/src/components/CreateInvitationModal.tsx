@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { X, Copy, Check, Key, AlertCircle, ShieldAlert } from "lucide-react";
+import { X, Copy, Check, AlertCircle } from "lucide-react";
 import { apiCreateInvitation, ApiClientError } from "../lib/api";
 
 interface CreateInvitationModalProps {
@@ -67,149 +67,153 @@ export const CreateInvitationModal: React.FC<CreateInvitationModalProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm animate-in fade-in duration-200">
-      <div className="relative w-full max-w-md bg-slate-900 border border-slate-800 rounded-2xl shadow-2xl overflow-hidden">
-        <div className="flex items-center justify-between p-5 border-b border-slate-800">
+    <div
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="create-invitation-title"
+      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-ink-primary/40 backdrop-blur-xs pane-enter"
+    >
+      <div className="relative w-full max-w-md bg-surface border border-border-strong rounded-lg shadow-xl overflow-hidden">
+        <div className="flex items-center justify-between px-6 py-4 border-b border-border-subtle bg-surface">
           <div>
-            <div className="flex items-center space-x-2">
-              <Key className="w-5 h-5 text-indigo-400" />
-              <h3 className="text-base font-bold text-white">Generate Invitation Token</h3>
-            </div>
-            <p className="text-xs text-slate-400 mt-0.5">{teamName}</p>
+            <h2 id="create-invitation-title" className="text-xl font-serif font-medium text-ink-primary">
+              Generate Invitation Token
+            </h2>
+            <p className="text-xs text-ink-secondary mt-0.5">{teamName}</p>
           </div>
           <button
             onClick={handleClose}
-            className="p-1 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 transition-colors"
+            aria-label="Close invitation dialog"
+            className="text-ink-muted hover:text-ink-primary p-1.5 rounded hover:bg-surface-tonal transition-colors cursor-pointer"
           >
             <X className="w-5 h-5" />
           </button>
         </div>
 
-        {createdToken ? (
-          <div className="p-6 space-y-5">
-            <div className="p-4 bg-amber-950/40 border border-amber-800/80 rounded-2xl flex items-start space-x-3 text-amber-200 text-xs">
-              <ShieldAlert className="w-5 h-5 text-amber-400 shrink-0 mt-0.5" />
-              <div>
-                <p className="font-bold text-amber-300">Copy this token now!</p>
-                <p className="text-amber-200/80 mt-1">
-                  For cryptographic security, only the SHA-256 hash is stored in the database. This
-                  raw token is shown once and cannot be recovered after closing this window.
+        <div className="p-6 space-y-4">
+          {error && (
+            <div className="p-3 bg-danger-bg border border-[#FCA5A5] rounded flex items-start gap-2 text-danger text-xs">
+              <AlertCircle className="w-4 h-4 shrink-0 mt-0.5 text-danger" />
+              <span>{error}</span>
+            </div>
+          )}
+
+          {createdToken ? (
+            <div className="space-y-4">
+              <div className="p-4 rounded border border-[#BBF7D0] bg-positive-bg text-positive text-xs space-y-2">
+                <span className="font-semibold block">Invitation Token Generated</span>
+                <p className="text-[11px] leading-relaxed">
+                  Share this secret token with your candidate teammate. They can redeem it directly to join your squad without racing.
                 </p>
               </div>
-            </div>
 
-            <div className="space-y-1.5">
-              <label className="text-xs font-semibold text-slate-300">Secret Token</label>
-              <div className="flex items-center space-x-2">
-                <input
-                  type="text"
-                  readOnly
-                  value={createdToken}
-                  className="w-full px-3 py-2.5 bg-slate-950 border border-slate-800 rounded-xl font-mono text-xs text-emerald-400 select-all"
-                />
+              <div>
+                <label className="form-label">Single-Use Token</label>
+                <div className="flex gap-2">
+                  <input
+                    type="text"
+                    readOnly
+                    value={createdToken}
+                    className="form-input text-xs font-mono select-all flex-1"
+                  />
+                  <button
+                    type="button"
+                    onClick={handleCopy}
+                    className="btn btn-secondary text-xs h-11 px-3 cursor-pointer"
+                  >
+                    {copied ? (
+                      <>
+                        <Check className="w-3.5 h-3.5 text-positive" />
+                        <span>Copied</span>
+                      </>
+                    ) : (
+                      <>
+                        <Copy className="w-3.5 h-3.5" />
+                        <span>Copy Token</span>
+                      </>
+                    )}
+                  </button>
+                </div>
+              </div>
+
+              <div className="flex justify-end pt-3 border-t border-border-subtle">
                 <button
-                  onClick={handleCopy}
-                  className="inline-flex items-center space-x-1 px-3 py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl text-xs font-semibold transition-colors shrink-0"
+                  type="button"
+                  onClick={handleClose}
+                  className="btn btn-primary text-xs h-9 px-4 cursor-pointer"
                 >
-                  {copied ? (
-                    <Check className="w-4 h-4 text-emerald-300" />
-                  ) : (
-                    <Copy className="w-4 h-4" />
-                  )}
-                  <span>{copied ? "Copied" : "Copy"}</span>
+                  Done
                 </button>
               </div>
             </div>
+          ) : (
+            <form onSubmit={handleCreate} className="space-y-4">
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label htmlFor="max-uses" className="form-label">
+                    Max Redemptions
+                  </label>
+                  <input
+                    id="max-uses"
+                    type="number"
+                    min="1"
+                    max="10"
+                    value={maxUses}
+                    onChange={(e) => setMaxUses(Math.max(1, parseInt(e.target.value, 10) || 1))}
+                    className="form-input text-xs"
+                  />
+                </div>
 
-            <button
-              onClick={handleClose}
-              className="w-full py-2.5 bg-slate-800 hover:bg-slate-700 text-white text-xs font-semibold rounded-xl transition-colors"
-            >
-              Done
-            </button>
-          </div>
-        ) : (
-          <form onSubmit={handleCreate} className="p-5 space-y-4">
-            {error && (
-              <div className="p-3 bg-rose-950/50 border border-rose-800/80 rounded-xl flex items-center space-x-2 text-rose-300 text-xs">
-                <AlertCircle className="w-4 h-4 shrink-0 text-rose-400" />
-                <span>{error}</span>
+                <div>
+                  <label htmlFor="expires-in" className="form-label">
+                    Expiry (Hours)
+                  </label>
+                  <input
+                    id="expires-in"
+                    type="number"
+                    min="1"
+                    max="168"
+                    value={expiresInHours}
+                    onChange={(e) => setExpiresInHours(Math.max(1, parseInt(e.target.value, 10) || 24))}
+                    className="form-input text-xs"
+                  />
+                </div>
               </div>
-            )}
 
-            <div className="space-y-1.5">
-              <label htmlFor="invitee-id" className="block text-xs font-medium text-slate-300">
-                Direct Invitee User ID (Optional)
-              </label>
-              <input
-                id="invitee-id"
-                type="text"
-                placeholder="Leave blank for open invite"
-                value={inviteeId}
-                onChange={(e) => setInviteeId(e.target.value)}
-                className="w-full px-3 py-2 bg-slate-950 border border-slate-800 rounded-xl text-white text-xs focus:outline-none focus:border-indigo-500"
-              />
-              <p className="text-[11px] text-slate-500">
-                If specified, only this user ID can redeem this invitation.
-              </p>
-            </div>
+              <div>
+                <label htmlFor="invitee-id" className="form-label">
+                  Specific User ID (Optional)
+                </label>
+                <input
+                  id="invitee-id"
+                  type="text"
+                  placeholder="Leave empty for open token"
+                  value={inviteeId}
+                  onChange={(e) => setInviteeId(e.target.value)}
+                  className="form-input text-xs"
+                />
+              </div>
 
-            <div className="space-y-1.5">
-              <label htmlFor="max-uses" className="block text-xs font-medium text-slate-300">
-                Max Allowed Uses
-              </label>
-              <input
-                id="max-uses"
-                type="number"
-                min={1}
-                max={10}
-                value={maxUses}
-                onChange={(e) => setMaxUses(Number(e.target.value))}
-                className="w-full px-3 py-2 bg-slate-950 border border-slate-800 rounded-xl text-white text-xs focus:outline-none focus:border-indigo-500"
-              />
-              <p className="text-[11px] text-slate-500">
-                Default: 1 (single-use one-time invitation)
-              </p>
-            </div>
-
-            <div className="space-y-1.5">
-              <label htmlFor="expires-hours" className="block text-xs font-medium text-slate-300">
-                Valid Duration (Hours)
-              </label>
-              <input
-                id="expires-hours"
-                type="number"
-                min={1}
-                max={168}
-                value={expiresInHours}
-                onChange={(e) => setExpiresInHours(Number(e.target.value))}
-                className="w-full px-3 py-2 bg-slate-950 border border-slate-800 rounded-xl text-white text-xs focus:outline-none focus:border-indigo-500"
-              />
-              <p className="text-[11px] text-slate-500">
-                Default: 24 hours (maximum 168 hours / 7 days)
-              </p>
-            </div>
-
-            <div className="flex items-center justify-end space-x-2 pt-2">
-              <button
-                type="button"
-                onClick={handleClose}
-                disabled={loading}
-                className="px-4 py-2 text-xs font-semibold text-slate-300 hover:text-white hover:bg-slate-800 rounded-xl transition-colors"
-              >
-                Cancel
-              </button>
-              <button
-                type="submit"
-                disabled={loading}
-                className="inline-flex items-center space-x-1.5 px-4 py-2 bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 text-white text-xs font-semibold rounded-xl transition-colors shadow-lg shadow-indigo-600/20"
-              >
-                <Key className="w-3.5 h-3.5" />
-                <span>{loading ? "Generating..." : "Generate Token"}</span>
-              </button>
-            </div>
-          </form>
-        )}
+              <div className="flex items-center justify-end gap-3 pt-3 border-t border-border-subtle">
+                <button
+                  type="button"
+                  onClick={handleClose}
+                  disabled={loading}
+                  className="btn btn-secondary text-xs h-9 px-4 cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={loading}
+                  className="btn btn-primary text-xs h-9 px-4 cursor-pointer"
+                >
+                  {loading ? "Generating..." : "Generate Token"}
+                </button>
+              </div>
+            </form>
+          )}
+        </div>
       </div>
     </div>
   );

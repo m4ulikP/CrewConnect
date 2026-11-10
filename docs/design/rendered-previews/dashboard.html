@@ -1,0 +1,262 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>CrewConnect — Participant Overview</title>
+  <link rel="stylesheet" href="preview-theme.css">
+  <style>
+    .dash-container {
+      max-width: 1020px;
+      margin: 0 auto;
+      padding: var(--space-12) var(--space-8) var(--space-16);
+    }
+    .greeting-block {
+      margin-bottom: var(--space-10);
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-end;
+      flex-wrap: wrap;
+      gap: var(--space-4);
+    }
+    .greeting-title {
+      font-size: clamp(2rem, 1.5rem + 1.5vw, 2.75rem);
+      line-height: 1.1;
+    }
+    .dash-grid {
+      display: grid;
+      grid-template-columns: 7fr 5fr;
+      gap: var(--space-8);
+      align-items: start;
+    }
+    .panel {
+      background-color: var(--ground);
+      border: 1px solid var(--border-subtle);
+      border-radius: var(--radius-lg);
+      padding: var(--space-6);
+      margin-bottom: var(--space-6);
+    }
+    .panel-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: baseline;
+      margin-bottom: var(--space-4);
+    }
+    .activity-item {
+      padding: 12px 0;
+      border-bottom: 1px solid var(--border-subtle);
+      font-size: 14px;
+    }
+    .activity-item:last-child {
+      border-bottom: none;
+    }
+
+    @media (max-width: 900px) {
+      .dash-container { padding: var(--space-6) var(--space-4); }
+      .dash-grid { grid-template-columns: 1fr; gap: var(--space-6); }
+    }
+  </style>
+</head>
+<body>
+
+  <div class="app-chrome">
+    <!-- Left Navigation Rail -->
+    <aside class="chrome-sidebar">
+      <div>
+        <div style="padding: 8px 12px 24px;">
+          <a href="landing.html" class="brand-wordmark">
+            <span class="brand-dot"></span>
+            <span>CrewConnect</span>
+          </a>
+        </div>
+        <nav style="display: flex; flex-direction: column; gap: 4px;">
+          <a href="dashboard.html" class="nav-link active">Overview</a>
+          <a href="discovery.html" class="nav-link">Discover Teams</a>
+          <a href="workspace.html" class="nav-link">My Squad</a>
+        </nav>
+      </div>
+
+      <div style="padding: 12px; border-top: 1px solid var(--border-subtle); display: flex; align-items: center; gap: 10px;">
+        <span class="avatar av-pine">MP</span>
+        <div>
+          <div style="font-size: 13px; font-weight: 600;">Maulik P.</div>
+          <div style="font-size: 12px; color: var(--ink-muted);">@m4ulik</div>
+        </div>
+      </div>
+    </aside>
+
+    <!-- Top Chrome Bar -->
+    <header class="chrome-topbar">
+      <div style="display: flex; align-items: center; gap: 12px;">
+        <span style="font-size: 14px; font-weight: 600;">Overview</span>
+      </div>
+      <div style="display: flex; align-items: center; gap: 12px;">
+        <button class="btn btn-secondary" style="height: 32px; font-size: 12px; padding: 0 12px;" onclick="toggleEmptyState()">
+          Preview Empty State
+        </button>
+      </div>
+    </header>
+
+    <!-- Main Framed Sheet -->
+    <main class="app-sheet">
+      <div class="dash-container pane-enter" id="activeDashboard">
+
+        <!-- Editorial Greeting -->
+        <div class="greeting-block">
+          <div>
+            <h1 class="greeting-title">Good afternoon, Maulik</h1>
+            <p style="color: var(--ink-secondary); margin-top: 6px; font-size: 15px;">
+              Hack4Hack Crew Hiring Challenge 2026 &bull; Active recruitment window
+            </p>
+          </div>
+          <a href="discovery.html" class="btn btn-secondary">Browse all teams &rarr;</a>
+        </div>
+
+        <div class="dash-grid">
+
+          <!-- Left Column (7 cols): Squad & Pending Decisions -->
+          <div>
+            <!-- Active Squad Card -->
+            <div class="panel" style="background-color: var(--surface); border-color: var(--border-strong);">
+              <div class="panel-header">
+                <div>
+                  <span style="font-size: 12px; font-weight: 600; color: var(--accent); text-transform: uppercase; letter-spacing: 0.04em;">Your Active Squad</span>
+                  <h2 style="font-size: 26px; margin-top: 2px;">Atlas Consensus</h2>
+                </div>
+                <span class="status-label status-warning tabular">4 / 5 filled</span>
+              </div>
+
+              <p style="font-size: 15px; color: var(--ink-secondary); margin-bottom: var(--space-5);">
+                Building an interactive Raft consensus visualizer across simulated partitions. Currently seeking one final Rust or WebAssembly engineer.
+              </p>
+
+              <div style="display: flex; justify-content: space-between; align-items: center; padding-top: var(--space-4); border-top: 1px solid var(--border-subtle); flex-wrap: wrap; gap: 12px;">
+                <div style="display: flex; align-items: center; gap: 6px;">
+                  <span class="avatar av-pine" title="Maulik P. (Leader)">MP</span>
+                  <span class="avatar av-ochre" title="Sarah C.">SC</span>
+                  <span class="avatar av-slate" title="Tom C.">TC</span>
+                  <span class="avatar av-clay" title="Elena R.">ER</span>
+                  <span style="font-size: 13px; color: var(--ink-muted); margin-left: 6px;">You are Leader</span>
+                </div>
+                <a href="workspace.html" class="btn btn-primary" style="height: 36px; font-size: 13px;">Open workspace &rarr;</a>
+              </div>
+            </div>
+
+            <!-- Incoming Join Request (Leader Scope) -->
+            <div class="panel">
+              <div class="panel-header">
+                <h3 style="font-size: 20px;">Pending join inquiry</h3>
+                <span style="font-size: 13px; color: var(--ink-muted);">1 awaiting review</span>
+              </div>
+
+              <div style="background-color: var(--surface); border: 1px solid var(--border-subtle); border-radius: var(--radius-md); padding: var(--space-4);">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+                  <div style="display: flex; align-items: center; gap: 10px;">
+                    <span class="avatar av-moss">JK</span>
+                    <div>
+                      <div style="font-weight: 600; font-size: 15px;">Jason K.</div>
+                      <div style="font-size: 13px; color: var(--ink-secondary);">Rust, WebAssembly, Systems &bull; UTC-4</div>
+                    </div>
+                  </div>
+                  <span style="font-size: 12px; color: var(--ink-muted);">45m ago</span>
+                </div>
+                <p style="font-size: 14px; color: var(--ink-secondary); margin-bottom: 14px; line-height: 1.5;">
+                  "Built a custom Raft consensus harness in Rust during a previous systems workshop. Would love to take the final seat on Atlas."
+                </p>
+                <div style="display: flex; gap: 8px; justify-content: flex-end;">
+                  <button class="btn btn-ghost" style="height: 34px; font-size: 13px;">Decline</button>
+                  <button class="btn btn-primary" style="height: 34px; font-size: 13px;">Approve &amp; add to roster</button>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Right Column (5 cols): Collaborative Activity & Profile -->
+          <div>
+            <!-- Collaborative History (From Persistent Audit Logs) -->
+            <div class="panel">
+              <div class="panel-header">
+                <h3 style="font-size: 20px;">Recent squad activity</h3>
+              </div>
+              <p style="font-size: 12px; color: var(--ink-muted); margin-bottom: 12px;">
+                Persistent history from your team's immutable audit trail.
+              </p>
+
+              <div class="activity-item">
+                <div style="display: flex; justify-content: space-between; margin-bottom: 2px;">
+                  <strong>Elena R. joined Atlas Consensus</strong>
+                  <span class="tabular" style="font-size: 12px; color: var(--ink-muted);">15:22 UTC</span>
+                </div>
+                <div style="font-size: 13px; color: var(--ink-secondary);">Confirmed via atomic direct join (4 of 5 seats).</div>
+              </div>
+
+              <div class="activity-item">
+                <div style="display: flex; justify-content: space-between; margin-bottom: 2px;">
+                  <strong>Capacity adjusted to 5 seats</strong>
+                  <span class="tabular" style="font-size: 12px; color: var(--ink-muted);">15:18 UTC</span>
+                </div>
+                <div style="font-size: 13px; color: var(--ink-secondary);">Updated by squad leader Maulik P.</div>
+              </div>
+
+              <div class="activity-item">
+                <div style="display: flex; justify-content: space-between; margin-bottom: 2px;">
+                  <strong>Invitation link generated</strong>
+                  <span class="tabular" style="font-size: 12px; color: var(--ink-muted);">10:00 UTC</span>
+                </div>
+                <div style="font-size: 13px; color: var(--ink-secondary);">Single-use token <code class="tabular" style="font-size: 12px;">cc-inv-9821</code> expires in 22 hours.</div>
+              </div>
+            </div>
+
+            <!-- Hackathon Events Status -->
+            <div class="panel">
+              <h3 style="font-size: 18px; margin-bottom: 12px;">Your events</h3>
+              <div style="font-size: 14px; padding: 10px 0; border-bottom: 1px solid var(--border-subtle); display: flex; justify-content: space-between;">
+                <span>Hack4Hack 2026</span>
+                <span style="color: var(--accent); font-weight: 600;">Active</span>
+              </div>
+              <div style="font-size: 14px; padding: 10px 0; display: flex; justify-content: space-between;">
+                <span>Autonomous Agent Hack</span>
+                <span style="color: var(--ink-secondary);">Upcoming &bull; Open</span>
+              </div>
+            </div>
+          </div>
+
+        </div>
+      </div>
+
+      <!-- Empty State Preview (Hidden by Default, Toggleable) -->
+      <div class="dash-container pane-enter" id="emptyDashboard" style="display: none; text-align: center; padding-top: 100px; max-width: 580px;">
+        <h1 style="font-size: 36px; margin-bottom: 12px;">Welcome to CrewConnect, Maulik</h1>
+        <p style="font-size: 16px; color: var(--ink-secondary); margin-bottom: 32px; line-height: 1.6;">
+          You have not joined a squad yet for Hack4Hack 2026. Browse existing teams seeking your skills, or start your own squad to invite collaborators.
+        </p>
+        <div style="display: flex; gap: 14px; justify-content: center; flex-wrap: wrap;">
+          <a href="discovery.html" class="btn btn-primary" style="height: 44px; padding: 0 22px;">Explore open teams &rarr;</a>
+          <button class="btn btn-secondary" style="height: 44px; padding: 0 22px;">Create a new squad</button>
+        </div>
+        <div style="margin-top: 48px; padding-top: 24px; border-top: 1px solid var(--border-subtle); font-size: 13px; color: var(--ink-muted);">
+          Your registered skills: Node.js, MongoDB, TypeScript, React &bull; Timezone: Asia/Kolkata (UTC+5:30)
+        </div>
+      </div>
+
+    </main>
+
+    <!-- Mobile Bottom Bar -->
+    <nav class="mobile-bar">
+      <a href="dashboard.html" class="mobile-nav-item active">Overview</a>
+      <a href="discovery.html" class="mobile-nav-item">Discover</a>
+      <a href="workspace.html" class="mobile-nav-item">My Squad</a>
+      <a href="login.html" class="mobile-nav-item">Account</a>
+    </nav>
+  </div>
+
+  <script>
+    let isEmpty = false;
+    function toggleEmptyState() {
+      isEmpty = !isEmpty;
+      document.getElementById('activeDashboard').style.display = isEmpty ? 'none' : 'block';
+      document.getElementById('emptyDashboard').style.display = isEmpty ? 'block' : 'none';
+    }
+  </script>
+</body>
+</html>

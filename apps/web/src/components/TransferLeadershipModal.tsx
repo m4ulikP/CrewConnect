@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { X, ShieldAlert, AlertCircle } from "lucide-react";
+import { X, AlertCircle } from "lucide-react";
 import { apiTransferLeadership, ApiClientError, type TeamMemberRecord } from "../lib/api";
 
 interface TransferLeadershipModalProps {
@@ -65,88 +65,85 @@ export const TransferLeadershipModal: React.FC<TransferLeadershipModalProps> = (
       role="dialog"
       aria-modal="true"
       aria-labelledby="transfer-leadership-title"
-      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm animate-in fade-in duration-200"
+      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-ink-primary/40 backdrop-blur-xs pane-enter"
     >
-      <div className="bg-slate-900 border border-slate-800 rounded-2xl w-full max-w-md overflow-hidden shadow-2xl flex flex-col">
-        <div className="flex items-center justify-between px-6 py-4 border-b border-slate-800 bg-slate-900/80">
-          <div className="flex items-center space-x-2.5">
-            <div className="p-2 bg-amber-500/10 rounded-xl text-amber-400 border border-amber-500/20">
-              <ShieldAlert className="w-5 h-5" />
-            </div>
-            <div>
-              <h2 id="transfer-leadership-title" className="text-base font-bold text-white">
-                Transfer Leadership
-              </h2>
-              <p className="text-xs text-slate-400">Hand over team management authority</p>
-            </div>
+      <div className="bg-surface border border-border-strong rounded-lg w-full max-w-md overflow-hidden shadow-xl">
+        {/* Modal Header */}
+        <div className="flex items-center justify-between px-6 py-4 border-b border-border-subtle bg-surface">
+          <div>
+            <h2
+              id="transfer-leadership-title"
+              className="text-xl font-serif font-medium text-ink-primary"
+            >
+              Transfer Leadership
+            </h2>
+            <p className="text-xs text-ink-secondary">Hand over squad admin rights to a confirmed member</p>
           </div>
           <button
             onClick={onClose}
-            aria-label="Close transfer leadership dialog"
-            className="text-slate-400 hover:text-white p-1 rounded-lg hover:bg-slate-800 transition-colors"
+            aria-label="Close transfer dialog"
+            className="text-ink-muted hover:text-ink-primary p-1.5 rounded hover:bg-surface-tonal transition-colors cursor-pointer"
           >
             <X className="w-5 h-5" />
           </button>
         </div>
 
+        {/* Modal Body */}
         <form onSubmit={handleSubmit} className="p-6 space-y-4">
           {error && (
-            <div className="p-3 bg-rose-950/60 border border-rose-800/80 rounded-xl flex items-start space-x-2 text-rose-300 text-xs">
-              <AlertCircle className="w-4 h-4 shrink-0 mt-0.5 text-rose-400" />
+            <div className="p-3 bg-danger-bg border border-[#FCA5A5] rounded flex items-start gap-2 text-danger text-xs">
+              <AlertCircle className="w-4 h-4 shrink-0 mt-0.5 text-danger" />
               <span>{error}</span>
             </div>
           )}
 
-          <div className="p-3.5 bg-amber-950/30 border border-amber-800/50 rounded-xl text-xs text-amber-200 space-y-1">
-            <p className="font-semibold">Irreversible Administrative Action:</p>
-            <p className="text-amber-300/80 leading-relaxed">
-              You will be demoted to regular <strong>Member</strong>. The selected user will gain
-              full leadership permissions including team editing, member removal, and disbanding.
-            </p>
-          </div>
+          <p className="text-xs text-ink-secondary leading-relaxed">
+            Transferring leadership will demote you to a regular squad member and grant full management rights to the selected participant.
+          </p>
 
-          <div className="space-y-1.5">
-            <label htmlFor="new-leader-select" className="text-xs font-semibold text-slate-300">
-              Choose New Leader
-            </label>
-            {eligibleMembers.length === 0 ? (
-              <p className="text-xs text-slate-500 italic">
-                No other active members in the team to transfer to.
-              </p>
-            ) : (
+          {eligibleMembers.length === 0 ? (
+            <p className="text-xs text-ink-muted italic py-2">
+              No eligible members found. To transfer leadership, your squad must have other active members.
+            </p>
+          ) : (
+            <div className="space-y-2">
+              <label htmlFor="successor-select" className="form-label">
+                Select Successor
+              </label>
               <select
-                id="new-leader-select"
+                id="successor-select"
                 value={selectedUserId}
                 onChange={(e) => setSelectedUserId(e.target.value)}
-                className="w-full px-3.5 py-2.5 bg-slate-950 border border-slate-800 rounded-xl text-white text-xs focus:ring-2 focus:ring-amber-500 focus:outline-none"
+                className="form-input text-xs"
               >
                 {eligibleMembers.map((m) => {
-                  const uId = typeof m.userId === "object" ? m.userId.id : m.userId;
-                  const uName = typeof m.userId === "object" ? m.userId.displayName : uId;
-                  const uEmail = typeof m.userId === "object" ? m.userId.email : "";
+                  const mId = typeof m.userId === "object" ? m.userId.id : m.userId;
+                  const mName = typeof m.userId === "object" ? m.userId.displayName : mId;
+                  const mEmail = typeof m.userId === "object" ? m.userId.email : "";
                   return (
-                    <option key={uId} value={uId}>
-                      {uName} ({uEmail || uId})
+                    <option key={m.id} value={mId}>
+                      {mName} {mEmail ? `(${mEmail})` : ""}
                     </option>
                   );
                 })}
               </select>
-            )}
-          </div>
+            </div>
+          )}
 
-          <div className="flex items-center justify-end space-x-3 pt-4 border-t border-slate-800">
+          {/* Footer Actions */}
+          <div className="flex items-center justify-end gap-3 pt-3 border-t border-border-subtle">
             <button
               type="button"
               onClick={onClose}
               disabled={loading}
-              className="px-4 py-2 text-xs font-medium text-slate-400 hover:text-white transition-colors"
+              className="btn btn-secondary text-xs h-9 px-4 cursor-pointer"
             >
               Cancel
             </button>
             <button
               type="submit"
               disabled={loading || eligibleMembers.length === 0}
-              className="px-4 py-2 rounded-xl bg-amber-600 hover:bg-amber-500 disabled:opacity-50 text-white text-xs font-semibold shadow-lg shadow-amber-600/20 transition-all cursor-pointer"
+              className="btn btn-primary text-xs h-9 px-4 cursor-pointer"
             >
               {loading ? "Transferring..." : "Confirm Transfer"}
             </button>

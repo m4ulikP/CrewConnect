@@ -1,0 +1,351 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>CrewConnect — Hackathon Team Formation</title>
+  <link rel="stylesheet" href="preview-theme.css">
+  <style>
+    .hero-section {
+      max-width: 1200px;
+      margin: 0 auto;
+      padding: 88px var(--space-8) 72px;
+    }
+    .hero-mask {
+      overflow: hidden;
+      padding-bottom: 4px;
+    }
+    .hero-title {
+      font-family: var(--font-serif);
+      font-size: clamp(2.5rem, 1.5rem + 3.8vw, 4.25rem);
+      font-weight: 400;
+      line-height: 1.06;
+      letter-spacing: -0.03em;
+      color: var(--ink-primary);
+      max-width: 18ch;
+    }
+    .hero-title em {
+      font-style: italic;
+      color: var(--accent);
+    }
+    .hero-subrow {
+      display: grid;
+      grid-template-columns: 7fr 5fr;
+      gap: var(--space-10);
+      align-items: end;
+      margin-top: var(--space-10);
+      padding-top: var(--space-8);
+      border-top: 1px solid var(--border-subtle);
+    }
+    .hero-lead {
+      font-size: 18px;
+      line-height: 1.55;
+      color: var(--ink-secondary);
+      max-width: 54ch;
+    }
+    .hero-cta-group {
+      display: flex;
+      justify-content: flex-end;
+      align-items: center;
+      gap: var(--space-4);
+    }
+
+    /* Editorial Feature Split */
+    .editorial-band {
+      background-color: var(--surface);
+      border-top: 1px solid var(--border-subtle);
+      border-bottom: 1px solid var(--border-subtle);
+      padding: 80px var(--space-8);
+    }
+    .editorial-container {
+      max-width: 1200px;
+      margin: 0 auto;
+      display: grid;
+      grid-template-columns: 5fr 7fr;
+      gap: var(--space-16);
+      align-items: start;
+    }
+    .process-step {
+      padding: var(--space-6) 0;
+      border-bottom: 1px solid var(--border-subtle);
+    }
+    .process-step:first-child {
+      padding-top: 0;
+    }
+    .process-step:last-child {
+      border-bottom: none;
+    }
+    .step-kicker {
+      font-family: var(--font-mono);
+      font-size: 13px;
+      color: var(--accent);
+      margin-bottom: 6px;
+    }
+    .step-heading {
+      font-family: var(--font-serif);
+      font-size: 24px;
+      margin-bottom: 8px;
+    }
+
+    /* Spacious Squad Showcase Cards */
+    .squad-showcase-card {
+      background-color: var(--ground);
+      border: 1px solid var(--border-subtle);
+      border-radius: var(--radius-lg);
+      padding: var(--space-6);
+      margin-bottom: var(--space-5);
+      transition: border-color var(--dur-fast) var(--ease-out),
+                  background-color var(--dur-fast) var(--ease-out);
+      cursor: pointer;
+    }
+    .squad-showcase-card:hover {
+      border-color: var(--border-strong);
+      background-color: #FAF9F6;
+    }
+    .squad-expandable {
+      max-height: 0;
+      overflow: hidden;
+      opacity: 0;
+      transition: max-height 260ms var(--ease-out), opacity 200ms ease-out;
+    }
+    .squad-showcase-card.expanded .squad-expandable {
+      max-height: 220px;
+      opacity: 1;
+      margin-top: var(--space-4);
+      padding-top: var(--space-4);
+      border-top: 1px solid var(--border-subtle);
+    }
+
+    /* Architecture Note Band */
+    .architecture-section {
+      max-width: 1200px;
+      margin: 0 auto;
+      padding: 80px var(--space-8);
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: var(--space-12);
+      align-items: center;
+    }
+    .proof-box {
+      background-color: var(--surface);
+      border: 1px solid var(--border-subtle);
+      border-radius: var(--radius-lg);
+      padding: var(--space-8);
+    }
+    .proof-row {
+      display: flex;
+      justify-content: space-between;
+      padding: 12px 0;
+      border-bottom: 1px solid var(--border-subtle);
+      font-size: 15px;
+    }
+    .proof-row:last-child {
+      border-bottom: none;
+    }
+
+    @media (max-width: 900px) {
+      .hero-subrow { grid-template-columns: 1fr; gap: var(--space-6); }
+      .hero-cta-group { justify-content: flex-start; flex-wrap: wrap; }
+      .editorial-container { grid-template-columns: 1fr; gap: var(--space-10); }
+      .architecture-section { grid-template-columns: 1fr; gap: var(--space-8); }
+    }
+
+    @media (max-width: 600px) {
+      .site-nav { padding: 0 var(--space-4); }
+      .hero-section { padding: 48px var(--space-4) 48px; }
+      .editorial-band { padding: 48px var(--space-4); }
+      .architecture-section { padding: 48px var(--space-4); }
+      .nav-hide-mobile { display: none; }
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Quiet Editorial Header -->
+  <header class="site-nav">
+    <a href="landing.html" class="brand-wordmark">
+      <span class="brand-dot"></span>
+      <span>CrewConnect</span>
+    </a>
+    <nav style="display: flex; align-items: center; gap: 20px;">
+      <a href="discovery.html" class="nav-link nav-hide-mobile">Explore Teams</a>
+      <a href="#architecture" class="nav-link nav-hide-mobile">Architecture</a>
+      <a href="login.html" class="nav-link">Sign in</a>
+      <a href="discovery.html" class="btn btn-primary" style="height: 38px; padding: 0 16px;">Find a squad</a>
+    </nav>
+  </header>
+
+  <!-- Hero Stage -->
+  <section class="hero-section">
+    <h1 class="hero-title">
+      <div class="hero-mask"><span class="reveal-line" style="display: block;">Race-proof squads,</span></div>
+      <div class="hero-mask"><span class="reveal-line reveal-delay-1" style="display: block;">formed cleanly.</span></div>
+    </h1>
+
+    <div class="hero-subrow reveal-line reveal-delay-2">
+      <p class="hero-lead">
+        CrewConnect helps hackathon participants find balanced teammates, align on project vision, and claim open squad seats with atomic database reservation — eliminating double-bookings and phantom memberships.
+      </p>
+      <div class="hero-cta-group">
+        <a href="discovery.html" class="btn btn-primary" style="height: 46px; padding: 0 24px;">
+          Explore open teams &rarr;
+        </a>
+        <a href="register.html" class="btn btn-secondary" style="height: 46px; padding: 0 20px;">
+          Create account
+        </a>
+      </div>
+    </div>
+  </section>
+
+  <!-- Editorial Formation & Live Squad Preview -->
+  <section class="editorial-band">
+    <div class="editorial-container">
+      
+      <!-- Left: How Formation Works -->
+      <div>
+        <h2 style="font-size: 32px; line-height: 1.2; margin-bottom: var(--space-6);">Calm team collaboration</h2>
+        
+        <div class="process-step">
+          <div class="step-kicker">01 &mdash; Discovery</div>
+          <h3 class="step-heading">Find the right people</h3>
+          <p style="color: var(--ink-secondary); font-size: 15px;">
+            Filter squads across upcoming and active hackathons by technical stack, shared timezones, and remaining open positions.
+          </p>
+        </div>
+
+        <div class="process-step">
+          <div class="step-kicker">02 &mdash; Reservation</div>
+          <h3 class="step-heading">Claim or request a seat</h3>
+          <p style="color: var(--ink-secondary); font-size: 15px;">
+            Join open teams instantly via an idempotent atomic reservation, or send an introductory note to the team leader for review.
+          </p>
+        </div>
+
+        <div class="process-step">
+          <div class="step-kicker">03 &mdash; Workspace</div>
+          <h3 class="step-heading">Coordinate in real time</h3>
+          <p style="color: var(--ink-secondary); font-size: 15px;">
+            Manage member roles, generate single-use invite links, and review every roster change in a shared immutable audit trail.
+          </p>
+        </div>
+      </div>
+
+      <!-- Right: Interactive Squad Showcase (Illustrative Hack4Hack Examples) -->
+      <div>
+        <div style="display: flex; justify-content: space-between; align-items: baseline; margin-bottom: var(--space-5);">
+          <h3 style="font-size: 22px;">Teams seeking final members</h3>
+          <span style="font-size: 13px; color: var(--ink-muted);">Illustrative Hack4Hack 2026 examples &bull; Click to expand</span>
+        </div>
+
+        <!-- Interactive Card 1 -->
+        <div class="squad-showcase-card expanded" onclick="this.classList.toggle('expanded')">
+          <div style="display: flex; justify-content: space-between; align-items: start; gap: 12px;">
+            <div>
+              <h4 style="font-family: var(--font-serif); font-size: 22px; font-weight: 500;">Atlas Consensus</h4>
+              <p style="font-size: 14px; color: var(--ink-secondary); margin-top: 2px;">
+                Visualizing Raft consensus splits and recovery across simulated network partitions.
+              </p>
+            </div>
+            <span class="status-label status-warning tabular">4 / 5 filled</span>
+          </div>
+
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 16px; flex-wrap: wrap; gap: 12px;">
+            <div style="display: flex; align-items: center; gap: 8px;">
+              <span class="avatar av-pine">MP</span>
+              <span class="avatar av-ochre">SC</span>
+              <span class="avatar av-slate">TC</span>
+              <span class="avatar av-clay">ER</span>
+              <span style="font-size: 14px; color: var(--ink-secondary); margin-left: 4px;">Needs: Rust, WebAssembly</span>
+            </div>
+            <span style="font-size: 13px; color: var(--accent); font-weight: 600;">1 seat open &darr;</span>
+          </div>
+
+          <div class="squad-expandable">
+            <div style="font-size: 14px; color: var(--ink-secondary); margin-bottom: 12px;">
+              <strong>Team culture:</strong> Async-friendly across UTC-5 to UTC+5:30. Clear modular specs before coding.
+            </div>
+            <div style="display: flex; justify-content: space-between; align-items: center;">
+              <span style="font-size: 13px; color: var(--ink-muted);">Hack4Hack 2026 &bull; Registration Open</span>
+              <a href="discovery.html" class="btn btn-primary" style="height: 36px; padding: 0 14px;" onclick="event.stopPropagation()">View in directory &rarr;</a>
+            </div>
+          </div>
+        </div>
+
+        <!-- Interactive Card 2 -->
+        <div class="squad-showcase-card" onclick="this.classList.toggle('expanded')">
+          <div style="display: flex; justify-content: space-between; align-items: start; gap: 12px;">
+            <div>
+              <h4 style="font-family: var(--font-serif); font-size: 22px; font-weight: 500;">Veritas Zero-Knowledge</h4>
+              <p style="font-size: 14px; color: var(--ink-secondary); margin-top: 2px;">
+                Browser-native private credential verification using recursive SNARK proofs.
+              </p>
+            </div>
+            <span class="status-label status-open tabular">3 / 5 filled</span>
+          </div>
+
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 16px; flex-wrap: wrap; gap: 12px;">
+            <div style="display: flex; align-items: center; gap: 8px;">
+              <span class="avatar av-slate">AK</span>
+              <span class="avatar av-moss">MN</span>
+              <span class="avatar av-ochre">DL</span>
+              <span style="font-size: 14px; color: var(--ink-secondary); margin-left: 4px;">Needs: Circom, Solidity</span>
+            </div>
+            <span style="font-size: 13px; color: var(--ink-secondary); font-weight: 500;">2 seats open &darr;</span>
+          </div>
+
+          <div class="squad-expandable">
+            <div style="font-size: 14px; color: var(--ink-secondary); margin-bottom: 12px;">
+              <strong>Team culture:</strong> Paired debugging sessions daily around 15:00 UTC. Clean documentation priority.
+            </div>
+            <div style="display: flex; justify-content: space-between; align-items: center;">
+              <span style="font-size: 13px; color: var(--ink-muted);">Hack4Hack 2026 &bull; Registration Open</span>
+              <a href="discovery.html" class="btn btn-primary" style="height: 36px; padding: 0 14px;" onclick="event.stopPropagation()">View in directory &rarr;</a>
+            </div>
+          </div>
+        </div>
+
+      </div>
+
+    </div>
+  </section>
+
+  <!-- Honest Architecture Proof Section -->
+  <section class="architecture-section" id="architecture">
+    <div>
+      <h2 style="font-size: 32px; line-height: 1.2; margin-bottom: var(--space-4);">Zero race conditions</h2>
+      <p style="color: var(--ink-secondary); font-size: 16px; margin-bottom: var(--space-6);">
+        Most team builders check capacity in application memory before saving, allowing concurrent clicks to push a five-person team to six or seven members. CrewConnect anchors every join inside a MongoDB Snapshot Isolation transaction using an atomic conditional increment.
+      </p>
+      <p style="color: var(--ink-secondary); font-size: 15px;">
+        Requests carry a client-generated <code class="tabular" style="font-size: 13px; background: var(--surface-tonal); padding: 2px 6px; border-radius: 4px;">Idempotency-Key</code>. The UI never decrements seats optimistically &mdash; it awaits authoritative server confirmation (<code class="tabular" style="font-size: 13px;">HTTP 201</code>) or displays an honest conflict notice (<code class="tabular" style="font-size: 13px;">HTTP 409</code>).
+      </p>
+    </div>
+
+    <div class="proof-box">
+      <div style="font-size: 13px; font-weight: 600; color: var(--ink-muted); margin-bottom: var(--space-4);">
+        VERIFIED ENGINE GUARANTEES &amp; BENCHMARK REFERENCE
+      </div>
+      <div class="proof-row">
+        <span style="color: var(--ink-secondary);">Database Reservation Guard</span>
+        <span class="tabular" style="font-size: 13px; font-weight: 500;">$expr: { $lt: [memberCount, max] }</span>
+      </div>
+      <div class="proof-row">
+        <span style="color: var(--ink-secondary);">Atomic Counter Update</span>
+        <span class="tabular" style="font-size: 13px; font-weight: 500;">{ $inc: { memberCount: 1 } }</span>
+      </div>
+      <div class="proof-row">
+        <span style="color: var(--ink-secondary);">Transaction Retries</span>
+        <span class="tabular" style="font-size: 13px; font-weight: 500;">Driver-spec (up to 5 retries)</span>
+      </div>
+      <div class="proof-row">
+        <span style="color: var(--ink-secondary);">50-Worker Contention Benchmark*</span>
+        <span class="tabular" style="font-size: 13px; color: var(--positive); font-weight: 600;">1 Created (201) &bull; 49 Conflicts (409)</span>
+      </div>
+      <div style="font-size: 12px; color: var(--ink-muted); margin-top: 12px;">
+        *Illustrative benchmark figures verified in the repository's Autocannon/k6 burst harness.
+      </div>
+    </div>
+  </section>
+
+</body>
+</html>

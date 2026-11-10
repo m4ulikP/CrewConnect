@@ -1,89 +1,85 @@
 import React from "react";
 import { Link, useLocation } from "react-router-dom";
-import { ShieldCheck, Users, Activity, LogOut, LogIn, UserPlus, Radio } from "lucide-react";
+import { LogOut, Radio } from "lucide-react";
 import { useAuth } from "../context/AuthContext";
 import { useSocket } from "../context/SocketContext";
+import { Avatar } from "./Avatar";
 
 export const Navbar: React.FC = () => {
   const location = useLocation();
   const { user, logout, isLoading } = useAuth();
   const { connectionState } = useSocket();
 
-  const isActive = (path: string) => location.pathname === path;
+  const isActive = (path: string) =>
+    location.pathname === path || (path === "/teams-preview" && location.pathname.startsWith("/teams"));
 
   return (
-    <header className="sticky top-0 z-50 backdrop-blur-md bg-slate-950/80 border-b border-slate-800/80">
+    <header className="sticky top-0 z-50 bg-chrome/90 backdrop-blur-md border-b border-border-subtle">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
-        <Link to="/" className="flex items-center space-x-3 group">
-          <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-indigo-600 via-indigo-500 to-emerald-400 p-0.5 flex items-center justify-center shadow-lg shadow-indigo-500/20">
-            <div className="w-full h-full bg-slate-950 rounded-[10px] flex items-center justify-center">
-              <ShieldCheck className="w-5 h-5 text-indigo-400 group-hover:text-emerald-400 transition-colors" />
-            </div>
-          </div>
-          <div>
-            <span className="font-bold text-lg text-white tracking-tight">CrewConnect</span>
-            <span className="hidden sm:inline-block ml-2 text-xs font-mono px-2 py-0.5 rounded-full bg-indigo-950/80 text-indigo-300 border border-indigo-800/50">
-              PS1 Engine
-            </span>
-          </div>
+        {/* Brand */}
+        <Link to="/" className="flex items-center space-x-2.5 group">
+          <span className="w-2.5 h-2.5 rounded-full bg-accent transition-transform group-hover:scale-110" />
+          <span className="font-serif text-xl font-semibold tracking-tight text-ink-primary">
+            CrewConnect
+          </span>
+          <span className="ml-1 text-[11px] font-mono px-2 py-0.5 rounded bg-surface border border-border-subtle text-ink-secondary">
+            PS1 Engine
+          </span>
         </Link>
 
+        {/* Primary Navigation */}
         <nav className="flex items-center space-x-1 sm:space-x-2">
           <Link
             to="/"
-            className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
+            className={`px-3 py-1.5 rounded-md text-xs sm:text-sm font-medium transition-colors ${
               isActive("/")
-                ? "bg-slate-800 text-white shadow-sm"
-                : "text-slate-400 hover:text-slate-200 hover:bg-slate-900"
+                ? "bg-surface text-ink-primary shadow-xs border border-border-subtle"
+                : "text-ink-secondary hover:text-ink-primary hover:bg-surface/60"
             }`}
           >
-            <span className="flex items-center space-x-1.5">
-              <Activity className="w-4 h-4 text-emerald-400" />
-              <span>Platform</span>
-            </span>
+            <span>Platform</span>
           </Link>
           <Link
             to="/teams-preview"
-            className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
+            className={`px-3 py-1.5 rounded-md text-xs sm:text-sm font-medium transition-colors ${
               isActive("/teams-preview")
-                ? "bg-slate-800 text-white shadow-sm"
-                : "text-slate-400 hover:text-slate-200 hover:bg-slate-900"
+                ? "bg-surface text-ink-primary shadow-xs border border-border-subtle"
+                : "text-ink-secondary hover:text-ink-primary hover:bg-surface/60"
             }`}
           >
-            <span className="flex items-center space-x-1.5">
-              <Users className="w-4 h-4 text-indigo-400" />
-              <span>Team Discovery</span>
-            </span>
+            <span>Team Discovery</span>
           </Link>
         </nav>
 
+        {/* Right Actions */}
         <div className="flex items-center space-x-3">
           {isLoading ? (
-            <div className="w-6 h-6 border-2 border-emerald-500 border-t-transparent rounded-full animate-spin" />
+            <div className="w-5 h-5 border-2 border-accent border-t-transparent rounded-full animate-spin" />
           ) : user ? (
             <div className="flex items-center space-x-3">
+              {/* Real-time Socket status badge */}
               <div
                 title={`Real-time status: ${connectionState}`}
                 aria-label={`Real-time status: ${connectionState}`}
                 data-testid="realtime-status-badge"
-                className={`hidden sm:flex items-center space-x-1.5 px-2.5 py-1 rounded-full text-[11px] font-medium border ${
+                className={`hidden sm:flex items-center space-x-1.5 px-2.5 py-1 rounded text-[11px] font-medium border ${
                   connectionState === "connected"
-                    ? "bg-emerald-950/60 border-emerald-800/60 text-emerald-300"
+                    ? "bg-positive-bg text-positive border-[#BBF7D0]"
                     : connectionState === "reconnecting" || connectionState === "connecting"
-                      ? "bg-amber-950/60 border-amber-800/60 text-amber-300"
-                      : "bg-slate-900 border-slate-800 text-slate-400"
+                      ? "bg-warning-bg text-warning border-[#FDE68A]"
+                      : "bg-surface-tonal text-ink-muted border-border-subtle"
                 }`}
               >
                 <Radio
                   className={`w-3 h-3 ${
                     connectionState === "connected"
-                      ? "text-emerald-400 animate-pulse"
+                      ? "text-positive"
                       : connectionState === "reconnecting" || connectionState === "connecting"
-                        ? "text-amber-400 animate-spin"
-                        : "text-slate-500"
+                        ? "text-warning animate-spin"
+                        : "text-ink-muted"
                   }`}
                 />
-                <span>
+                <span className="tabular">
                   {connectionState === "connected"
                     ? "Live"
                     : connectionState === "reconnecting" || connectionState === "connecting"
@@ -91,23 +87,24 @@ export const Navbar: React.FC = () => {
                       : "Offline"}
                 </span>
               </div>
+
+              {/* Profile Shortcut */}
               <Link
                 to="/profile"
-                className="flex items-center space-x-2 px-3 py-1.5 rounded-lg bg-slate-900 border border-slate-800 hover:border-slate-700 transition-colors group"
+                className="flex items-center space-x-2 p-1 pr-2.5 rounded-md bg-surface border border-border-subtle hover:border-border-control transition-colors"
               >
-                <div className="w-6 h-6 rounded-full bg-emerald-500/20 text-emerald-400 flex items-center justify-center text-xs font-bold">
-                  {user.displayName.charAt(0).toUpperCase()}
-                </div>
-                <span className="text-xs font-medium text-slate-200 group-hover:text-white">
+                <Avatar name={user.displayName} size="sm" />
+                <span className="text-xs font-medium text-ink-primary hidden md:inline">
                   {user.displayName}
                 </span>
               </Link>
+
+              {/* Sign out */}
               <button
-                type="button"
                 onClick={() => logout()}
+                title="Sign out"
                 aria-label="Sign out"
-                className="p-1.5 rounded-lg text-slate-400 hover:text-rose-400 hover:bg-slate-900 transition-colors"
-                title="Sign Out"
+                className="p-2 rounded-md text-ink-secondary hover:text-ink-primary hover:bg-surface transition-colors cursor-pointer"
               >
                 <LogOut className="w-4 h-4" />
               </button>
@@ -116,17 +113,15 @@ export const Navbar: React.FC = () => {
             <div className="flex items-center space-x-2">
               <Link
                 to="/login"
-                className="flex items-center space-x-1 px-3 py-1.5 rounded-lg text-xs font-semibold text-slate-300 hover:text-white hover:bg-slate-900 transition-colors"
+                className="px-3 py-1.5 text-xs sm:text-sm font-medium text-ink-secondary hover:text-ink-primary transition-colors"
               >
-                <LogIn className="w-3.5 h-3.5" />
-                <span>Sign In</span>
+                Sign In
               </Link>
               <Link
                 to="/register"
-                className="flex items-center space-x-1 px-3.5 py-1.5 rounded-lg text-xs font-semibold bg-emerald-500 hover:bg-emerald-400 text-slate-950 shadow-sm transition-all focus:outline-none focus:ring-2 focus:ring-emerald-400"
+                className="btn btn-primary text-xs h-8 px-3.5"
               >
-                <UserPlus className="w-3.5 h-3.5" />
-                <span>Register</span>
+                Find a squad
               </Link>
             </div>
           )}

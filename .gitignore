@@ -60,3 +60,6 @@ temp/
 # Load test outputs
 k6-results/
 autocannon-results/
+
+# Skill caches
+.taste-skill/
