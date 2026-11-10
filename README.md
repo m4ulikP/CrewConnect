@@ -87,8 +87,82 @@ All engineering specifications, design trade-offs, and architecture decisions ar
 - [x] **Phase 5: Race-Proof Membership and Idempotency Engine** _(Completed & Approved — 50-Concurrent-Requests Capacity Engine)_
 - [x] **Phase 5.1 & 5.2: Correctness Fixes & CI Pipeline Repair** _(Completed & Approved)_
 - [x] **Phase 6 & 6.1: Real-Time Event Dispatching, Room Revocation, Challenge-Scale Load Testing & Safe Cleanup** _(Completed — Socket.IO Room Eviction, 10k-Participant / 2k-Team Dataset @ 739.7 req/sec, Discovery p95 = 165.5ms, Scoped Cleanup Safety, Evaluator Demo Guide)_
-- [ ] **Phase 7: Production Hardening, Performance Tuning & Deployment Verification**
+- [x] **Phase 7: Production Hardening, Performance Tuning & Deployment Verification** _(Completed — Regex injection & ReDoS neutralized, tiered rate limiting, cookie & CORS origin hardening, liveness/readiness health probes, auto-index sync on startup, multi-stage production Dockerfiles, Render blueprint & deployment guide)_
 - [ ] **Phase 8: Final Submission & Evaluator Handover**
+
+---
+
+## 🛡️ Production Security & Hardening Controls (Phase 7)
+
+CrewConnect enforces defense-in-depth security across every layer of the application:
+
+1. **Authentication & Session Tokens**:
+   - Argon2id password hashing (64MB memory, 3 iterations, 1 thread, 16-byte cryptographically secure random salt).
+   - Dummy Argon2id timing attack mitigation on failed login attempts to prevent user enumeration.
+   - JWT issued exclusively via `httpOnly`, `SameSite=Lax` cookies (no storage in `localStorage` or response bodies).
+   - Atomic session revocation via `tokenVersion` counter incrementing.
+2. **Mandatory Production Secrets**:
+   - Development fallback secrets are rejected at startup in `NODE_ENV=production`. If `JWT_SECRET` is unset or equals the dev default, the server fails safely and refuses to start.
+3. **ReDoS & MongoDB Query Injection Defense**:
+   - All user-supplied search parameters and team names are sanitized via `escapeRegex()` before `$regex` evaluation, neutralizing catastrophic backtracking and syntax exceptions.
+4. **Dual-Tiered Rate Limiting**:
+   - General API limiter (`RATE_LIMIT_MAX_REQUESTS` per `RATE_LIMIT_WINDOW_MS`) on all `/api/v1/*` routes.
+   - User-fenced join rate limiter (`JOIN_RATE_LIMIT_MAX_REQUESTS` per minute) on sensitive race endpoints (`/teams/:id/join`, `/invitations/accept`, `/join-requests`).
+5. **CSRF & CORS Hardening**:
+   - OWASP Origin and Referer validation on all cookie-authenticated state-changing requests.
+   - Environment-aware CORS configuration restricting origins to `CLIENT_URL` in production.
+6. **Container Liveness & Readiness Probes**:
+   - `GET /health/live`: Fast process liveness check for orchestrator restarts.
+   - `GET /health/ready`: Deep container readiness check validating database connectivity and replica set election state.
+7. **Automatic Database Index Synchronization**:
+   - `syncAllIndexes()` executes upon server startup, automatically verifying all unique, compound sort, and TTL indexes before traffic is served.
+
+---
+
+## 🏃 Quickstart & Local Development
+
+### 1. Start MongoDB Replica Set
+
+```bash
+docker compose up -d
+npx tsx scripts/verify-replica-set.ts
+```
+
+### 2. Install Dependencies & Build Packages
+
+```bash
+npm install
+npm run build:shared
+```
+
+### 3. Start Local Development Servers
+
+```bash
+npm run dev
+```
+
+- Frontend Web App: [http://localhost:5173](http://localhost:5173)
+- Backend REST API: [http://localhost:5000/api/v1](http://localhost:5000/api/v1)
+- Health Check: [http://localhost:5000/health](http://localhost:5000/health)
+
+---
+
+## 🚢 Production Deployment
+
+For complete multi-provider cloud guides (Render, Railway, AWS ECS, Self-Hosted Docker), see **[`docs/deployment.md`](./docs/deployment.md)**.
+
+### Running Production Stack Locally via Docker Compose
+
+```bash
+docker compose -f docker-compose.prod.yml up -d --build
+```
+
+---
+
+## ⚠️ Known Limitations & Best-Effort Semantics
+
+1. **In-Memory Event Dispatcher (Best-Effort Delivery)**: Socket.IO events are dispatched strictly after MongoDB transaction commits. If a node process terminates after the commit but before network socket emit, events are not resent. Clients use REST resynchronization (`wasDisconnectedRef` in `useSocket`) upon reconnection.
+2. **Single-Node Rate Limiter**: The in-memory rate limiter tracks timestamps in process memory. For horizontally scaled multi-instance deployments behind a load balancer, a Redis-backed token bucket (e.g., `rate-limiter-flexible`) can be connected without altering route handlers.
 
 ---
 

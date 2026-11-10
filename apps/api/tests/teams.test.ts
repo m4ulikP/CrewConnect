@@ -1081,4 +1081,89 @@ describe("Team Lifecycle & Management Integration Tests", () => {
       expect(dbTeam?.memberCount).toBe(3);
     });
   });
+
+  // -------------------------------------------------------------
+  // 10. Phase 7: Regex Injection & ReDoS Hardening
+  // -------------------------------------------------------------
+  describe("Phase 7: Query Regex Injection & ReDoS Protection", () => {
+    it("safely handles team creation and duplicate checks with regex metacharacters", async () => {
+      const specialName = "C++ [Architects] (2026).*+";
+
+      // 1. Create team with regex metacharacters in name
+      const createRes = await request(app)
+        .post(`/api/v1/hackathons/${testHackathonId}/teams`)
+        .set("Cookie", leaderCookie)
+        .set("Origin", TEST_ORIGIN)
+        .send({ name: specialName, tagline: "High-performance systems" });
+
+      expect(createRes.status).toBe(201);
+      expect(createRes.body.data.team.name).toBe(specialName);
+
+      // 2. Attempt duplicate creation with same special name (different casing) -> 409 TEAM_NAME_TAKEN
+      const dupeRes = await request(app)
+        .post(`/api/v1/hackathons/${testHackathonId}/teams`)
+        .set("Cookie", outsiderCookie)
+        .set("Origin", TEST_ORIGIN)
+        .send({ name: "c++ [architects] (2026).*+" });
+
+      expect(dupeRes.status).toBe(409);
+      expect(dupeRes.body.error.code).toBe("TEAM_NAME_TAKEN");
+    });
+
+    it("safely searches teams using unescaped regex metacharacters without server error", async () => {
+      // Query with regex metacharacters: `(`, `[`, `*`, `+`
+      const searchRes = await request(app)
+        .get(`/api/v1/hackathons/${testHackathonId}/teams?search=(`)
+        .set("Origin", TEST_ORIGIN);
+
+      expect(searchRes.status).toBe(200);
+      expect(searchRes.body.success).toBe(true);
+      expect(Array.isArray(searchRes.body.data)).toBe(true);
+
+      const complexSearch = await request(app)
+        .get(
+          `/api/v1/hackathons/${testHackathonId}/teams?search=` +
+            encodeURIComponent(".*+?^${}()|[]\\")
+        )
+        .set("Origin", TEST_ORIGIN);
+
+      expect(complexSearch.status).toBe(200);
+      expect(complexSearch.body.success).toBe(true);
+    });
+
+    it("enforces join rate limiting and returns 429 when threshold exceeded with x-test-rate-limit", async () => {
+      const targetTeam = await Team.create({
+        hackathonId: testHackathonId,
+        leaderId: leaderUser.id,
+        name: "Rate Limited Team",
+        maxCapacity: 4,
+        memberCount: 1,
+        isOpen: true,
+        status: "ACTIVE",
+      });
+
+      // Send 10 requests to trigger rate limit (env default max = 10)
+      for (let i = 0; i < 10; i++) {
+        await request(app)
+          .post(`/api/v1/teams/${targetTeam._id}/join`)
+          .set("Cookie", memberCookie)
+          .set("Origin", TEST_ORIGIN)
+          .set("Idempotency-Key", `rate-key-${i}`)
+          .set("x-test-rate-limit", "true");
+      }
+
+      // The 11th request must be rejected with 429 RATE_LIMITED
+      const throttled = await request(app)
+        .post(`/api/v1/teams/${targetTeam._id}/join`)
+        .set("Cookie", memberCookie)
+        .set("Origin", TEST_ORIGIN)
+        .set("Idempotency-Key", "rate-key-11")
+        .set("x-test-rate-limit", "true");
+
+      expect(throttled.status).toBe(429);
+      expect(throttled.body.success).toBe(false);
+      expect(throttled.body.error.code).toBe("RATE_LIMITED");
+      expect(throttled.headers["retry-after"]).toBeDefined();
+    });
+  });
 });

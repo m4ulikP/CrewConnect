@@ -370,3 +370,61 @@ To prevent double-execution, stale worker updates, and zombie transaction commit
      ```
    - **Fencing Protection**: If the original worker stalled for $> 30\text{ seconds}$ and another worker reclaimed the lease, the `ownerToken` will not match. The query returns `null`, throwing `409 LEASE_LOST`.
    - This immediately rolls back the business transaction, mathematically preventing zombie commits from ever corrupting team capacity or roster state.
+
+---
+
+## 8. Production Hardening, Security & Operational Reliability (Phase 7)
+
+### 1. Defense-in-Depth Security Controls
+
+```
+                        ┌────────────────────────────────────────────────────────┐
+                        │              Internet Request / Client                 │
+                        └───────────────────────────┬────────────────────────────┘
+                                                    │
+                                                    ▼
+                       ┌─────────────────────────────────────────────────────────┐
+                       │ 1. Helmet Security Headers & Cross-Origin Resource Policy│
+                       └────────────────────────────┬────────────────────────────┘
+                                                    │
+                                                    ▼
+                       ┌─────────────────────────────────────────────────────────┐
+                       │ 2. Environment-Aware Strict CORS (Production Whitelist) │
+                       └────────────────────────────┬────────────────────────────┘
+                                                    │
+                                                    ▼
+                       ┌─────────────────────────────────────────────────────────┐
+                       │ 3. State-Changing CSRF Origin / Referer Validation      │
+                       └────────────────────────────┬────────────────────────────┘
+                                                    │
+                                                    ▼
+                       ┌─────────────────────────────────────────────────────────┐
+                       │ 4. Tiered Rate Limiting (General IP + User-Fenced Join) │
+                       └────────────────────────────┬────────────────────────────┘
+                                                    │
+                                                    ▼
+                       ┌─────────────────────────────────────────────────────────┐
+                       │ 5. Payload Validation & Sanitized ReDoS-Safe MongoDB Qs │
+                       └────────────────────────────┬────────────────────────────┘
+                                                    │
+                                                    ▼
+                       ┌─────────────────────────────────────────────────────────┐
+                       │ 6. ACID Transaction Execution with Commit Retries       │
+                       └─────────────────────────────────────────────────────────┘
+```
+
+1. **Mandatory Production Secrets**:
+   - `JWT_SECRET` must not use development fallback values when `NODE_ENV=production`. Enforced at startup via Zod superRefine validation.
+2. **ReDoS & Query Injection Neutralization**:
+   - All dynamic string inputs passed to MongoDB `$regex` expressions are escaped via `escapeRegex(str)`. Metacharacters (`.*+?^${}()|[]\`) cannot trigger catastrophic backtracking or regular expression syntax exceptions.
+3. **Dual-Tiered Rate Limiting**:
+   - **General API Limiter**: Enforces max request thresholds across all `/api/v1/*` routes.
+   - **Sensitive Action Limiter**: Fenced by authenticated `userId` (or client IP for unauthenticated requests) to protect race endpoints (`/teams/:id/join`, `/invitations/accept`, `/join-requests`).
+4. **Socket.IO Real-Time Authorization & Room Eviction**:
+   - Double-checked join-then-reverify authorization flow in `join:team` prevents race conditions where a user joins a room after being removed.
+   - Server-side eviction (`socketsLeave`) proactively purges disconnected sockets from team rooms upon member removal, departure, or team disbanding.
+5. **Operational Probes**:
+   - `/health/live`: Lightweight process liveness verification for orchestrator restarts.
+   - `/health/ready`: Deep readiness probe checking MongoDB connection pool readiness and replica set election state.
+6. **Automatic Index Synchronization**:
+   - `syncAllIndexes()` executes upon server startup, guaranteeing all compound sort indexes, unique partial indexes, and TTL expiration indexes exist before requests are served.

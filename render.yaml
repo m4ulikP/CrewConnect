@@ -1,0 +1,55 @@
+services:
+  # CrewConnect Node.js / Express / Socket.IO API Web Service
+  - type: web
+    name: crewconnect-api
+    runtime: node
+    plan: starter
+    region: oregon
+    buildCommand: npm ci && npm run build:shared && npm run build --workspace=@crewconnect/api
+    startCommand: node apps/api/dist/server.js
+    healthCheckPath: /health/ready
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: 5000
+      - key: CLIENT_URL
+        sync: false
+      - key: MONGODB_URI
+        sync: false
+      - key: MONGODB_DB_NAME
+        value: crewconnect
+      - key: JWT_SECRET
+        generateValue: true
+      - key: JWT_EXPIRES_IN
+        value: 1d
+      - key: COOKIE_SECURE
+        value: "true"
+      - key: COOKIE_SAME_SITE
+        value: lax
+      - key: RATE_LIMIT_WINDOW_MS
+        value: 900000
+      - key: RATE_LIMIT_MAX_REQUESTS
+        value: 100
+      - key: JOIN_RATE_LIMIT_WINDOW_MS
+        value: 60000
+      - key: JOIN_RATE_LIMIT_MAX_REQUESTS
+        value: 10
+
+  # CrewConnect Vite React Single-Page Application
+  - type: web
+    name: crewconnect-web
+    runtime: static
+    plan: starter
+    region: oregon
+    buildCommand: npm ci && npm run build:shared && npm run build --workspace=@crewconnect/web
+    staticPublishPath: apps/web/dist
+    routes:
+      - type: rewrite
+        source: /*
+        destination: /index.html
+    envVars:
+      - key: VITE_API_URL
+        sync: false
+      - key: VITE_SOCKET_URL
+        sync: false

@@ -1,8 +1,21 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, beforeAll, afterAll } from "vitest";
 import request from "supertest";
 import { app } from "../src/app.js";
+import { connectToDatabase, disconnectDatabase } from "../src/db/connection.js";
 
 describe("Health Check API", () => {
+  beforeAll(async () => {
+    try {
+      await connectToDatabase();
+    } catch {
+      // Allow disconnected testing if DB is offline
+    }
+  });
+
+  afterAll(async () => {
+    await disconnectDatabase();
+  });
+
   it("GET /health returns 200 with status ok and uptime", async () => {
     const response = await request(app).get("/health");
 
@@ -19,6 +32,22 @@ describe("Health Check API", () => {
 
     expect(response.status).toBe(200);
     expect(response.body.status).toBe("ok");
+  });
+
+  it("GET /health/live returns 200 for process liveness probes", async () => {
+    const response = await request(app).get("/health/live");
+
+    expect(response.status).toBe(200);
+    expect(response.body).toHaveProperty("status", "ok");
+    expect(response.body).toHaveProperty("uptime");
+  });
+
+  it("GET /health/ready returns 200 for container readiness probes when DB is reachable", async () => {
+    const response = await request(app).get("/health/ready");
+
+    expect(response.status).toBe(200);
+    expect(response.body).toHaveProperty("status", "ok");
+    expect(response.body.database).toHaveProperty("connected", true);
   });
 
   it("GET /api/v1 returns 200 with API version information", async () => {

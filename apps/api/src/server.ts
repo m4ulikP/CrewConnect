@@ -2,6 +2,7 @@ import http from "http";
 import { app } from "./app.js";
 import { env } from "./config/env.js";
 import { connectToDatabase, disconnectDatabase } from "./db/connection.js";
+import { syncAllIndexes } from "./models/index.js";
 import { initSocketServer, closeSocketServer } from "./realtime/index.js";
 
 const server = http.createServer(app);
@@ -13,6 +14,8 @@ async function startServer(): Promise<void> {
     try {
       await connectToDatabase();
       console.log(`Connected to MongoDB at ${env.MONGODB_URI}`);
+      await syncAllIndexes();
+      console.log("Database indexes verified and synchronized.");
     } catch (dbError) {
       console.warn(
         "Could not connect to MongoDB on startup. Server running in disconnected mode. Error:",

@@ -8,6 +8,7 @@ import { AuditLog, Membership } from "../models/index.js";
 import { requireAuth } from "../middleware/auth.js";
 import { validateBody } from "../middleware/validate.js";
 import { idempotency } from "../middleware/idempotency.js";
+import { joinRateLimiter } from "../middleware/rateLimiter.js";
 import {
   UpdateTeamSchema,
   TransferLeadershipSchema,
@@ -65,6 +66,7 @@ teamsRouter.get(
 teamsRouter.post(
   "/:id/join",
   requireAuth,
+  joinRateLimiter,
   idempotency({ required: true, endpoint: "POST /api/v1/teams/:id/join" }),
   async (req: Request, res: Response, next: NextFunction): Promise<void> => {
     try {
@@ -318,6 +320,7 @@ teamsRouter.get(
 teamsRouter.post(
   "/:id/join-requests",
   requireAuth,
+  joinRateLimiter,
   validateBody(CreateJoinRequestSchema),
   async (req: Request, res: Response, next: NextFunction): Promise<void> => {
     try {
@@ -452,6 +455,7 @@ teamsRouter.delete(
 teamsRouter.post(
   "/:id/invitations",
   requireAuth,
+  joinRateLimiter,
   validateBody(CreateInvitationSchema),
   async (req: Request, res: Response, next: NextFunction): Promise<void> => {
     try {

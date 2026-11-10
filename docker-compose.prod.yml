@@ -1,0 +1,108 @@
+services:
+  mongodb:
+    image: mongo:7.0
+    container_name: crewconnect-prod-mongodb
+    restart: unless-stopped
+    command: ["mongod", "--replSet", "rs0", "--bind_ip_all", "--port", "27017"]
+    ports:
+      - "27017:27017"
+    volumes:
+      - prod-mongo-data:/data/db
+    healthcheck:
+      test: ["CMD-SHELL", "mongosh --port 27017 --eval 'db.adminCommand({ ping: 1 })' --quiet"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 5s
+    networks:
+      - crewconnect-net
+
+  mongo-init:
+    image: mongo:7.0
+    container_name: crewconnect-prod-mongo-init
+    restart: "no"
+    depends_on:
+      mongodb:
+        condition: service_healthy
+    entrypoint:
+      - mongosh
+      - --host
+      - mongodb:27017
+      - --eval
+      - |
+        try {
+          const status = rs.status();
+          if (status.ok === 1) {
+            print("Replica set rs0 is healthy.");
+          }
+        } catch (e) {
+          print("Initiating replica set rs0...");
+          rs.initiate({
+            _id: "rs0",
+            members: [{ _id: 0, host: "mongodb:27017" }]
+          });
+        }
+    networks:
+      - crewconnect-net
+
+  api:
+    build:
+      context: .
+      dockerfile: apps/api/Dockerfile
+    container_name: crewconnect-prod-api
+    restart: unless-stopped
+    depends_on:
+      mongodb:
+        condition: service_healthy
+    environment:
+      NODE_ENV: production
+      PORT: 5000
+      CLIENT_URL: http://localhost:80
+      MONGODB_URI: mongodb://mongodb:27017/crewconnect?replicaSet=rs0
+      MONGODB_DB_NAME: crewconnect
+      JWT_SECRET: ${JWT_SECRET:-production_jwt_secret_must_be_set_in_production_env_file_32_chars!}
+      JWT_EXPIRES_IN: 1d
+      COOKIE_SECURE: "false"
+      COOKIE_SAME_SITE: "lax"
+      RATE_LIMIT_WINDOW_MS: 900000
+      RATE_LIMIT_MAX_REQUESTS: 100
+      JOIN_RATE_LIMIT_WINDOW_MS: 60000
+      JOIN_RATE_LIMIT_MAX_REQUESTS: 10
+    ports:
+      - "5000:5000"
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:5000/health/live"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+    networks:
+      - crewconnect-net
+
+  web:
+    build:
+      context: .
+      dockerfile: apps/web/Dockerfile
+    container_name: crewconnect-prod-web
+    restart: unless-stopped
+    depends_on:
+      api:
+        condition: service_healthy
+    ports:
+      - "80:80"
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:80/"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+      start_period: 5s
+    networks:
+      - crewconnect-net
+
+volumes:
+  prod-mongo-data:
+    name: crewconnect-prod-mongo-data
+
+networks:
+  crewconnect-net:
+    driver: bridge

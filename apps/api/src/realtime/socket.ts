@@ -68,9 +68,16 @@ export function initSocketServer(
   httpServer: http.Server,
   options: InitSocketServerOptions = {}
 ): SocketIOServer {
+  const socketAllowedOrigins =
+    env.NODE_ENV === "production"
+      ? [env.CLIENT_URL.replace(/\/$/, "")]
+      : [env.CLIENT_URL, "http://localhost:5173", "http://localhost:3000"].map((o) =>
+          o.replace(/\/$/, "")
+        );
+
   io = new SocketIOServer(httpServer, {
     cors: {
-      origin: [env.CLIENT_URL, "http://localhost:5173", "http://localhost:3000"],
+      origin: socketAllowedOrigins,
       credentials: true,
       methods: ["GET", "POST"],
     },

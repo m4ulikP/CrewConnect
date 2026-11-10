@@ -35,6 +35,14 @@ export interface TeamWithLeader {
   updatedAt: string;
 }
 
+/**
+ * Escapes special regular expression metacharacters to eliminate
+ * Regular Expression Denial of Service (ReDoS) and query injection risks.
+ */
+export function escapeRegex(str: string): string {
+  return str.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
 export class TeamService {
   /**
    * Atomically creates a team and its initial leader membership within a single MongoDB transaction.
@@ -85,10 +93,10 @@ export class TeamService {
       );
     }
 
-    // Pre-check for unique team name within hackathon
+    // Pre-check for unique team name within hackathon (sanitized against ReDoS)
     const existingTeam = await Team.findOne({
       hackathonId,
-      name: { $regex: new RegExp(`^${input.name.trim()}$`, "i") },
+      name: { $regex: new RegExp(`^${escapeRegex(input.name.trim())}$`, "i") },
     });
     if (existingTeam) {
       throw AppError.conflict(
@@ -264,10 +272,10 @@ export class TeamService {
     }
 
     if (options.search) {
-      const term = options.search.trim();
+      const sanitizedTerm = escapeRegex(options.search.trim());
       query.$or = [
-        { name: { $regex: term, $options: "i" } },
-        { tagline: { $regex: term, $options: "i" } },
+        { name: { $regex: sanitizedTerm, $options: "i" } },
+        { tagline: { $regex: sanitizedTerm, $options: "i" } },
       ];
     }
 
@@ -361,7 +369,7 @@ export class TeamService {
         const existingName = await Team.findOne({
           hackathonId: team.hackathonId,
           _id: { $ne: team._id },
-          name: { $regex: new RegExp(`^${trimmedName}$`, "i") },
+          name: { $regex: new RegExp(`^${escapeRegex(trimmedName)}$`, "i") },
         });
         if (existingName) {
           throw AppError.conflict(

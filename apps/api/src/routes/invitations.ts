@@ -2,6 +2,7 @@ import { Router, type Request, type Response, type NextFunction } from "express"
 import { InvitationService } from "../services/invitation.service.js";
 import { requireAuth } from "../middleware/auth.js";
 import { idempotency } from "../middleware/idempotency.js";
+import { joinRateLimiter } from "../middleware/rateLimiter.js";
 import { AppError } from "../errors/AppError.js";
 import { ERROR_CODES } from "@crewconnect/shared";
 
@@ -14,6 +15,7 @@ export const invitationsRouter = Router();
 invitationsRouter.post(
   "/accept",
   requireAuth,
+  joinRateLimiter,
   idempotency({ required: true, endpoint: "POST /api/v1/invitations/accept" }),
   async (req: Request, res: Response, next: NextFunction): Promise<void> => {
     try {
@@ -41,6 +43,7 @@ invitationsRouter.post(
 invitationsRouter.post(
   "/redeem",
   requireAuth,
+  joinRateLimiter,
   idempotency({ required: true, endpoint: "POST /api/v1/invitations/accept" }),
   async (req: Request, res: Response, next: NextFunction): Promise<void> => {
     try {

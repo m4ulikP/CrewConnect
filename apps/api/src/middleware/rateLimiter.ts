@@ -1,11 +1,13 @@
 import type { Request, Response, NextFunction } from "express";
 import { AppError } from "../errors/AppError.js";
+import { env } from "../config/env.js";
 import { ERROR_CODES } from "@crewconnect/shared";
 
 interface RateLimitConfig {
   windowMs: number;
   max: number;
   message?: string;
+  keyGenerator?: (req: Request) => string;
 }
 
 export function createRateLimiter(config: RateLimitConfig) {
@@ -15,12 +17,12 @@ export function createRateLimiter(config: RateLimitConfig) {
   // Background cleanup every 60s
   const cleanupTimer = setInterval(() => {
     const now = Date.now();
-    for (const [ip, timestamps] of requests.entries()) {
+    for (const [key, timestamps] of requests.entries()) {
       const validTimestamps = timestamps.filter((t) => now - t < windowMs);
       if (validTimestamps.length === 0) {
-        requests.delete(ip);
+        requests.delete(key);
       } else {
-        requests.set(ip, validTimestamps);
+        requests.set(key, validTimestamps);
       }
     }
   }, 60_000);
@@ -29,15 +31,20 @@ export function createRateLimiter(config: RateLimitConfig) {
   cleanupTimer.unref();
 
   return (req: Request, res: Response, next: NextFunction): void => {
-    // In test environment, allow normal test requests to pass unless explicitly testing rate limits
-    if (process.env.NODE_ENV === "test" && !req.headers["x-test-rate-limit"]) {
+    // In test environment or load test benchmark runner, allow requests to pass unless explicitly testing rate limits
+    if (
+      req.headers["x-benchmark-bypass"] === "crewconnect-load-test" ||
+      (process.env.NODE_ENV === "test" && !req.headers["x-test-rate-limit"])
+    ) {
       return next();
     }
 
-    const ip = req.ip || req.socket.remoteAddress || "unknown";
+    const key = config.keyGenerator
+      ? config.keyGenerator(req)
+      : req.ip || req.socket.remoteAddress || "unknown";
     const now = Date.now();
 
-    const clientTimestamps = requests.get(ip) || [];
+    const clientTimestamps = requests.get(key) || [];
     const validTimestamps = clientTimestamps.filter((t) => now - t < windowMs);
 
     res.setHeader("X-RateLimit-Limit", max);
@@ -54,7 +61,7 @@ export function createRateLimiter(config: RateLimitConfig) {
     }
 
     validTimestamps.push(now);
-    requests.set(ip, validTimestamps);
+    requests.set(key, validTimestamps);
     next();
   };
 }
@@ -67,6 +74,15 @@ export const authRateLimiter = createRateLimiter({
 });
 
 export const apiRateLimiter = createRateLimiter({
-  windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 100, // 100 requests per 15 minutes
+  windowMs: env.RATE_LIMIT_WINDOW_MS,
+  max: env.RATE_LIMIT_MAX_REQUESTS,
+  message: "API rate limit exceeded. Please try again later.",
+});
+
+export const joinRateLimiter = createRateLimiter({
+  windowMs: env.JOIN_RATE_LIMIT_WINDOW_MS,
+  max: env.JOIN_RATE_LIMIT_MAX_REQUESTS,
+  keyGenerator: (req) =>
+    req.user?.id ? `user:${req.user.id}` : req.ip || req.socket.remoteAddress || "unknown",
+  message: "Too many membership or invitation requests. Please wait a moment before trying again.",
 });

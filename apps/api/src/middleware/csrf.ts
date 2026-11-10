@@ -42,13 +42,23 @@ export function validateCsrf(req: Request, _res: Response, next: NextFunction): 
     }
 
     // Build list of allowed origins
-    const allowedOrigins = [
-      env.CLIENT_URL,
-      "http://localhost:5173",
-      "http://localhost:3000",
-      `http://${req.headers.host}`,
-      `https://${req.headers.host}`,
-    ].map((o) => o.replace(/\/$/, ""));
+    const allowedOrigins = (
+      env.NODE_ENV === "production"
+        ? [
+            env.CLIENT_URL,
+            req.headers.host ? `http://${req.headers.host}` : null,
+            req.headers.host ? `https://${req.headers.host}` : null,
+          ]
+        : [
+            env.CLIENT_URL,
+            "http://localhost:5173",
+            "http://localhost:3000",
+            req.headers.host ? `http://${req.headers.host}` : null,
+            req.headers.host ? `https://${req.headers.host}` : null,
+          ]
+    )
+      .filter((o): o is string => Boolean(o))
+      .map((o) => o.replace(/\/$/, ""));
 
     // If Origin or Referer is supplied, verify it matches an allowed client origin
     if (requestOrigin) {

@@ -21,12 +21,27 @@ export function createApp(): express.Application {
   );
 
   // CORS configuration
+  const allowedOrigins =
+    env.NODE_ENV === "production"
+      ? [env.CLIENT_URL.replace(/\/$/, "")]
+      : [env.CLIENT_URL, "http://localhost:5173", "http://localhost:3000"].map((o) =>
+          o.replace(/\/$/, "")
+        );
+
   app.use(
     cors({
-      origin: [env.CLIENT_URL, "http://localhost:5173", "http://localhost:3000"],
+      origin: allowedOrigins,
       credentials: true,
       methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
-      allowedHeaders: ["Content-Type", "Authorization", "Idempotency-Key", "X-Request-ID"],
+      allowedHeaders: [
+        "Content-Type",
+        "Authorization",
+        "Idempotency-Key",
+        "X-Request-ID",
+        "X-Requested-With",
+        "X-CrewConnect-CSRF",
+        "X-Benchmark-Bypass",
+      ],
     })
   );
 

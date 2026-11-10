@@ -35,4 +35,33 @@ describe("Environment Validation", () => {
 
     expect(() => validateEnv(invalidConfig)).toThrow("Invalid url");
   });
+
+  it("throws an error in production mode if JWT_SECRET uses the default dev placeholder", () => {
+    const prodConfigWithDefaultSecret = {
+      NODE_ENV: "production",
+      CLIENT_URL: "https://crewconnect.app",
+      JWT_SECRET: "default_development_secret_key_that_is_at_least_32_characters_long!",
+    };
+
+    expect(() => validateEnv(prodConfigWithDefaultSecret)).toThrow(
+      "In production, JWT_SECRET is mandatory and cannot use the default development secret"
+    );
+  });
+
+  it("successfully validates production environment with strong custom secret and cookie options", () => {
+    const prodValidConfig = {
+      NODE_ENV: "production",
+      CLIENT_URL: "https://crewconnect.app",
+      JWT_SECRET: "production_cryptographically_secure_token_key_over_32_characters!",
+      COOKIE_SECURE: "true",
+      COOKIE_SAME_SITE: "strict",
+      JOIN_RATE_LIMIT_MAX_REQUESTS: "5",
+    };
+
+    const parsed = validateEnv(prodValidConfig);
+    expect(parsed.NODE_ENV).toBe("production");
+    expect(parsed.COOKIE_SECURE).toBe(true);
+    expect(parsed.COOKIE_SAME_SITE).toBe("strict");
+    expect(parsed.JOIN_RATE_LIMIT_MAX_REQUESTS).toBe(5);
+  });
 });
