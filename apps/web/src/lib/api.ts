@@ -491,3 +491,14 @@ export async function apiAcceptInvitation(
     body: JSON.stringify({ token }),
   });
 }
+
+export async function apiGetGoogleAuthStatus(): Promise<{ configured: boolean }> {
+  return apiRequest<{ configured: boolean }>("/auth/google/status");
+}
+
+export function getGoogleAuthUrl(returnTo?: string): string {
+  const base = BASE_URL.startsWith("http")
+    ? `${BASE_URL}/auth/google`
+    : `/api/v1/auth/google`;
+  return returnTo ? `${base}?returnTo=${encodeURIComponent(returnTo)}` : base;
+}

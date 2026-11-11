@@ -39,10 +39,6 @@ export const Navbar: React.FC = () => {
           <span className="font-display text-lg sm:text-xl font-bold tracking-tight text-ink-primary whitespace-nowrap">
             CrewConnect
           </span>
-          <span className="hidden lg:inline-flex items-center gap-1.5 ml-1 text-[13px] font-bold px-2.5 py-0.5 rounded-[3px] bg-highlight border border-ink-primary text-ink-primary whitespace-nowrap">
-            <span className="w-1.5 h-1.5 rounded-full bg-tangelo" />
-            <span>PS1 Engine</span>
-          </span>
         </Link>
 
         {/* Primary Navigation */}

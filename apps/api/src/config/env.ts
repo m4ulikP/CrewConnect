@@ -35,6 +35,9 @@ const BaseEnvSchema = z.object({
   RATE_LIMIT_MAX_REQUESTS: z.coerce.number().default(100),
   JOIN_RATE_LIMIT_WINDOW_MS: z.coerce.number().default(60_000), // 1 min
   JOIN_RATE_LIMIT_MAX_REQUESTS: z.coerce.number().default(10), // 10 attempts
+  GOOGLE_CLIENT_ID: z.string().optional(),
+  GOOGLE_CLIENT_SECRET: z.string().optional(),
+  GOOGLE_CALLBACK_URL: z.string().url().optional(),
 });
 
 export const EnvSchema = BaseEnvSchema.superRefine((data, ctx) => {

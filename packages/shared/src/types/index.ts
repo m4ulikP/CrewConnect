@@ -44,6 +44,8 @@ export interface UserDTO {
   id: string;
   email: string;
   displayName: string;
+  avatarUrl?: string;
+  authProvider?: "local" | "google";
   bio?: string;
   skills: string[];
   timeZone?: string;

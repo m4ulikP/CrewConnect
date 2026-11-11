@@ -4,6 +4,8 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { AuthProvider } from "./context/AuthContext";
 import { SocketProvider } from "./context/SocketContext";
 import { Navbar } from "./components/Navbar";
+import { ScrollProgressBar } from "./components/ScrollProgressBar";
+import { CustomCursor } from "./components/CustomCursor";
 import { Footer } from "./components/Footer";
 import { ErrorBoundary } from "./components/ErrorBoundary";
 import { ProtectedRoute } from "./components/ProtectedRoute";
@@ -14,6 +16,8 @@ import { TeamDetails } from "./pages/TeamDetails";
 import { Login } from "./pages/Login";
 import { Register } from "./pages/Register";
 import { Profile } from "./pages/Profile";
+import { GoogleAuth } from "./pages/GoogleAuth";
+import { AuthCallback } from "./pages/AuthCallback";
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -33,6 +37,8 @@ export const App: React.FC = () => {
             <SocketProvider>
               <div className="min-h-screen flex flex-col bg-ground text-ink-primary selection:bg-accent-tint selection:text-accent">
                 <Navbar />
+                <ScrollProgressBar />
+                <CustomCursor />
                 <main className="flex-1">
                   <Routes>
                     <Route path="/" element={<Home />} />
@@ -48,6 +54,9 @@ export const App: React.FC = () => {
                     <Route path="/teams-preview" element={<TeamsPreview />} />
                     <Route path="/teams/:teamId" element={<TeamDetails />} />
                     <Route path="/login" element={<Login />} />
+                    <Route path="/login/google" element={<GoogleAuth />} />
+                    <Route path="/auth/google" element={<GoogleAuth />} />
+                    <Route path="/auth/callback" element={<AuthCallback />} />
                     <Route path="/register" element={<Register />} />
                     <Route
                       path="/profile"

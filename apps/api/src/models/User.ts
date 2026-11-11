@@ -5,7 +5,10 @@ import type { UserStatus } from "@crewconnect/shared";
 
 export interface IUser extends Document {
   email: string;
-  passwordHash: string;
+  passwordHash?: string;
+  googleId?: string;
+  avatarUrl?: string;
+  authProvider?: "local" | "google";
   displayName: string;
   bio?: string;
   skills: string[];
@@ -37,8 +40,25 @@ const UserSchema = new Schema<IUser, IUserModel>(
     },
     passwordHash: {
       type: String,
-      required: [true, "Password hash is required"],
+      required: function (this: IUser) {
+        return !this.googleId;
+      },
       select: false, // Never return password hash in queries by default
+    },
+    googleId: {
+      type: String,
+      sparse: true,
+      unique: true,
+      index: true,
+    },
+    avatarUrl: {
+      type: String,
+      trim: true,
+    },
+    authProvider: {
+      type: String,
+      enum: ["local", "google"],
+      default: "local",
     },
     displayName: {
       type: String,
@@ -124,7 +144,7 @@ UserSchema.statics.hashPassword = async function (plaintext: string): Promise<st
 // Instance method to verify password
 UserSchema.methods.verifyPassword = async function (candidatePassword: string): Promise<boolean> {
   if (!this.passwordHash) {
-    throw new Error("Password hash not loaded for verification");
+    return false;
   }
   return argon2.verify(this.passwordHash, candidatePassword);
 };

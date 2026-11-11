@@ -11,14 +11,6 @@ import { WorkflowShowcase } from "../components/landing/WorkflowShowcase";
 import { ReservationEngineDemo } from "../components/landing/ReservationEngineDemo";
 import { useInViewOnce } from "../hooks/useInViewOnce";
 
-const SectionConnector: React.FC<{ dotClass: string }> = ({ dotClass }) => (
-  <div aria-hidden="true" className="flex flex-col items-center py-2">
-    <span className="w-0.5 h-6 bg-ink-primary" />
-    <span className={`w-3.5 h-3.5 rounded-full border-2 border-ink-primary ${dotClass}`} />
-    <span className="w-0.5 h-6 bg-ink-primary" />
-  </div>
-);
-
 const PublicLanding: React.FC<{ apiOnline: boolean; loadingHealth: boolean }> = ({
   apiOnline,
   loadingHealth,
@@ -29,7 +21,7 @@ const PublicLanding: React.FC<{ apiOnline: boolean; loadingHealth: boolean }> = 
   return (
     <div className="bg-ground overflow-x-clip">
       {/* 1. Expressive Hero on Architectural Drafting Dots */}
-      <section className="bg-drafting-dots pt-10 sm:pt-16 pb-14 sm:pb-20">
+      <section className="bg-drafting-dots pt-10 sm:pt-16 pb-16 sm:pb-24">
         <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 grid grid-cols-1 lg:grid-cols-12 gap-10 lg:gap-10 items-center">
           {/* Left Copy, Typing Headline & Cohesive Brutalist Actions */}
           <div className="lg:col-span-6 space-y-6">
@@ -56,148 +48,170 @@ const PublicLanding: React.FC<{ apiOnline: boolean; loadingHealth: boolean }> = 
               </Link>
             </div>
 
-            <div className="flex flex-wrap items-center gap-5 pt-1 reveal-line reveal-delay-3">
+            <div className="pt-1 reveal-line reveal-delay-3">
               <a href="#architecture" className="btn-text-link group text-sm">
                 <span>See how last-seat locking works</span>
                 <ArrowRight className="w-3.5 h-3.5 transition-transform duration-150 group-hover:translate-x-1" />
               </a>
-              <span className="inline-flex items-center gap-2 bg-surface border border-ink-primary/30 px-2.5 py-1 rounded-[3px] text-[13px] font-medium text-ink-secondary">
-                <span className="w-2 h-2 rounded-full bg-tangelo" />
-                <span>Hack4Hack 2026</span>
-              </span>
             </div>
           </div>
 
           {/* Right Playful Builder Assembly Illustration */}
-          <div className="lg:col-span-6 reveal-line reveal-delay-2">
+          <div className="lg:col-span-6">
             <SquadAssemblyIllustration />
           </div>
         </div>
       </section>
 
-      <SectionConnector dotClass="bg-highlight" />
-
-      {/* 2. Interactive Product / Discovery Showcase */}
-      <section className="py-12 sm:py-16">
+      {/* 2. Visual Story: The Fourth Seat */}
+      <section className="py-16 sm:py-24">
         <div
           ref={showcaseReveal.ref}
-          className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 grid grid-cols-1 lg:grid-cols-12 gap-12 items-start"
+          className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 grid grid-cols-1 lg:grid-cols-12 gap-10 lg:gap-12 items-center"
         >
-          <div
-            className={`lg:col-span-4 space-y-5 lg:sticky lg:top-24 transition-[transform,opacity] duration-500 ease-out ${
-              showcaseReveal.inView ? "opacity-100 translate-y-0" : "opacity-0 translate-y-4"
-            }`}
-          >
-            <div className="inline-flex items-baseline gap-2 font-display text-4xl sm:text-5xl font-bold text-accent tabular">
+          <div className="lg:col-span-4 space-y-4">
+            <div
+              data-visible={showcaseReveal.inView}
+              className="inline-flex items-baseline gap-2.5 font-display text-3xl sm:text-4xl font-bold text-accent tabular motion-reveal"
+            >
               <span>3</span>
-              <span className="text-ink-muted text-2xl">→</span>
-              <span className="bg-highlight border-2 border-ink-primary text-ink-primary px-2 rounded-[4px]">
+              <span className="text-ink-muted text-xl">→</span>
+              <span className="text-ink-primary underline decoration-[#FFE45C] decoration-4 underline-offset-4">
                 4
               </span>
             </div>
-            <h2 className="font-display text-3xl sm:text-4xl font-bold text-ink-primary tracking-tight leading-tight">
+            <h2
+              data-visible={showcaseReveal.inView}
+              style={{ transitionDelay: "60ms" }}
+              className="font-display text-3xl sm:text-4xl font-bold text-ink-primary tracking-tight leading-tight motion-reveal"
+            >
               Inspect a squad before joining.
             </h2>
-            <p className="text-base text-ink-secondary leading-relaxed max-w-[56ch]">
-              See active members, project goals, sought skills, and remaining seat count at a glance
-              before deciding where to contribute.
-            </p>
-            <p className="text-base text-ink-secondary leading-relaxed max-w-[56ch]">
-              Click the button on this preview to try reserving the open fourth slot.
+            <p
+              data-visible={showcaseReveal.inView}
+              style={{ transitionDelay: "120ms" }}
+              className="text-base text-ink-secondary leading-relaxed max-w-[44ch] motion-reveal"
+            >
+              Review active members, open roles, and remaining capacity at a glance before claiming
+              the final seat.
             </p>
           </div>
 
-          <div
-            style={{ transitionDelay: "90ms" }}
-            className={`lg:col-span-8 transition-[transform,opacity] duration-500 ease-out ${
-              showcaseReveal.inView ? "opacity-100 translate-y-0" : "opacity-0 translate-y-4"
-            }`}
-          >
+          <div className="lg:col-span-8">
             <LiveSquadShowcase />
           </div>
         </div>
       </section>
-
-      <SectionConnector dotClass="bg-tangelo" />
 
       {/* 3. Staggered User Journey on Drafting Grid Texture */}
       <section className="bg-drafting-grid border-y-2 border-ink-primary py-16 sm:py-24">
         <WorkflowShowcase />
       </section>
 
-      <SectionConnector dotClass="bg-accent" />
-
       {/* 4. Last-Seat Protection Explainer */}
-      <section className="bg-drafting-dots py-14 sm:py-20">
+      <section className="bg-drafting-dots py-16 sm:py-24">
         <ReservationEngineDemo apiOnline={apiOnline} loadingHealth={loadingHealth} />
       </section>
 
-      {/* 5. Cohesive Framed Pine Closing CTA Poster (Unified Within Grid Canvas) */}
-      <section className="pt-8 pb-20 sm:pb-24">
+      {/* 5. Cohesive Framed Pine Closing CTA Poster */}
+      <section className="pt-4 pb-20 sm:pb-24">
         <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
           <div
             ref={ctaReveal.ref}
             className="relative bg-accent border-2 border-ink-primary rounded-xl p-8 sm:p-12 overflow-hidden"
           >
-            {/* Friendly Geometric Crew Corner Cameo */}
+            {/* Quiet Corner Crew Motif — settles from base into frame */}
             <svg
               aria-hidden="true"
               viewBox="0 0 220 140"
-              className="hidden lg:block absolute right-6 bottom-0 w-52 h-32 pointer-events-none"
+              className="hidden lg:block absolute right-6 bottom-0 w-44 h-28 pointer-events-none opacity-85 overflow-visible"
             >
-              <path
-                d="M12 140 V92 C12 68.8 30.8 50 54 50 C77.2 50 96 68.8 96 92 V140 H12 Z"
-                fill="#0F4C48"
+              <g
+                style={{
+                  opacity: ctaReveal.inView ? 1 : 0,
+                  transform: ctaReveal.inView ? "translate3d(0, 0, 0)" : "translate3d(0, 16px, 0)",
+                  transition:
+                    "transform 420ms cubic-bezier(0.23, 1, 0.32, 1) 50ms, opacity 320ms ease-out 50ms",
+                }}
+              >
+                <path
+                  d="M12 140 V92 C12 68.8 30.8 50 54 50 C77.2 50 96 68.8 96 92 V140 H12 Z"
+                  fill="#0F4C48"
+                  stroke="#18181B"
+                  strokeWidth="2.5"
+                />
+                <circle cx="42" cy="90" r="4" fill="#FFFFFF" />
+                <circle cx="64" cy="90" r="4" fill="#FFFFFF" />
+              </g>
+              <g
+                style={{
+                  opacity: ctaReveal.inView ? 1 : 0,
+                  transform: ctaReveal.inView ? "translate3d(0, 0, 0)" : "translate3d(0, 18px, 0)",
+                  transition:
+                    "transform 420ms cubic-bezier(0.23, 1, 0.32, 1) 120ms, opacity 320ms ease-out 120ms",
+                }}
+              >
+                <rect
+                  x="110"
+                  y="62"
+                  width="76"
+                  height="78"
+                  rx="16"
+                  fill="#FDE047"
+                  stroke="#18181B"
+                  strokeWidth="2.5"
+                />
+                <circle cx="136" cy="94" r="4" fill="#18181B" />
+                <circle cx="160" cy="94" r="4" fill="#18181B" />
+                <path
+                  d="M140 110 Q148 117 156 110"
+                  fill="none"
+                  stroke="#18181B"
+                  strokeWidth="2.5"
+                  strokeLinecap="round"
+                />
+              </g>
+              <circle
+                cx="192"
+                cy="42"
+                r="18"
+                fill="#FF5A1F"
                 stroke="#18181B"
                 strokeWidth="2.5"
+                style={{
+                  opacity: ctaReveal.inView ? 1 : 0,
+                  transform: ctaReveal.inView
+                    ? "translate3d(0, 0, 0) scale(1)"
+                    : "translate3d(0, 12px, 0) scale(0.9)",
+                  transformOrigin: "192px 42px",
+                  transition:
+                    "transform 400ms cubic-bezier(0.23, 1, 0.32, 1) 190ms, opacity 300ms ease-out 190ms",
+                }}
               />
-              <circle cx="42" cy="90" r="4" fill="#FFFFFF" />
-              <circle cx="64" cy="90" r="4" fill="#FFFFFF" />
-              <rect
-                x="110"
-                y="62"
-                width="76"
-                height="78"
-                rx="16"
-                fill="#FDE047"
-                stroke="#18181B"
-                strokeWidth="2.5"
-              />
-              <circle cx="136" cy="94" r="4" fill="#18181B" />
-              <circle cx="160" cy="94" r="4" fill="#18181B" />
-              <path
-                d="M140 110 Q148 117 156 110"
-                fill="none"
-                stroke="#18181B"
-                strokeWidth="2.5"
-                strokeLinecap="round"
-              />
-              <circle cx="192" cy="42" r="18" fill="#FF5A1F" stroke="#18181B" strokeWidth="2.5" />
             </svg>
 
             <div className="relative z-10 max-w-2xl space-y-5">
-              <h2
-                className={`font-display text-3xl sm:text-4xl font-bold text-white tracking-tight leading-[1.08] transition-[transform,opacity] duration-500 ease-out ${
-                  ctaReveal.inView ? "opacity-100 translate-y-0" : "opacity-0 translate-y-4"
-                }`}
-              >
-                Ready to form your hackathon squad?
-              </h2>
+              <div className="motion-mask-reveal">
+                <h2
+                  data-visible={ctaReveal.inView}
+                  className="font-display text-3xl sm:text-4xl font-bold text-white tracking-tight leading-[1.08] motion-mask-inner"
+                >
+                  Ready to form your hackathon squad?
+                </h2>
+              </div>
               <p
-                style={{ transitionDelay: "70ms" }}
-                className={`text-base sm:text-lg text-[#E6F2F0] max-w-[50ch] leading-relaxed transition-[transform,opacity] duration-500 ease-out ${
-                  ctaReveal.inView ? "opacity-100 translate-y-0" : "opacity-0 translate-y-4"
-                }`}
+                data-visible={ctaReveal.inView}
+                style={{ transitionDelay: "80ms" }}
+                className="text-base sm:text-lg text-[#E6F2F0] max-w-[50ch] leading-relaxed motion-reveal"
               >
                 Create your builder profile, list your skills, or start a new squad for Hack4Hack
                 2026 in under two minutes.
               </p>
 
               <div
-                style={{ transitionDelay: "130ms" }}
-                className={`flex flex-wrap items-center gap-3.5 pt-2 transition-[transform,opacity] duration-500 ease-out ${
-                  ctaReveal.inView ? "opacity-100 translate-y-0" : "opacity-0 translate-y-4"
-                }`}
+                data-visible={ctaReveal.inView}
+                style={{ transitionDelay: "150ms" }}
+                className="flex flex-wrap items-center gap-3.5 pt-2 motion-reveal-scale"
               >
                 <Link
                   to="/register"
