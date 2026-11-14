@@ -140,7 +140,7 @@ export const AccessibleDialog: React.FC<AccessibleDialogProps> = ({
 
   return createPortal(
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-ink-primary/40 pane-enter"
+      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-ink-primary/50 backdrop-blur-xs pane-enter"
       onMouseDown={(e) => {
         if (e.target === e.currentTarget && allowClose) {
           onClose();
@@ -154,7 +154,7 @@ export const AccessibleDialog: React.FC<AccessibleDialogProps> = ({
         aria-labelledby={titleId}
         aria-describedby={descriptionId}
         tabIndex={-1}
-        className={`relative w-full ${maxWidthClass} bg-surface border border-border-strong rounded-lg overflow-hidden outline-none`}
+        className={`relative w-full ${maxWidthClass} bg-surface border-2 border-ink-primary/20 rounded-xl shadow-2xl overflow-hidden outline-none`}
       >
         {children}
       </div>
