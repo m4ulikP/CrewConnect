@@ -40,7 +40,6 @@ services:
   - type: web
     name: crewconnect-web
     runtime: static
-    plan: free
     buildCommand: npm ci && npm run build:shared && npm run build --workspace=@crewconnect/web
     staticPublishPath: apps/web/dist
     routes:
