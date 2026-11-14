@@ -55,9 +55,22 @@ export const ScrollProgressBar: React.FC = () => {
     window.addEventListener("scroll", handleScroll, { passive: true });
     window.addEventListener("resize", handleResize, { passive: true });
 
+    let resizeObserver: ResizeObserver | null = null;
+    if (typeof ResizeObserver !== "undefined") {
+      resizeObserver = new ResizeObserver(() => {
+        if (rafRef.current === null) {
+          rafRef.current = window.requestAnimationFrame(updateMetrics);
+        }
+      });
+      resizeObserver.observe(document.documentElement);
+    }
+
     return () => {
       window.removeEventListener("scroll", handleScroll);
       window.removeEventListener("resize", handleResize);
+      if (resizeObserver) {
+        resizeObserver.disconnect();
+      }
       document.documentElement.classList.remove("is-scrolling");
       if (rafRef.current !== null) {
         window.cancelAnimationFrame(rafRef.current);
@@ -76,12 +89,11 @@ export const ScrollProgressBar: React.FC = () => {
     <div
       aria-hidden="true"
       data-testid="scroll-progress-bar"
-      className="fixed top-16 left-0 right-0 h-[3px] z-40 pointer-events-none bg-transparent overflow-hidden"
+      className="fixed top-16 left-0 right-0 h-[2.5px] z-40 pointer-events-none bg-transparent overflow-hidden"
     >
       <div
-        className="h-full bg-accent relative transition-[opacity] duration-200"
+        className="w-full h-full bg-accent relative transition-[opacity] duration-200"
         style={{
-          width: "100%",
           transform: `scaleX(${progress})`,
           transformOrigin: "left center",
           opacity: progress > 0.005 ? 1 : 0,

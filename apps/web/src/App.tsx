@@ -5,6 +5,7 @@ import { AuthProvider } from "./context/AuthContext";
 import { SocketProvider } from "./context/SocketContext";
 import { Navbar } from "./components/Navbar";
 import { ScrollProgressBar } from "./components/ScrollProgressBar";
+import { PageTransition } from "./components/PageTransition";
 import { CustomCursor } from "./components/CustomCursor";
 import { Footer } from "./components/Footer";
 import { ErrorBoundary } from "./components/ErrorBoundary";
@@ -40,51 +41,53 @@ export const App: React.FC = () => {
                 <ScrollProgressBar />
                 <CustomCursor />
                 <main className="flex-1">
-                  <Routes>
-                    <Route path="/" element={<Home />} />
-                    <Route
-                      path="/dashboard"
-                      element={
-                        <ProtectedRoute>
-                          <AuthenticatedDashboard />
-                        </ProtectedRoute>
-                      }
-                    />
-                    <Route path="/teams" element={<TeamsPreview />} />
-                    <Route path="/teams-preview" element={<TeamsPreview />} />
-                    <Route path="/teams/:teamId" element={<TeamDetails />} />
-                    <Route path="/login" element={<Login />} />
-                    <Route path="/login/google" element={<GoogleAuth />} />
-                    <Route path="/auth/google" element={<GoogleAuth />} />
-                    <Route path="/auth/callback" element={<AuthCallback />} />
-                    <Route path="/register" element={<Register />} />
-                    <Route
-                      path="/profile"
-                      element={
-                        <ProtectedRoute>
-                          <Profile />
-                        </ProtectedRoute>
-                      }
-                    />
-                    <Route
-                      path="*"
-                      element={
-                        <div className="py-24 text-center space-y-4 max-w-md mx-auto">
-                          <h1 className="text-3xl font-serif text-ink-primary">
-                            404 — Page Not Found
-                          </h1>
-                          <p className="text-sm text-ink-secondary">
-                            The requested squad or view does not exist in this hackathon.
-                          </p>
-                          <div className="pt-2">
-                            <a href="/" className="btn btn-secondary text-xs">
-                              Return to platform
-                            </a>
+                  <PageTransition>
+                    <Routes>
+                      <Route path="/" element={<Home />} />
+                      <Route
+                        path="/dashboard"
+                        element={
+                          <ProtectedRoute>
+                            <AuthenticatedDashboard />
+                          </ProtectedRoute>
+                        }
+                      />
+                      <Route path="/teams" element={<TeamsPreview />} />
+                      <Route path="/teams-preview" element={<TeamsPreview />} />
+                      <Route path="/teams/:teamId" element={<TeamDetails />} />
+                      <Route path="/login" element={<Login />} />
+                      <Route path="/login/google" element={<GoogleAuth />} />
+                      <Route path="/auth/google" element={<GoogleAuth />} />
+                      <Route path="/auth/callback" element={<AuthCallback />} />
+                      <Route path="/register" element={<Register />} />
+                      <Route
+                        path="/profile"
+                        element={
+                          <ProtectedRoute>
+                            <Profile />
+                          </ProtectedRoute>
+                        }
+                      />
+                      <Route
+                        path="*"
+                        element={
+                          <div className="py-24 text-center space-y-4 max-w-md mx-auto">
+                            <h1 className="text-3xl font-serif text-ink-primary">
+                              404 — Page Not Found
+                            </h1>
+                            <p className="text-sm text-ink-secondary">
+                              The requested squad or view does not exist in this hackathon.
+                            </p>
+                            <div className="pt-2">
+                              <a href="/" className="btn btn-secondary text-xs">
+                                Return to platform
+                              </a>
+                            </div>
                           </div>
-                        </div>
-                      }
-                    />
-                  </Routes>
+                        }
+                      />
+                    </Routes>
+                  </PageTransition>
                 </main>
                 <Footer />
               </div>
