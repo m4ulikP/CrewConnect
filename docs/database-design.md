@@ -160,13 +160,24 @@ Represents registered platform participants.
 - `passwordHash`: `String` (Required, Argon2id hashed password with salt)
 - `displayName`: `String` (Required, 2–50 chars)
 - `bio`: `String` (Optional, max 500 chars)
-- `skills`: `Array<String>` (Required, indexed for matchmaking)
-- `experienceLevel`: `String` (Optional: `"BEGINNER" | "INTERMEDIATE" | "ADVANCED"`)
+- `skills`: `Array<String>` (Optional, 0–20 items, indexed for matchmaking)
+- `timeZone`: `String` (Optional, default `"UTC"`, valid IANA timezone identifier)
+- `experienceLevel`: `String` (Optional, enum: `"BEGINNER" | "INTERMEDIATE" | "ADVANCED"`, default `"INTERMEDIATE"`)
 - `githubUrl`: `String` (Optional, URL format)
 - `linkedinUrl`: `String` (Optional, URL format)
 - `portfolioUrl`: `String` (Optional, URL format)
+- `status`: `String` (Required, enum: `["ACTIVE", "SUSPENDED"]`, default `"ACTIVE"`)
+- `tokenVersion`: `Number` (Required, default `0`, session invalidation counter)
 - `createdAt`: `Date` (Required, default `now`)
 - `updatedAt`: `Date` (Required, default `now`)
+
+**Profile Update Rules:**
+
+- Modifiable via `PATCH /api/v1/users/me` by authenticated owner only.
+- Strict schema validation rejects unknown or security-critical properties (`passwordHash`, `status`, `tokenVersion`, `role`).
+- Case-insensitive duplicate skills are rejected.
+- String fields can be cleared by sending `""` or `null`.
+- Updated `skills` and `displayName` immediately project through team discovery via `$lookup` on `leaderId`.
 
 **Indexes:**
 
@@ -261,7 +272,8 @@ Tracks requests from solo participants seeking to join open teams.
 - `teamId`: `ObjectId` (Required, References `teams._id`)
 - `userId`: `ObjectId` (Required, References `users._id`)
 - `message`: `String` (Optional, max 300 chars)
-- `status`: `String` (Required, enum: `["PENDING", "APPROVED", "REJECTED", "CANCELLED"]`, default `"PENDING"`)
+- `status`: `String` (Required, enum: `["PENDING", "APPROVED", "REJECTED", "CANCELLED", "EXPIRED"]`, default `"PENDING"`)
+- `expiresAt`: `Date` (Server-computed expiration timestamp; default `72h` via `JOIN_REQUEST_EXPIRATION_HOURS`; missing on legacy pre-Phase 3.6 documents which fall back to `createdAt + duration`)
 - `createdAt`: `Date` (Required, default `now`)
 - `resolvedAt`: `Date` (Optional)
 - `resolvedBy`: `ObjectId` (Optional, References `users._id`)
@@ -270,7 +282,8 @@ Tracks requests from solo participants seeking to join open teams.
 
 - `{ teamId: 1, status: 1 }` (Listing pending requests for team)
 - `{ hackathonId: 1, userId: 1, status: 1 }` (Listing pending requests submitted by user)
-- `{ teamId: 1, userId: 1 }` (Preventing duplicate pending requests to same team)
+- `{ status: 1, expiresAt: 1 }` (Supports lazy expiration scans without TTL deletion, preserving audit history)
+- `{ teamId: 1, userId: 1 }` (Partial unique index scoped to `status: "PENDING"` so `EXPIRED` requests never block a subsequent valid request)
 
 ---
 
@@ -307,7 +320,7 @@ Operational event log providing chronological auditability for all team state tr
 - `teamId`: `ObjectId` (Optional, References `teams._id`)
 - `actorId`: `ObjectId` (Required, References `users._id` who initiated the action)
 - `targetUserId`: `ObjectId` (Optional, References `users._id` affected by the action)
-- `action`: `String` (Required, enum: `["TEAM_CREATED", "TEAM_DISBANDED", "MEMBER_JOINED", "MEMBER_LEFT", "MEMBER_REMOVED", "LEADERSHIP_TRANSFERRED", "INVITE_CREATED", "INVITE_REDEEMED", "JOIN_REQUEST_SUBMITTED", "JOIN_REQUEST_APPROVED"]`)
+- `action`: `String` (Required, enum: `["TEAM_CREATED", "TEAM_DISBANDED", "MEMBER_JOINED", "MEMBER_LEFT", "MEMBER_REMOVED", "LEADERSHIP_TRANSFERRED", "INVITE_CREATED", "INVITE_REDEEMED", "JOIN_REQUEST_SUBMITTED", "JOIN_REQUEST_APPROVED", "JOIN_REQUEST_REJECTED", "JOIN_REQUEST_CANCELLED", "JOIN_REQUEST_EXPIRED"]`)
 - `metadata`: `Object` (Required, contextual data such as IP address, user agent, old/new counts)
 - `timestamp`: `Date` (Required, default `now`)
 

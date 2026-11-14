@@ -262,37 +262,33 @@ export class TeamService {
     const limit = Math.min(50, Math.max(1, options.limit || 20));
     const skip = (page - 1) * limit;
 
-    const query: Record<string, unknown> = {
+    const matchQuery: Record<string, unknown> = {
       hackathonId: new Types.ObjectId(hackathonId),
       status: "ACTIVE",
     };
 
     if (options.hasVacancies) {
-      query.isOpen = true;
+      matchQuery.isOpen = true;
+      matchQuery.$expr = { $lt: ["$memberCount", "$maxCapacity"] };
     }
 
     if (options.search) {
       const sanitizedTerm = escapeRegex(options.search.trim());
-      query.$or = [
+      matchQuery.$or = [
         { name: { $regex: sanitizedTerm, $options: "i" } },
         { tagline: { $regex: sanitizedTerm, $options: "i" } },
       ];
     }
 
     if (options.skills && options.skills.length > 0) {
-      query.skillsNeeded = { $in: options.skills };
-    }
-
-    const findQuery: Record<string, unknown> = { ...query };
-    if (options.hasVacancies) {
-      findQuery.$expr = { $lt: ["$memberCount", "$maxCapacity"] };
+      matchQuery.skillsNeeded = { $in: options.skills };
     }
 
     const [teams, total] = await Promise.all([
       Team.collection
         .aggregate([
-          { $match: findQuery },
-          { $sort: { createdAt: -1 } },
+          { $match: matchQuery },
+          { $sort: { createdAt: -1, _id: -1 } },
           { $skip: skip },
           { $limit: limit },
           {
@@ -306,7 +302,6 @@ export class TeamService {
                     _id: 0,
                     id: { $toString: "$_id" },
                     displayName: 1,
-                    email: 1,
                     skills: 1,
                   },
                 },
@@ -326,7 +321,7 @@ export class TeamService {
           { $project: { _id: 0, __v: 0, leaderArr: 0 } },
         ])
         .toArray(),
-      Team.collection.countDocuments(query),
+      Team.collection.countDocuments(matchQuery),
     ]);
 
     return { teams: teams as Record<string, unknown>[], total, page, limit };

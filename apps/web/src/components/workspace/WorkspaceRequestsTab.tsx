@@ -1,6 +1,6 @@
 import React from "react";
 import { ShieldAlert, Check, X, Clock, AlertCircle } from "lucide-react";
-import type { JoinRequestRecord } from "../../lib/api";
+import { isJoinRequestExpired, type JoinRequestRecord } from "../../lib/api";
 import { Avatar } from "../Avatar";
 import type { WorkspaceUserRole } from "./WorkspaceHeader";
 
@@ -76,6 +76,9 @@ export const WorkspaceRequestsTab: React.FC<WorkspaceRequestsTabProps> = ({
           {joinRequests.map((req) => {
             const reqUser = typeof req.userId === "object" ? req.userId : null;
             const reqName = reqUser ? reqUser.displayName : "Applicant";
+            const expired = isJoinRequestExpired(req);
+            const effectiveStatus = expired ? "EXPIRED" : req.status;
+            const canResolve = effectiveStatus === "PENDING";
 
             return (
               <div key={req.id} className="py-5 space-y-4">
@@ -83,7 +86,14 @@ export const WorkspaceRequestsTab: React.FC<WorkspaceRequestsTabProps> = ({
                   <div className="flex items-center gap-3">
                     <Avatar name={reqName} size="md" />
                     <div>
-                      <span className="font-semibold text-sm text-ink-primary">{reqName}</span>
+                      <div className="flex items-center gap-2">
+                        <span className="font-semibold text-sm text-ink-primary">{reqName}</span>
+                        {effectiveStatus !== "PENDING" && (
+                          <span className="status-label bg-surface-tonal border border-border-strong text-ink-muted">
+                            {effectiveStatus}
+                          </span>
+                        )}
+                      </div>
                       <div className="flex flex-wrap items-center gap-2 text-xs text-ink-secondary mt-0.5">
                         {reqUser?.email && <span>{reqUser.email}</span>}
                         {reqUser?.experienceLevel && (
@@ -95,9 +105,15 @@ export const WorkspaceRequestsTab: React.FC<WorkspaceRequestsTabProps> = ({
                     </div>
                   </div>
 
-                  <span className="text-xs text-ink-muted tabular self-start sm:self-auto">
-                    Applied {new Date(req.createdAt).toLocaleDateString()}
-                  </span>
+                  <div className="text-xs text-ink-muted tabular self-start sm:self-auto sm:text-right space-y-0.5">
+                    <div>Applied {new Date(req.createdAt).toLocaleDateString()}</div>
+                    {req.expiresAt && (
+                      <div>
+                        {expired ? "Expired" : "Expires"}{" "}
+                        {new Date(req.expiresAt).toLocaleDateString()}
+                      </div>
+                    )}
+                  </div>
                 </div>
 
                 {/* Candidate Message Note */}
@@ -112,26 +128,28 @@ export const WorkspaceRequestsTab: React.FC<WorkspaceRequestsTabProps> = ({
                   <p className="text-xs text-ink-muted italic">No candidate note provided.</p>
                 )}
 
-                {/* Action buttons */}
-                <div className="flex items-center justify-end gap-2 pt-1">
-                  <button
-                    onClick={() => onRejectRequest(req.id)}
-                    disabled={actionLoading}
-                    className="btn btn-secondary text-xs h-8 px-3.5 inline-flex items-center gap-1.5 cursor-pointer text-ink-secondary hover:text-danger hover:border-danger"
-                  >
-                    <X className="w-3.5 h-3.5" />
-                    <span>Decline</span>
-                  </button>
+                {/* Action buttons (only active for non-expired PENDING requests) */}
+                {canResolve && (
+                  <div className="flex items-center justify-end gap-2 pt-1">
+                    <button
+                      onClick={() => onRejectRequest(req.id)}
+                      disabled={actionLoading}
+                      className="btn btn-secondary text-xs h-8 px-3.5 inline-flex items-center gap-1.5 cursor-pointer text-ink-secondary hover:text-danger hover:border-danger"
+                    >
+                      <X className="w-3.5 h-3.5" />
+                      <span>Decline</span>
+                    </button>
 
-                  <button
-                    onClick={() => onApproveRequest(req.id)}
-                    disabled={actionLoading || !hasAvailableSeats}
-                    className="btn btn-primary text-xs h-8 px-3.5 inline-flex items-center gap-1.5 cursor-pointer"
-                  >
-                    <Check className="w-3.5 h-3.5" />
-                    <span>{actionLoading ? "Processing..." : "Approve & Admit"}</span>
-                  </button>
-                </div>
+                    <button
+                      onClick={() => onApproveRequest(req.id)}
+                      disabled={actionLoading || !hasAvailableSeats}
+                      className="btn btn-primary text-xs h-8 px-3.5 inline-flex items-center gap-1.5 cursor-pointer"
+                    >
+                      <Check className="w-3.5 h-3.5" />
+                      <span>{actionLoading ? "Processing..." : "Approve & Admit"}</span>
+                    </button>
+                  </div>
+                )}
               </div>
             );
           })}

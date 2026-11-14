@@ -1,7 +1,7 @@
 import React from "react";
 import { Link } from "react-router-dom";
 import { AlertCircle, CheckCircle, Clock, RefreshCw, XCircle } from "lucide-react";
-import type { JoinRequestRecord, TeamRecord } from "../../lib/api";
+import { isJoinRequestExpired, type JoinRequestRecord, type TeamRecord } from "../../lib/api";
 import { DashboardSectionSkeleton } from "./DashboardSectionSkeleton";
 
 interface PendingRequestsSectionProps {
@@ -28,7 +28,9 @@ export const PendingRequestsSection: React.FC<PendingRequestsSectionProps> = ({
   onReject,
 }) => {
   const isLeader = myTeam?.role === "LEADER";
-  const pendingOnly = requests.filter((r) => r.status === "PENDING");
+  const pendingOnly = requests.filter((r) => r.status === "PENDING" && !isJoinRequestExpired(r));
+  const expiredOnly = requests.filter(isJoinRequestExpired);
+  const visibleRequests = [...pendingOnly, ...expiredOnly];
 
   return (
     <section
@@ -95,16 +97,17 @@ export const PendingRequestsSection: React.FC<PendingRequestsSectionProps> = ({
                 <span>Retry</span>
               </button>
             </div>
-          ) : pendingOnly.length === 0 ? (
+          ) : visibleRequests.length === 0 ? (
             <p className="text-xs text-ink-muted py-2">
               No incoming join requests awaiting your review for {myTeam.team.name}.
             </p>
           ) : (
             <div className="divide-y divide-border-subtle">
-              {pendingOnly.map((req) => {
+              {visibleRequests.map((req) => {
                 const applicant = typeof req.userId === "object" ? req.userId : null;
                 const applicantName = applicant?.displayName || "Applicant";
                 const isBusy = processingRequestId === req.id;
+                const expired = isJoinRequestExpired(req);
 
                 return (
                   <div key={req.id} className="py-3 space-y-2">
@@ -114,7 +117,15 @@ export const PendingRequestsSection: React.FC<PendingRequestsSectionProps> = ({
                           <span className="text-[13px] font-semibold text-ink-primary truncate">
                             {applicantName}
                           </span>
-                          <span className="status-label status-warning">PENDING</span>
+                          <span
+                            className={`status-label ${
+                              expired
+                                ? "bg-surface-tonal border border-border-strong text-ink-muted"
+                                : "status-warning"
+                            }`}
+                          >
+                            {expired ? "EXPIRED" : "PENDING"}
+                          </span>
                         </div>
                         <p className="text-xs text-ink-muted tabular mt-0.5">
                           Submitted {new Date(req.createdAt).toLocaleDateString()}
@@ -128,26 +139,28 @@ export const PendingRequestsSection: React.FC<PendingRequestsSectionProps> = ({
                       </p>
                     )}
 
-                    <div className="flex items-center gap-2 pt-0.5">
-                      <button
-                        type="button"
-                        onClick={() => onApprove(req.id)}
-                        disabled={Boolean(processingRequestId)}
-                        className="btn btn-primary h-8 px-3 text-xs"
-                      >
-                        <CheckCircle className="w-3.5 h-3.5" aria-hidden="true" />
-                        <span>{isBusy ? "Processing..." : "Approve"}</span>
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => onReject(req.id)}
-                        disabled={Boolean(processingRequestId)}
-                        className="btn btn-secondary h-8 px-3 text-xs"
-                      >
-                        <XCircle className="w-3.5 h-3.5" aria-hidden="true" />
-                        <span>Reject</span>
-                      </button>
-                    </div>
+                    {!expired && (
+                      <div className="flex items-center gap-2 pt-0.5">
+                        <button
+                          type="button"
+                          onClick={() => onApprove(req.id)}
+                          disabled={Boolean(processingRequestId)}
+                          className="btn btn-primary h-8 px-3 text-xs"
+                        >
+                          <CheckCircle className="w-3.5 h-3.5" aria-hidden="true" />
+                          <span>{isBusy ? "Processing..." : "Approve"}</span>
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => onReject(req.id)}
+                          disabled={Boolean(processingRequestId)}
+                          className="btn btn-secondary h-8 px-3 text-xs"
+                        >
+                          <XCircle className="w-3.5 h-3.5" aria-hidden="true" />
+                          <span>Reject</span>
+                        </button>
+                      </div>
+                    )}
                   </div>
                 );
               })}

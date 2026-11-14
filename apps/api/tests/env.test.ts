@@ -64,4 +64,41 @@ describe("Environment Validation", () => {
     expect(parsed.COOKIE_SAME_SITE).toBe("strict");
     expect(parsed.JOIN_RATE_LIMIT_MAX_REQUESTS).toBe(5);
   });
+
+  it("defaults JOIN_REQUEST_EXPIRATION_HOURS to 72 when not set", () => {
+    const config = {
+      CLIENT_URL: "http://localhost:5173",
+      JWT_SECRET: "valid_secret_that_is_at_least_32_characters_long!",
+    };
+    const parsed = validateEnv(config);
+    expect(parsed.JOIN_REQUEST_EXPIRATION_HOURS).toBe(72);
+  });
+
+  it("accepts a custom JOIN_REQUEST_EXPIRATION_HOURS value within range", () => {
+    const config = {
+      CLIENT_URL: "http://localhost:5173",
+      JWT_SECRET: "valid_secret_that_is_at_least_32_characters_long!",
+      JOIN_REQUEST_EXPIRATION_HOURS: "48",
+    };
+    const parsed = validateEnv(config);
+    expect(parsed.JOIN_REQUEST_EXPIRATION_HOURS).toBe(48);
+  });
+
+  it("rejects JOIN_REQUEST_EXPIRATION_HOURS below minimum (1)", () => {
+    const config = {
+      CLIENT_URL: "http://localhost:5173",
+      JWT_SECRET: "valid_secret_that_is_at_least_32_characters_long!",
+      JOIN_REQUEST_EXPIRATION_HOURS: "0",
+    };
+    expect(() => validateEnv(config)).toThrow();
+  });
+
+  it("rejects JOIN_REQUEST_EXPIRATION_HOURS above maximum (720)", () => {
+    const config = {
+      CLIENT_URL: "http://localhost:5173",
+      JWT_SECRET: "valid_secret_that_is_at_least_32_characters_long!",
+      JOIN_REQUEST_EXPIRATION_HOURS: "721",
+    };
+    expect(() => validateEnv(config)).toThrow();
+  });
 });

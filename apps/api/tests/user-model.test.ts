@@ -97,13 +97,22 @@ describe("User Model Tests", () => {
       })
     ).rejects.toThrow();
 
-    // Empty skills array
+    // Empty skills array is permitted (skills are optional at signup)
+    const emptySkillsUser = await User.create({
+      email: "empty-skills@test-user-model.com",
+      passwordHash,
+      displayName: "Valid Name",
+      skills: [],
+    });
+    expect(emptySkillsUser.skills).toEqual([]);
+
+    // Exceeding 20 skills still rejected
     await expect(
       User.create({
-        email: "invalid3@test-user-model.com",
+        email: "too-many-skills@test-user-model.com",
         passwordHash,
         displayName: "Valid Name",
-        skills: [],
+        skills: Array.from({ length: 21 }, (_, idx) => `Skill-${idx}`),
       })
     ).rejects.toThrow();
   });

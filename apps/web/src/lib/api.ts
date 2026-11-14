@@ -4,6 +4,8 @@ import type {
   UserDTO,
   RegisterInput,
   LoginInput,
+  UpdateProfileInput,
+  TeamRecommendationsResponseData,
 } from "@crewconnect/shared";
 
 const BASE_URL = import.meta.env.VITE_API_URL || "/api/v1";
@@ -94,6 +96,13 @@ export async function apiLogin(data: LoginInput): Promise<{ user: UserDTO }> {
 export async function apiGetMe(): Promise<{ user: UserDTO }> {
   return apiRequest<{ user: UserDTO }>("/auth/me", {
     method: "GET",
+  });
+}
+
+export async function apiUpdateProfile(data: UpdateProfileInput): Promise<{ user: UserDTO }> {
+  return apiRequest<{ user: UserDTO }>("/users/me", {
+    method: "PATCH",
+    body: JSON.stringify(data),
   });
 }
 
@@ -388,8 +397,23 @@ export interface JoinRequestRecord {
         experienceLevel?: string;
       };
   message?: string;
-  status: "PENDING" | "APPROVED" | "REJECTED" | "CANCELLED";
+  status: "PENDING" | "APPROVED" | "REJECTED" | "CANCELLED" | "EXPIRED";
+  expiresAt?: string;
+  resolvedAt?: string;
   createdAt: string;
+}
+
+export function isJoinRequestExpired(
+  req: Pick<JoinRequestRecord, "status" | "expiresAt">
+): boolean {
+  if (req.status === "EXPIRED") {
+    return true;
+  }
+  if (!req.expiresAt) {
+    return false;
+  }
+  const timestamp = new Date(req.expiresAt).getTime();
+  return !Number.isNaN(timestamp) && timestamp <= Date.now();
 }
 
 export async function apiCreateJoinRequest(
@@ -492,13 +516,28 @@ export async function apiAcceptInvitation(
   });
 }
 
+export async function apiGetTeamRecommendations(
+  teamId: string,
+  page = 1,
+  limit = 10
+): Promise<{
+  data: TeamRecommendationsResponseData;
+  meta?: ApiResponse<TeamRecommendationsResponseData>["meta"];
+}> {
+  const query = new URLSearchParams({
+    page: String(page),
+    limit: String(limit),
+  });
+  return apiRequestWithMeta<TeamRecommendationsResponseData>(
+    `/teams/${encodeURIComponent(teamId)}/recommendations?${query.toString()}`
+  );
+}
+
 export async function apiGetGoogleAuthStatus(): Promise<{ configured: boolean }> {
   return apiRequest<{ configured: boolean }>("/auth/google/status");
 }
 
 export function getGoogleAuthUrl(returnTo?: string): string {
-  const base = BASE_URL.startsWith("http")
-    ? `${BASE_URL}/auth/google`
-    : `/api/v1/auth/google`;
+  const base = BASE_URL.startsWith("http") ? `${BASE_URL}/auth/google` : `/api/v1/auth/google`;
   return returnTo ? `${base}?returnTo=${encodeURIComponent(returnTo)}` : base;
 }

@@ -103,6 +103,13 @@ describe("Frontend Authentication Tests", () => {
       fireEvent.change(screen.getByLabelText(/Email Address/i), {
         target: { value: "test@example.com" },
       });
+      fireEvent.change(screen.getByLabelText(/Technical Skills/i), {
+        target: { value: "TypeScript" },
+      });
+      fireEvent.keyDown(screen.getByLabelText(/Technical Skills/i), {
+        key: "Enter",
+        code: "Enter",
+      });
       fireEvent.change(screen.getByLabelText(/Password/i), {
         target: { value: "short1!" },
       });
@@ -132,6 +139,13 @@ describe("Frontend Authentication Tests", () => {
       });
       fireEvent.change(screen.getByLabelText(/Email Address/i), {
         target: { value: "test@example.com" },
+      });
+      fireEvent.change(screen.getByLabelText(/Technical Skills/i), {
+        target: { value: "TypeScript" },
+      });
+      fireEvent.keyDown(screen.getByLabelText(/Technical Skills/i), {
+        key: "Enter",
+        code: "Enter",
       });
       fireEvent.change(screen.getByLabelText(/Password/i), {
         target: { value: "PasswordWithoutNumbers" },

@@ -3,8 +3,13 @@ import { Types } from "mongoose";
 import { Hackathon } from "../models/index.js";
 import { TeamService } from "../services/team.service.js";
 import { requireAuth } from "../middleware/auth.js";
-import { validateBody } from "../middleware/validate.js";
-import { CreateTeamSchema, type CreateTeamInput } from "@crewconnect/shared";
+import { validateBody, validateQuery } from "../middleware/validate.js";
+import {
+  CreateTeamSchema,
+  ListTeamsQuerySchema,
+  type CreateTeamInput,
+  type ListTeamsQueryInput,
+} from "@crewconnect/shared";
 import { AppError } from "../errors/AppError.js";
 
 export const hackathonsRouter = Router();
@@ -60,16 +65,12 @@ hackathonsRouter.get(
  */
 hackathonsRouter.get(
   "/:hackathonId/teams",
+  validateQuery(ListTeamsQuerySchema),
   async (req: Request, res: Response, next: NextFunction): Promise<void> => {
     try {
       const { hackathonId } = req.params;
-      const page = req.query.page ? parseInt(req.query.page as string, 10) : 1;
-      const limit = req.query.limit ? parseInt(req.query.limit as string, 10) : 20;
-      const search = req.query.search as string | undefined;
-      const hasVacancies = req.query.hasVacancies === "true";
-      const skills = req.query.skills
-        ? (req.query.skills as string).split(",").map((s) => s.trim())
-        : undefined;
+      const { page, limit, search, hasVacancies, skills } =
+        req.query as unknown as ListTeamsQueryInput;
 
       const result = await TeamService.listTeams(hackathonId, {
         page,

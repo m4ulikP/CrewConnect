@@ -1,6 +1,9 @@
 export const USER_STATUS = ["ACTIVE", "SUSPENDED"] as const;
 export type UserStatus = (typeof USER_STATUS)[number];
 
+export const EXPERIENCE_LEVELS = ["BEGINNER", "INTERMEDIATE", "ADVANCED"] as const;
+export type ExperienceLevel = (typeof EXPERIENCE_LEVELS)[number];
+
 export const TEAM_ROLES = ["LEADER", "MEMBER"] as const;
 export type TeamRole = (typeof TEAM_ROLES)[number];
 
@@ -16,7 +19,13 @@ export type HackathonStatus = (typeof HACKATHON_STATUS)[number];
 export const INVITATION_STATUS = ["ACTIVE", "EXPIRED", "REVOKED", "EXHAUSTED"] as const;
 export type InvitationStatus = (typeof INVITATION_STATUS)[number];
 
-export const JOIN_REQUEST_STATUS = ["PENDING", "APPROVED", "REJECTED", "CANCELLED"] as const;
+export const JOIN_REQUEST_STATUS = [
+  "PENDING",
+  "APPROVED",
+  "REJECTED",
+  "CANCELLED",
+  "EXPIRED",
+] as const;
 export type JoinRequestStatus = (typeof JOIN_REQUEST_STATUS)[number];
 
 export const IDEMPOTENCY_STATUS = ["PROCESSING", "COMPLETED", "FAILED"] as const;
@@ -39,12 +48,14 @@ export const AUDIT_ACTIONS = [
   "JOIN_REQUEST_APPROVED",
   "JOIN_REQUEST_REJECTED",
   "JOIN_REQUEST_CANCELLED",
+  "JOIN_REQUEST_EXPIRED",
   "COUNTER_RECONCILED",
 ] as const;
 export type AuditAction = (typeof AUDIT_ACTIONS)[number];
 
 export const DEFAULT_MIN_TEAM_SIZE = 1;
 export const DEFAULT_MAX_TEAM_SIZE = 5;
+export const DEFAULT_JOIN_REQUEST_EXPIRATION_HOURS = 72;
 export const IDEMPOTENCY_LEASE_TIMEOUT_MS = 30_000; // 30 seconds lease window
 export const IDEMPOTENCY_TTL_SECONDS = 86_400; // 24 hours TTL
 

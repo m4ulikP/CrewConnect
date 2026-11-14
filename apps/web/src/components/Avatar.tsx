@@ -37,11 +37,7 @@ export const Avatar: React.FC<AvatarProps> = ({ name, className = "", size = "md
         : "w-8 h-8 text-[13px]";
 
   return (
-    <div
-      className={`avatar ${palette} ${sizeClasses} ${className}`}
-      title={name}
-      aria-label={name}
-    >
+    <div className={`avatar ${palette} ${sizeClasses} ${className}`} title={name} aria-label={name}>
       {initials}
     </div>
   );

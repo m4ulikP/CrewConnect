@@ -25,6 +25,33 @@ describe("@crewconnect/shared", () => {
     };
     const result = RegisterSchema.safeParse(validData);
     expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.timeZone).toBe("UTC");
+    }
+  });
+
+  it("accepts zero skills during registration and applies default empty skills array", () => {
+    const withEmptySkills = RegisterSchema.safeParse({
+      email: "noskills@example.com",
+      password: "Password123!",
+      displayName: "Zero Skills",
+      skills: [],
+    });
+    expect(withEmptySkills.success).toBe(true);
+    if (withEmptySkills.success) {
+      expect(withEmptySkills.data.skills).toEqual([]);
+      expect(withEmptySkills.data.timeZone).toBe("UTC");
+    }
+
+    const withOmittedSkills = RegisterSchema.safeParse({
+      email: "omittedskills@example.com",
+      password: "Password123!",
+      displayName: "Omitted Skills",
+    });
+    expect(withOmittedSkills.success).toBe(true);
+    if (withOmittedSkills.success) {
+      expect(withOmittedSkills.data.skills).toEqual([]);
+    }
   });
 
   it("rejects invalid registration schema input", () => {
@@ -32,7 +59,6 @@ describe("@crewconnect/shared", () => {
       email: "not-an-email",
       password: "weak",
       displayName: "",
-      skills: [],
     };
     const result = RegisterSchema.safeParse(invalidData);
     expect(result.success).toBe(false);

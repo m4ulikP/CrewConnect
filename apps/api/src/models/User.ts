@@ -1,7 +1,7 @@
 import mongoose, { Schema, Document, Model } from "mongoose";
 import argon2 from "argon2";
 import crypto from "crypto";
-import type { UserStatus } from "@crewconnect/shared";
+import { EXPERIENCE_LEVELS, type UserStatus, type ExperienceLevel } from "@crewconnect/shared";
 
 export interface IUser extends Document {
   email: string;
@@ -13,7 +13,7 @@ export interface IUser extends Document {
   bio?: string;
   skills: string[];
   timeZone: string;
-  experienceLevel?: "BEGINNER" | "INTERMEDIATE" | "ADVANCED";
+  experienceLevel?: ExperienceLevel;
   githubUrl?: string;
   linkedinUrl?: string;
   portfolioUrl?: string;
@@ -74,10 +74,10 @@ const UserSchema = new Schema<IUser, IUserModel>(
     },
     skills: {
       type: [String],
-      required: [true, "Skills are required"],
+      default: [],
       validate: {
-        validator: (v: string[]) => Array.isArray(v) && v.length >= 1 && v.length <= 20,
-        message: "Must provide between 1 and 20 skills",
+        validator: (v: string[]) => Array.isArray(v) && v.length <= 20,
+        message: "Cannot provide more than 20 skills",
       },
       index: true,
     },
@@ -88,7 +88,7 @@ const UserSchema = new Schema<IUser, IUserModel>(
     },
     experienceLevel: {
       type: String,
-      enum: ["BEGINNER", "INTERMEDIATE", "ADVANCED"],
+      enum: EXPERIENCE_LEVELS,
       default: "INTERMEDIATE",
     },
     githubUrl: {
@@ -123,6 +123,7 @@ const UserSchema = new Schema<IUser, IUserModel>(
         delete ret._id;
         delete ret.__v;
         delete ret.passwordHash;
+        delete ret.tokenVersion;
         return ret;
       },
     },

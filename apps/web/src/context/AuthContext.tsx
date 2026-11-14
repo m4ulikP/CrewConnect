@@ -10,6 +10,7 @@ interface AuthContextType {
   register: (data: RegisterInput) => Promise<void>;
   logout: () => Promise<void>;
   refreshUser: () => Promise<void>;
+  updateUser?: (user: UserDTO) => void;
   clearError: () => void;
 }
 
@@ -21,6 +22,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [error, setError] = useState<string | null>(null);
 
   const clearError = useCallback(() => setError(null), []);
+
+  const updateUser = useCallback((updatedUser: UserDTO) => {
+    setUser(updatedUser);
+  }, []);
 
   const refreshUser = useCallback(async () => {
     try {
@@ -95,6 +100,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         register,
         logout,
         refreshUser,
+        updateUser,
         clearError,
       }}
     >

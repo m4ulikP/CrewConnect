@@ -1,5 +1,5 @@
 import mongoose, { Schema, Document, Model, Types } from "mongoose";
-import type { JoinRequestStatus } from "@crewconnect/shared";
+import { JOIN_REQUEST_STATUS, type JoinRequestStatus } from "@crewconnect/shared";
 
 export interface IJoinRequest extends Document {
   hackathonId: Types.ObjectId;
@@ -7,6 +7,7 @@ export interface IJoinRequest extends Document {
   userId: Types.ObjectId;
   message?: string;
   status: JoinRequestStatus;
+  expiresAt?: Date;
   resolvedAt?: Date;
   resolvedBy?: Types.ObjectId;
   createdAt: Date;
@@ -41,9 +42,12 @@ const JoinRequestSchema = new Schema<IJoinRequest>(
     },
     status: {
       type: String,
-      enum: ["PENDING", "APPROVED", "REJECTED", "CANCELLED"],
+      enum: JOIN_REQUEST_STATUS,
       default: "PENDING",
       required: true,
+    },
+    expiresAt: {
+      type: Date,
     },
     resolvedAt: {
       type: Date,
@@ -72,6 +76,7 @@ const JoinRequestSchema = new Schema<IJoinRequest>(
 
 JoinRequestSchema.index({ teamId: 1, status: 1 });
 JoinRequestSchema.index({ hackathonId: 1, userId: 1, status: 1 });
+JoinRequestSchema.index({ status: 1, expiresAt: 1 });
 JoinRequestSchema.index(
   { teamId: 1, userId: 1 },
   { unique: true, partialFilterExpression: { status: "PENDING" } }

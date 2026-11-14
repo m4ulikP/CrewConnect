@@ -113,7 +113,7 @@ export class AuthService {
       email: normalizedEmail,
       passwordHash,
       displayName: input.displayName.trim(),
-      skills: input.skills.map((s: string) => s.trim()),
+      skills: (input.skills ?? []).map((s: string) => s.trim()),
       timeZone: input.timeZone || "UTC",
       bio: input.bio || "",
       status: "ACTIVE",

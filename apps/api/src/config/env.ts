@@ -1,5 +1,6 @@
 import dotenv from "dotenv";
 import { z } from "zod";
+import { DEFAULT_JOIN_REQUEST_EXPIRATION_HOURS } from "@crewconnect/shared";
 
 // Load environment variables from .env file if available
 dotenv.config();
@@ -35,6 +36,12 @@ const BaseEnvSchema = z.object({
   RATE_LIMIT_MAX_REQUESTS: z.coerce.number().default(100),
   JOIN_RATE_LIMIT_WINDOW_MS: z.coerce.number().default(60_000), // 1 min
   JOIN_RATE_LIMIT_MAX_REQUESTS: z.coerce.number().default(10), // 10 attempts
+  JOIN_REQUEST_EXPIRATION_HOURS: z.coerce
+    .number()
+    .int()
+    .min(1)
+    .max(720)
+    .default(DEFAULT_JOIN_REQUEST_EXPIRATION_HOURS),
   GOOGLE_CLIENT_ID: z.string().optional(),
   GOOGLE_CLIENT_SECRET: z.string().optional(),
   GOOGLE_CALLBACK_URL: z.string().url().optional(),

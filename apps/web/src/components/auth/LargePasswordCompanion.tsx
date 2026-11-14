@@ -5,6 +5,7 @@ export interface LargePasswordCompanionProps {
   isPasswordFocused: boolean;
   isPasswordVisible: boolean;
   isTyping?: boolean;
+  variant?: "login" | "signup";
   className?: string;
 }
 
@@ -12,9 +13,11 @@ export const LargePasswordCompanion: React.FC<LargePasswordCompanionProps> = ({
   isPasswordFocused,
   isPasswordVisible,
   isTyping = false,
+  variant = "login",
   className = "",
 }) => {
   const state = deriveCompanionState(isPasswordFocused, isPasswordVisible, isTyping);
+  const isSignup = variant === "signup";
 
   // Subtle body/shoulder lean toward the left-hand sign-in form
   const bodyTransformMap: Record<CompanionState, string> = {
@@ -67,31 +70,84 @@ export const LargePasswordCompanion: React.FC<LargePasswordCompanionProps> = ({
   };
 
   const rightHandTransformMap: Record<CompanionState, string> = {
-    neutral: "translate3d(0, 0, 0)",
+    neutral: isSignup ? "translate3d(26px, -66px, 0) rotate(-14deg)" : "translate3d(0, 0, 0)",
     "focused-hidden": "translate3d(-2px, -4px, 0)",
     "typing-hidden": "translate3d(0, -5px, 0) rotate(4deg)",
     "focused-visible": "translate3d(-10px, -18px, 0) rotate(10deg)",
     "typing-visible": "translate3d(-14px, -24px, 0) rotate(14deg)",
   };
 
-  const blushOpacity = state === "typing-visible" ? 0.75 : state === "focused-visible" ? 0.5 : 0;
+  const blushOpacity =
+    state === "typing-visible"
+      ? 0.75
+      : state === "focused-visible"
+        ? 0.5
+        : isSignup && state === "neutral"
+          ? 0.28
+          : 0;
 
   return (
     <div
       aria-hidden="true"
       data-testid="large-password-companion"
       data-companion-state={state}
+      data-companion-variant={variant}
       className={`w-full max-w-[430px] xl:max-w-[500px] aspect-[336/318] select-none pointer-events-none ${className}`}
     >
       <svg viewBox="42 40 336 318" className="w-full h-full overflow-visible" aria-hidden="true">
-        {/* Subtle Architectural Framing Circle */}
-        <circle cx="216" cy="196" r="138" fill="#FFFFFF" stroke="#CFCBC2" strokeWidth="1.5" />
+        {isSignup ? (
+          <>
+            {/* Signup Architectural Builder Canvas & Skill-Block Props */}
+            <rect
+              x="82"
+              y="64"
+              width="264"
+              height="271"
+              rx="28"
+              fill="#FFFFFF"
+              stroke="#CFCBC2"
+              strokeWidth="1.5"
+            />
+            <rect
+              x="66"
+              y="262"
+              width="34"
+              height="73"
+              rx="8"
+              fill="#FF5A1F"
+              stroke="#18181B"
+              strokeWidth="2.2"
+            />
+            <circle cx="83" cy="282" r="5" fill="#FDE047" stroke="#18181B" strokeWidth="1.6" />
+            <rect x="75" y="297" width="16" height="4" rx="2" fill="#FFFFFF" />
+            <rect x="75" y="306" width="12" height="4" rx="2" fill="#FFFFFF" opacity="0.7" />
+            <circle cx="96" cy="96" r="17" fill="#FDE047" stroke="#18181B" strokeWidth="2.2" />
+            <rect
+              x="312"
+              y="286"
+              width="42"
+              height="49"
+              rx="10"
+              fill="#EEEDE9"
+              stroke="#18181B"
+              strokeWidth="2.2"
+            />
+            <circle cx="333" cy="306" r="7" fill="#115E59" />
+            <rect x="323" y="319" width="20" height="4" rx="2" fill="#18181B" opacity="0.4" />
+            <circle cx="344" cy="134" r="6" fill="#FF5A1F" />
+          </>
+        ) : (
+          <>
+            {/* Subtle Architectural Framing Circle */}
+            <circle cx="216" cy="196" r="138" fill="#FFFFFF" stroke="#CFCBC2" strokeWidth="1.5" />
 
-        {/* Subtle Geometric Environment Shapes */}
-        <rect x="74" y="238" width="36" height="97" rx="6" fill="#E4E2DC" opacity="0.7" />
-        <circle cx="326" cy="98" r="22" fill="#FDE047" stroke="#18181B" strokeWidth="2.2" />
-        <circle cx="96" cy="142" r="7" fill="#FF5A1F" />
-        <circle cx="348" cy="240" r="5" fill="#115E59" opacity="0.45" />
+            {/* Subtle Geometric Environment Shapes */}
+            <rect x="74" y="238" width="36" height="97" rx="6" fill="#E4E2DC" opacity="0.7" />
+            <circle cx="326" cy="98" r="22" fill="#FDE047" stroke="#18181B" strokeWidth="2.2" />
+            <circle cx="96" cy="142" r="7" fill="#FF5A1F" />
+            <circle cx="348" cy="240" r="5" fill="#115E59" opacity="0.45" />
+          </>
+        )}
 
         {/* Subtle horizontal desk/ledge line */}
         <line

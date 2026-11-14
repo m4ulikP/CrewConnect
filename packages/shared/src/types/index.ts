@@ -1,5 +1,6 @@
 import type {
   UserStatus,
+  ExperienceLevel,
   TeamRole,
   MembershipStatus,
   TeamStatus,
@@ -49,13 +50,61 @@ export interface UserDTO {
   bio?: string;
   skills: string[];
   timeZone?: string;
-  experienceLevel?: "BEGINNER" | "INTERMEDIATE" | "ADVANCED";
+  experienceLevel?: ExperienceLevel;
   githubUrl?: string;
   linkedinUrl?: string;
   portfolioUrl?: string;
   status: UserStatus;
   createdAt: string;
   updatedAt?: string;
+}
+
+// Teammate Recommendation Types (Phase 5)
+export type TimezoneCompatibilityLabel = "STRONG" | "MODERATE" | "LIMITED" | "MINIMAL" | "UNKNOWN";
+
+export interface CandidatePublicDTO {
+  id: string;
+  displayName: string;
+  avatarUrl?: string;
+  bio?: string;
+  skills: string[];
+  experienceLevel?: ExperienceLevel;
+  githubUrl?: string;
+  linkedinUrl?: string;
+  portfolioUrl?: string;
+}
+
+export interface RecommendationDimensionScores {
+  skillScore: number;
+  experienceScore: number;
+  timezoneScore: number;
+}
+
+export interface RecommendationExplanations {
+  summary: string;
+  complementarySkills: string[];
+  overlappingSkills: string[];
+  experienceFit: string;
+  timezoneFit: {
+    label: TimezoneCompatibilityLabel;
+    overlapHours: number | null;
+    description: string;
+  };
+}
+
+export interface TeammateRecommendationDTO {
+  candidate: CandidatePublicDTO;
+  compatibilityScore: number;
+  dimensionScores: RecommendationDimensionScores;
+  explanations: RecommendationExplanations;
+}
+
+export interface TeamRecommendationsResponseData {
+  teamId: string;
+  teamName: string;
+  hackathonId: string;
+  vacancies: number;
+  recommendations: TeammateRecommendationDTO[];
 }
 
 export interface HackathonDTO {
@@ -129,6 +178,8 @@ export interface JoinRequestDTO {
   userId: string;
   message?: string;
   status: JoinRequestStatus;
+  expiresAt?: string;
+  resolvedAt?: string;
   createdAt: string;
 }
 

@@ -21,6 +21,7 @@ import {
   Key,
   History,
   Settings,
+  Sparkles,
 } from "lucide-react";
 import {
   apiGetTeam,
@@ -54,10 +55,11 @@ import { WorkspaceRequestsTab } from "../components/workspace/WorkspaceRequestsT
 import { WorkspaceInvitationsTab } from "../components/workspace/WorkspaceInvitationsTab";
 import { WorkspaceActivityTab } from "../components/workspace/WorkspaceActivityTab";
 import { WorkspaceSettingsTab } from "../components/workspace/WorkspaceSettingsTab";
+import { WorkspaceRecommendationsTab } from "../components/workspace/WorkspaceRecommendationsTab";
 import { WorkspaceModals } from "../components/workspace/WorkspaceModals";
 
 export type WorkspaceTab =
-  "overview" | "roster" | "requests" | "invitations" | "activity" | "settings";
+  "overview" | "roster" | "recommendations" | "requests" | "invitations" | "activity" | "settings";
 
 export const TeamDetails: React.FC = () => {
   const { teamId } = useParams<{ teamId: string }>();
@@ -699,6 +701,20 @@ export const TeamDetails: React.FC = () => {
           </span>
         </button>
 
+        {(isLeader || isMember) && (
+          <button
+            onClick={() => setActiveTab("recommendations")}
+            className={`pb-3 border-b-2 transition-colors cursor-pointer whitespace-nowrap inline-flex items-center gap-1.5 ${
+              activeTab === "recommendations"
+                ? "border-accent text-ink-primary font-semibold"
+                : "border-transparent text-ink-secondary hover:text-ink-primary"
+            }`}
+          >
+            <Sparkles className="w-4 h-4 text-accent" />
+            <span>Recommendations</span>
+          </button>
+        )}
+
         {isLeader && (
           <>
             <button
@@ -806,6 +822,16 @@ export const TeamDetails: React.FC = () => {
             }
             setIsJoinRequestModalOpen(true);
           }}
+        />
+      )}
+
+      {activeTab === "recommendations" && (
+        <WorkspaceRecommendationsTab
+          team={team}
+          isLeader={isLeader}
+          onOpenInviteModal={
+            isLeader ? (_inviteeId) => setIsCreateInviteModalOpen(true) : undefined
+          }
         />
       )}
 

@@ -49,6 +49,21 @@ describe("Authentication Integration Tests", () => {
       expect(cookies[0]).toMatch(/SameSite=Lax/i);
     });
 
+    it("succeeds when skills are empty ([]) and timezone is omitted (UTC default)", async () => {
+      const res = await request(app).post("/api/v1/auth/register").send({
+        email: "omitted-tz@test-auth-suite.com",
+        password: "SecurePassword123!",
+        displayName: "No Timezone User",
+        skills: [],
+      });
+
+      expect(res.status).toBe(201);
+      expect(res.body.success).toBe(true);
+      expect(res.body.data.user.skills).toEqual([]);
+      expect(res.body.data.user.timeZone).toBe("UTC");
+      expect(res.body.data.user.bio).toBe("");
+    });
+
     it("rejects registration with duplicate email (409 Conflict)", async () => {
       // First registration
       await request(app)

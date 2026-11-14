@@ -6,18 +6,21 @@ import { JoinRequestService } from "../services/join-request.service.js";
 import { InvitationService } from "../services/invitation.service.js";
 import { AuditLog, Membership } from "../models/index.js";
 import { requireAuth } from "../middleware/auth.js";
-import { validateBody } from "../middleware/validate.js";
+import { validateBody, validateQuery } from "../middleware/validate.js";
 import { idempotency } from "../middleware/idempotency.js";
 import { joinRateLimiter } from "../middleware/rateLimiter.js";
+import { RecommendationService } from "../services/recommendation.service.js";
 import {
   UpdateTeamSchema,
   TransferLeadershipSchema,
   CreateJoinRequestSchema,
   CreateInvitationSchema,
+  RecommendationQuerySchema,
   type UpdateTeamInput,
   type TransferLeadershipInput,
   type CreateJoinRequestInput,
   type CreateInvitationInput,
+  type RecommendationQueryInput,
 } from "@crewconnect/shared";
 import { AppError } from "../errors/AppError.js";
 
@@ -524,6 +527,33 @@ teamsRouter.delete(
       res.status(200).json({
         success: true,
         data: revoked,
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
+/**
+ * GET /api/v1/teams/:id/recommendations
+ * Retrieve deterministic, explainable teammate recommendations for an active squad (members only)
+ */
+teamsRouter.get(
+  "/:id/recommendations",
+  requireAuth,
+  validateQuery(RecommendationQuerySchema),
+  async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+    try {
+      const teamId = req.params.id;
+      const userId = req.user!.id;
+      const query = req.query as unknown as RecommendationQueryInput;
+
+      const result = await RecommendationService.getRecommendations(teamId, userId, query);
+
+      res.status(200).json({
+        success: true,
+        data: result.data,
+        meta: result.meta,
       });
     } catch (error) {
       next(error);

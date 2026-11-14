@@ -100,7 +100,9 @@ export const CreateTeamModal: React.FC<CreateTeamModalProps> = ({
             <h2 id="create-team-title" className="text-xl font-serif font-medium text-ink-primary">
               Create a New Team
             </h2>
-            <p className="text-xs text-ink-secondary">Initialize team and register as squad leader</p>
+            <p className="text-xs text-ink-secondary">
+              Initialize team and register as squad leader
+            </p>
           </div>
           <button
             onClick={onClose}

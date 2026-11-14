@@ -1,13 +1,17 @@
 import type { Request, Response, NextFunction } from "express";
-import type { AnyZodObject } from "zod";
+import type { ZodTypeAny } from "zod";
 import { AppError } from "../errors/AppError.js";
 import { ERROR_CODES } from "@crewconnect/shared";
 
-export function validateBody(schema: AnyZodObject) {
+function createValidator(schema: ZodTypeAny, source: "body" | "query") {
   return async (req: Request, _res: Response, next: NextFunction): Promise<void> => {
     try {
-      const parsed = await schema.parseAsync(req.body);
-      req.body = parsed;
+      const parsed = await schema.parseAsync(source === "body" ? req.body : req.query);
+      if (source === "body") {
+        req.body = parsed;
+      } else {
+        req.query = parsed as Request["query"];
+      }
       next();
     } catch (err: unknown) {
       if (err && typeof err === "object" && "issues" in err) {
@@ -23,4 +27,12 @@ export function validateBody(schema: AnyZodObject) {
       }
     }
   };
+}
+
+export function validateBody(schema: ZodTypeAny) {
+  return createValidator(schema, "body");
+}
+
+export function validateQuery(schema: ZodTypeAny) {
+  return createValidator(schema, "query");
 }

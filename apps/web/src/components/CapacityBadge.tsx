@@ -24,7 +24,8 @@ export const CapacityBadge: React.FC<CapacityBadgeProps> = ({
             isFull ? "status-full" : remaining === 1 ? "status-warning" : "status-open"
           }`}
         >
-          <span className="tabular">{memberCount}</span> / <span className="tabular">{maxCapacity}</span> filled
+          <span className="tabular">{memberCount}</span> /{" "}
+          <span className="tabular">{maxCapacity}</span> filled
         </span>
         <span className="text-xs text-ink-secondary tabular">
           {isFull ? "Roster full" : `${remaining} seat${remaining === 1 ? "" : "s"} open`}

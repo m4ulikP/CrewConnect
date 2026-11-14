@@ -1,6 +1,7 @@
 import { Router } from "express";
 import { healthRouter } from "./health.js";
 import { authRouter } from "./auth.js";
+import { usersRouter } from "./users.js";
 import { hackathonsRouter } from "./hackathons.js";
 import { teamsRouter } from "./teams.js";
 import { invitationsRouter } from "./invitations.js";
@@ -16,6 +17,9 @@ v1Router.use(apiRateLimiter);
 
 // Authentication module under /api/v1/auth
 v1Router.use("/auth", authRouter);
+
+// User profile module under /api/v1/users
+v1Router.use("/users", usersRouter);
 
 // Hackathon module under /api/v1/hackathons
 v1Router.use("/hackathons", hackathonsRouter);

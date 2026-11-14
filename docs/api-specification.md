@@ -91,7 +91,70 @@ All API responses adhere to standard envelopes:
 
 ---
 
-## 3. Team Module (`/hackathons/:hackathonId/teams`)
+## 3. User Profile Module (`/users`)
+
+### 1. `PATCH /users/me`
+
+- **Auth**: Authenticated (`httpOnly` session cookie or Bearer JWT)
+- **Description**: Updates the authenticated user's profile information. Identity is derived strictly from the verified JWT context (`req.user.id`). Client-supplied identity overrides or target user IDs are prohibited and rejected.
+- **Request Body** (Partial updates supported; strict schema rejects unknown/protected fields):
+  ```json
+  {
+    "displayName": "Alex Rivera",
+    "bio": "Systems architect specializing in distributed platforms.",
+    "skills": ["TypeScript", "Rust", "Docker", "Kubernetes"],
+    "timeZone": "America/New_York",
+    "experienceLevel": "ADVANCED",
+    "githubUrl": "https://github.com/alex-rivera",
+    "linkedinUrl": "https://linkedin.com/in/alex-rivera",
+    "portfolioUrl": "https://alexrivera.dev"
+  }
+  ```
+- **Editable Fields**:
+  - `displayName`: string, 2–50 characters, trimmed (required if provided).
+  - `bio`: string, max 500 characters, trimmed. Passing `""` or `null` clears the bio.
+  - `skills`: array of strings, max 20 items, max 40 chars each. Case-insensitive duplicates are prevented. Empty array `[]` is valid and removes all skills.
+  - `timeZone`: valid IANA timezone identifier (e.g. `UTC`, `America/New_York`, `Asia/Kolkata`).
+  - `experienceLevel`: enum (`BEGINNER`, `INTERMEDIATE`, `ADVANCED`).
+  - `githubUrl`, `linkedinUrl`, `portfolioUrl`: valid HTTP/HTTPS URLs (max 200 chars). Passing `""` or `null` clears the link.
+- **Protected / Non-Editable Fields**:
+  - `email`, `passwordHash`, `status`, `tokenVersion`, `role`, `authProvider`, `googleId`.
+  - Attempting to pass any protected or unknown field results in `400 VALIDATION_ERROR`.
+- **Discovery Integration**:
+  - Updates to `displayName` and `skills` are immediately reflected in team discovery aggregations (`GET /hackathons/:hackathonId/teams`) via the pipeline `$lookup` on `leaderId`.
+  - `email` and private security fields remain strictly excluded from public discovery projections.
+  - `timeZone` and `experienceLevel` are persisted for teammate matching and schedule compatibility scoring.
+- **Success Response (200 OK)**:
+  ```json
+  {
+    "success": true,
+    "data": {
+      "user": {
+        "id": "65e2b4f910a2b8e3a1f9a001",
+        "email": "alex.rivera@example.com",
+        "displayName": "Alex Rivera",
+        "bio": "Systems architect specializing in distributed platforms.",
+        "skills": ["TypeScript", "Rust", "Docker", "Kubernetes"],
+        "timeZone": "America/New_York",
+        "experienceLevel": "ADVANCED",
+        "githubUrl": "https://github.com/alex-rivera",
+        "linkedinUrl": "https://linkedin.com/in/alex-rivera",
+        "portfolioUrl": "https://alexrivera.dev",
+        "status": "ACTIVE",
+        "createdAt": "2026-01-15T10:00:00.000Z",
+        "updatedAt": "2026-11-14T15:00:00.000Z"
+      }
+    }
+  }
+  ```
+- **Failure Cases**:
+  - `400 Bad Request`: `VALIDATION_ERROR` (invalid URL, non-IANA timezone, invalid experience level, duplicate skills, bio > 500 chars, displayName < 2 or > 50 chars, unknown/protected fields).
+  - `401 Unauthorized`: `UNAUTHORIZED` (missing or expired session cookie / bearer token).
+  - `403 Forbidden`: `FORBIDDEN` (account status is suspended).
+
+---
+
+## 4. Team Module (`/hackathons/:hackathonId/teams`)
 
 ### 1. `GET /hackathons/:hackathonId/teams` (Discovery Board)
 
@@ -211,10 +274,12 @@ All capacity-modifying operations funnel through the centralized **SeatReservati
       "userId": "65e2b4f910a2b8e3a1f9a055",
       "status": "PENDING",
       "message": "Specialized in distributed systems and consensus protocols.",
+      "expiresAt": "2026-11-12T22:00:00.000Z",
       "createdAt": "2026-11-09T22:00:00.000Z"
     }
   }
   ```
+- **Notes**: Server assigns `expiresAt` (`JOIN_REQUEST_EXPIRATION_HOURS`, default `72` hours). Prior stale `PENDING` requests from the same applicant/team are lazily transitioned to `EXPIRED` inside the creation transaction so they do not trigger `JOIN_REQUEST_ALREADY_EXISTS`.
 - **Failure Cases**:
   - `409 Conflict`: `JOIN_REQUEST_ALREADY_EXISTS` ("You already have a pending join request for this team.")
   - `409 Conflict`: `ALREADY_IN_TEAM` ("User is already in an active team.")
@@ -224,6 +289,7 @@ All capacity-modifying operations funnel through the centralized **SeatReservati
 
 - **Auth**: Authenticated (Team Leader only)
 - **Query Params**: `status` (default: "PENDING")
+- **Description**: Lazily expires stale `PENDING` requests transactionally (`PENDING -> EXPIRED` + `JOIN_REQUEST_EXPIRED` audit log) before returning active non-expired `PENDING` requests.
 - **Success Response (200 OK)**:
   ```json
   {
@@ -239,6 +305,7 @@ All capacity-modifying operations funnel through the centralized **SeatReservati
         },
         "status": "PENDING",
         "message": "Specialized in distributed systems.",
+        "expiresAt": "2026-11-12T22:00:00.000Z",
         "createdAt": "2026-11-09T22:00:00.000Z"
       }
     ]
@@ -248,25 +315,27 @@ All capacity-modifying operations funnel through the centralized **SeatReservati
 ### 4. `POST /teams/:id/join-requests/:requestId/approve` (Approve Join Request)
 
 - **Auth**: Authenticated (Team Leader only)
-- **Header**: `Idempotency-Key: <string>` (Mandatory)
-- **Description**: Executes `SeatReservationService.reserveSeatAndJoin` inside an ACID transaction with an `onBeforeCommit` hook that transitions `JoinRequest.status: "PENDING" -> "APPROVED"`.
-- **Success Response (200 OK)**: Returns the newly created `MembershipRecord`.
+- **Header**: `Idempotency-Key: <string>` (Optional; recommended)
+- **Description**: Executes `SeatReservationService.reserveSeatAndJoin` inside an ACID transaction with an `onBeforeCommit` hook that conditionally transitions `JoinRequest.status: "PENDING" -> "APPROVED"` only while non-expired (`expiresAt > now`).
+- **Success Response (201 Created)**: Returns the newly created `MembershipRecord`.
 - **Failure Cases**:
+  - `400 Bad Request`: `JOIN_REQUEST_EXPIRED` ("Join request has expired")
+  - `400 Bad Request`: `JOIN_REQUEST_NOT_PENDING`
   - `403 Forbidden`: `NOT_TEAM_LEADER`
-  - `404 Not Found`: `JOIN_REQUEST_NOT_FOUND`
+  - `404 Not Found`: `NOT_FOUND`
   - `409 Conflict`: `TEAM_FULL` / `ALREADY_IN_TEAM`
 
 ### 5. `POST /teams/:id/join-requests/:requestId/reject` (Reject Join Request)
 
 - **Auth**: Authenticated (Team Leader only)
-- **Description**: Atomically transitions `JoinRequest.status: "PENDING" -> "REJECTED"`.
-- **Success Response (200 OK)**: `{ "success": true, "message": "Join request rejected successfully." }`
+- **Description**: Atomically transitions non-expired `JoinRequest.status: "PENDING" -> "REJECTED"`. Rejects expired requests with `400 JOIN_REQUEST_EXPIRED`.
+- **Success Response (200 OK)**: `{ "success": true, "data": { ...JoinRequest } }`
 
 ### 6. `DELETE /teams/:id/join-requests/:requestId` (Cancel Own Join Request)
 
 - **Auth**: Authenticated (Applicant only)
-- **Description**: Atomically transitions `JoinRequest.status: "PENDING" -> "CANCELLED"`.
-- **Success Response (200 OK)**: `{ "success": true, "message": "Join request cancelled successfully." }`
+- **Description**: Atomically transitions non-expired `JoinRequest.status: "PENDING" -> "CANCELLED"`. Rejects expired requests with `400 JOIN_REQUEST_EXPIRED`.
+- **Success Response (200 OK)**: `{ "success": true, "data": { ...JoinRequest } }`
 
 ### 7. `POST /teams/:id/leave` (Voluntary Departure)
 
@@ -392,3 +461,87 @@ All capacity-modifying operations funnel through the centralized **SeatReservati
 - **Auth**: Authenticated (Team members only)
 - **Query Params**: `page`, `limit`
 - **Success Response (200 OK)**: Paginated chronological history from the auditable event log.
+
+---
+
+## 7. Explainable Teammate Recommendations Module (`/teams/:id/recommendations`)
+
+### 1. `GET /teams/:id/recommendations`
+
+Calculates deterministic, transparent, and explainable teammate recommendations for an active squad.
+
+- **Auth**: Authenticated (Active squad leader or confirmed members only).
+- **Query Parameters**:
+  - `page` (optional integer, min 1, default 1)
+  - `limit` (optional integer, min 1, max 50, default 10)
+- **Eligibility Invariants**:
+  - Requesting user is excluded.
+  - Active members of the target squad are excluded.
+  - Participants with an `ACTIVE` membership in any other squad in the same hackathon are excluded (enforcing the single-team hackathon constraint).
+  - Suspended accounts are excluded.
+  - If the squad is full (`memberCount >= maxCapacity`) or closed (`isOpen: false`), returns zero vacancies and empty recommendations cleanly.
+- **Privacy Guarantees**:
+  - Candidate objects expose only public identity attributes (`id`, `displayName`, `avatarUrl`, `bio`, `skills`, `experienceLevel`, public links).
+  - Private information (`email`, `passwordHash`, `tokenVersion`, etc.) is strictly omitted.
+- **Scoring Methodology (0–100 Normalized Scale)**:
+  - $\text{TotalScore} = \text{round}(0.50 \times \text{SkillScore} + 0.25 \times \text{ExperienceScore} + 0.25 \times \text{TimezoneScore})$
+  - **Skill Complementarity (50%)**: Evaluates fulfillment of squad's `skillsNeeded` (60%), new skill breadth expansion (25%), and shared collaborative foundation (15%). Candidates with 0 skills receive a baseline 10 score with an explicit explanation.
+  - **Experience Compatibility (25%)**: Evaluates the squad's experience distribution (`BEGINNER`, `INTERMEDIATE`, `ADVANCED`). Beginner-heavy squads prioritize advanced candidates for mentorship; advanced squads welcome senior peers and eager junior contributors. Candidates with unlisted experience receive a 70 neutral baseline.
+  - **Timezone Overlap (25%)**: Measures shared working hours (09:00–18:00 local time) using IANA timezones and UTC offsets. Overlap $\ge 6\text{h}$: `STRONG` (100); $4\text{h} \le \text{overlap} < 6\text{h}$: `MODERATE` (75); $1\text{h} \le \text{overlap} < 4\text{h}$: `LIMITED` (50); $< 1\text{h}$: `MINIMAL` (25). Unlisted/invalid timezone defaults to `UNKNOWN` (50 neutral baseline).
+  - **Deterministic Tie-Breaking**: `compatibilityScore` DESC $\to$ `skillScore` DESC $\to$ `timezoneScore` DESC $\to$ candidate `id` ASC.
+- **Success Response (200 OK)**:
+
+```json
+{
+  "success": true,
+  "data": {
+    "teamId": "65b...",
+    "teamName": "LockFree Guild",
+    "hackathonId": "65a...",
+    "vacancies": 2,
+    "recommendations": [
+      {
+        "candidate": {
+          "id": "65c...",
+          "displayName": "Sarah Connor",
+          "avatarUrl": "https://...",
+          "bio": "Distributed systems engineer.",
+          "skills": ["Rust", "Kubernetes", "TypeScript"],
+          "experienceLevel": "ADVANCED",
+          "githubUrl": "https://github.com/sconnor",
+          "linkedinUrl": "https://linkedin.com/in/sconnor",
+          "portfolioUrl": "https://sconnor.dev"
+        },
+        "compatibilityScore": 94,
+        "dimensionScores": {
+          "skillScore": 96,
+          "experienceScore": 95,
+          "timezoneScore": 90
+        },
+        "explanations": {
+          "summary": "Directly fulfills 2 squad requirements (Rust, Kubernetes) with shared TypeScript foundation.",
+          "complementarySkills": ["Rust", "Kubernetes"],
+          "overlappingSkills": ["TypeScript"],
+          "experienceFit": "Advanced background brings essential architectural leadership and mentorship.",
+          "timezoneFit": {
+            "label": "STRONG",
+            "overlapHours": 8,
+            "description": "Approx. 8 hours of shared working-hour overlap."
+          }
+        }
+      }
+    ]
+  },
+  "meta": {
+    "page": 1,
+    "limit": 10,
+    "total": 1
+  }
+}
+```
+
+- **Failure Cases**:
+  - `401 Unauthorized`: Authentication required.
+  - `403 Forbidden`: Caller is not an active member or leader of the team.
+  - `404 Not Found`: Team does not exist.
+  - `422 Unprocessable Entity`: Malformed team ID format or invalid pagination query.

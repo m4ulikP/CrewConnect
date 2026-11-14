@@ -1166,4 +1166,153 @@ describe("Team Lifecycle & Management Integration Tests", () => {
       expect(throttled.headers["retry-after"]).toBeDefined();
     });
   });
+
+  // --------------------------------------------------------------------------
+  // 9. Discovery Privacy, Pagination Accuracy & Query Validation (Phase 3.5)
+  // --------------------------------------------------------------------------
+  describe("Phase 3.5: Discovery Privacy, Pagination Correctness & Query Validation", () => {
+    it("never exposes leader email addresses or sensitive user fields on unauthenticated discovery responses", async () => {
+      await Team.create({
+        hackathonId: new Types.ObjectId(testHackathonId),
+        leaderId: new Types.ObjectId(leaderUser.id),
+        name: "Privacy Guard Team",
+        tagline: "Zero PII leak",
+        skillsNeeded: ["TypeScript", "Security"],
+        maxCapacity: 4,
+        memberCount: 1,
+        isOpen: true,
+        status: "ACTIVE",
+      });
+
+      const discoveryRes = await request(app).get(`/api/v1/hackathons/${testHackathonId}/teams`);
+      expect(discoveryRes.status).toBe(200);
+      expect(discoveryRes.body.data.length).toBe(1);
+
+      const team = discoveryRes.body.data[0];
+      expect(team.leaderId).toBeDefined();
+      expect(team.leaderId.displayName).toBe("Leader User");
+      expect(team.leaderId.skills).toEqual(["TypeScript", "React"]);
+      expect(team.leaderId.email).toBeUndefined();
+      expect(team.leaderId.passwordHash).toBeUndefined();
+      expect(team.leaderId.tokenVersion).toBeUndefined();
+      expect(JSON.stringify(discoveryRes.body)).not.toContain("leader@test-teams-suite.com");
+
+      // Authenticated team-management roster retains legitimate member contact info
+      const rosterRes = await request(app)
+        .get(`/api/v1/teams/${team.id}/members`)
+        .set("Cookie", leaderCookie);
+      expect(rosterRes.status).toBe(200);
+    });
+
+    it("computes accurate totals and pages when hasVacancies=true across full and vacant open teams", async () => {
+      const baseTime = Date.now();
+      // Seed 2 open-flagged but FULL teams (memberCount === maxCapacity) and 3 open VACANT teams
+      await Team.insertMany([
+        {
+          hackathonId: new Types.ObjectId(testHackathonId),
+          leaderId: new Types.ObjectId(leaderUser.id),
+          name: "Full Open Team 1",
+          maxCapacity: 2,
+          memberCount: 2,
+          isOpen: true,
+          status: "ACTIVE",
+          createdAt: new Date(baseTime - 5000),
+        },
+        {
+          hackathonId: new Types.ObjectId(testHackathonId),
+          leaderId: new Types.ObjectId(memberUser.id),
+          name: "Full Open Team 2",
+          maxCapacity: 3,
+          memberCount: 3,
+          isOpen: true,
+          status: "ACTIVE",
+          createdAt: new Date(baseTime - 4000),
+        },
+        {
+          hackathonId: new Types.ObjectId(testHackathonId),
+          leaderId: new Types.ObjectId(outsiderUser.id),
+          name: "Vacant Team A",
+          maxCapacity: 4,
+          memberCount: 1,
+          isOpen: true,
+          status: "ACTIVE",
+          createdAt: new Date(baseTime - 3000),
+        },
+        {
+          hackathonId: new Types.ObjectId(testHackathonId),
+          leaderId: new Types.ObjectId(outsiderUser.id),
+          name: "Vacant Team B",
+          maxCapacity: 4,
+          memberCount: 2,
+          isOpen: true,
+          status: "ACTIVE",
+          createdAt: new Date(baseTime - 2000),
+        },
+        {
+          hackathonId: new Types.ObjectId(testHackathonId),
+          leaderId: new Types.ObjectId(outsiderUser.id),
+          name: "Vacant Team C",
+          maxCapacity: 5,
+          memberCount: 4,
+          isOpen: true,
+          status: "ACTIVE",
+          createdAt: new Date(baseTime - 1000),
+        },
+      ]);
+
+      const page1 = await request(app).get(
+        `/api/v1/hackathons/${testHackathonId}/teams?hasVacancies=true&limit=2&page=1`
+      );
+      expect(page1.status).toBe(200);
+      expect(page1.body.meta).toEqual({ page: 1, limit: 2, total: 3 });
+      expect(page1.body.data).toHaveLength(2);
+      expect(page1.body.data.map((t: { name: string }) => t.name)).toEqual([
+        "Vacant Team C",
+        "Vacant Team B",
+      ]);
+
+      const page2 = await request(app).get(
+        `/api/v1/hackathons/${testHackathonId}/teams?hasVacancies=true&limit=2&page=2`
+      );
+      expect(page2.status).toBe(200);
+      expect(page2.body.meta).toEqual({ page: 2, limit: 2, total: 3 });
+      expect(page2.body.data).toHaveLength(1);
+      expect(page2.body.data[0].name).toBe("Vacant Team A");
+
+      // Without hasVacancies=true, all 5 active teams are counted
+      const allRes = await request(app).get(`/api/v1/hackathons/${testHackathonId}/teams?limit=10`);
+      expect(allRes.status).toBe(200);
+      expect(allRes.body.meta.total).toBe(5);
+      expect(allRes.body.data).toHaveLength(5);
+    });
+
+    it("validates discovery query parameters and rejects malformed pagination or filter inputs with 422", async () => {
+      const invalidCases = [
+        "page=0",
+        "page=-2",
+        "page=abc",
+        "page=1.5",
+        "limit=0",
+        "limit=51",
+        "limit=nan",
+        "hasVacancies=maybe",
+        `search=${"x".repeat(101)}`,
+      ];
+
+      for (const qs of invalidCases) {
+        const res = await request(app).get(`/api/v1/hackathons/${testHackathonId}/teams?${qs}`);
+        expect(res.status, `Expected 422 for query '${qs}'`).toBe(422);
+        expect(res.body.success).toBe(false);
+        expect(res.body.error.code).toBe("VALIDATION_ERROR");
+      }
+
+      // Boundary valid request: limit=50, search trimmed, comma-separated skills
+      const validRes = await request(app).get(
+        `/api/v1/hackathons/${testHackathonId}/teams?page=1&limit=50&hasVacancies=false&search=%20Rust%20&skills=Rust,Go`
+      );
+      expect(validRes.status).toBe(200);
+      expect(validRes.body.meta.page).toBe(1);
+      expect(validRes.body.meta.limit).toBe(50);
+    });
+  });
 });

@@ -610,6 +610,35 @@ pre {
 .form-input::placeholder {
   color: var(--ink-muted);
 }
+.form-input[aria-invalid="true"] {
+  border-color: var(--danger);
+}
+.form-input[aria-invalid="true"]:focus {
+  border-color: var(--danger);
+  box-shadow: 0 0 0 3px rgba(185, 28, 28, 0.14);
+}
+.form-textarea {
+  height: auto;
+  min-height: 84px;
+  padding: 10px 14px;
+  resize: vertical;
+  line-height: 1.5;
+}
+
+@keyframes skillChipEnter {
+  from {
+    opacity: 0;
+    transform: translate3d(0, 4px, 0) scale(0.95);
+  }
+  to {
+    opacity: 1;
+    transform: translate3d(0, 0, 0) scale(1);
+  }
+}
+
+.skill-chip-enter {
+  animation: skillChipEnter 160ms var(--ease-out) both;
+}
 
 /* Avatar styling */
 .avatar {
