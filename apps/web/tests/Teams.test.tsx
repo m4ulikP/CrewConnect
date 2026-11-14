@@ -115,7 +115,7 @@ describe("Frontend Team Management Components", () => {
   };
 
   describe("CreateTeamModal", () => {
-    it("renders team creation form inputs and adds skill chips", () => {
+    it("renders team creation form inputs, hackathon selector, and adds skill chips", () => {
       const handleClose = vi.fn();
       const handleCreated = vi.fn();
 
@@ -129,6 +129,7 @@ describe("Frontend Team Management Components", () => {
       );
 
       expect(screen.getByRole("heading", { name: /Create a New Team/i })).toBeInTheDocument();
+      expect(screen.getByLabelText(/Hackathon Competition/i)).toBeInTheDocument();
       expect(screen.getByLabelText(/Team Name/i)).toBeInTheDocument();
       expect(screen.getByLabelText(/Tagline/i)).toBeInTheDocument();
       expect(screen.getByLabelText(/Max Capacity/i)).toBeInTheDocument();
@@ -138,6 +139,55 @@ describe("Frontend Team Management Components", () => {
       fireEvent.click(screen.getByRole("button", { name: "Add" }));
 
       expect(screen.getByText("MongoDB")).toBeInTheDocument();
+    });
+
+    it("proactively fetches hackathons when opened with empty list and auto-binds active hackathon", async () => {
+      const getHackathonsSpy = vi
+        .spyOn(apiModule, "apiGetHackathons")
+        .mockResolvedValue(mockHackathons);
+      const createTeamSpy = vi.spyOn(apiModule, "apiCreateTeam").mockResolvedValue({
+        team: {
+          ...mockTeam,
+          id: "new-team-999",
+          name: "Alpha Squad",
+        },
+        membership: mockMembers[0],
+      });
+
+      const handleClose = vi.fn();
+      const handleCreated = vi.fn();
+
+      render(
+        <CreateTeamModal
+          hackathons={[]}
+          isOpen={true}
+          onClose={handleClose}
+          onTeamCreated={handleCreated}
+        />
+      );
+
+      await waitFor(() => {
+        expect(getHackathonsSpy).toHaveBeenCalled();
+        expect(screen.getByLabelText(/Hackathon Competition/i)).toBeInTheDocument();
+      });
+
+      // Fill required fields
+      fireEvent.change(screen.getByLabelText(/Team Name/i), {
+        target: { value: "Alpha Squad" },
+      });
+
+      // Submit form
+      fireEvent.click(screen.getByRole("button", { name: "Create Team" }));
+
+      await waitFor(() => {
+        expect(createTeamSpy).toHaveBeenCalledWith(
+          "hack-1",
+          expect.objectContaining({
+            name: "Alpha Squad",
+          })
+        );
+        expect(handleCreated).toHaveBeenCalledWith(expect.objectContaining({ id: "new-team-999" }));
+      });
     });
   });
 

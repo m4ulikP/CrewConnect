@@ -402,6 +402,10 @@ export const TeamsPreview: React.FC = () => {
       navigate("/login", { state: { from: "/teams-preview" } });
       return;
     }
+    if (!selectedHackathonId && hackathons.length > 0) {
+      const active = hackathons.find((h) => h.status === "ACTIVE") || hackathons[0];
+      if (active) setSelectedHackathonId(active.id);
+    }
     setIsCreateModalOpen(true);
   };
 

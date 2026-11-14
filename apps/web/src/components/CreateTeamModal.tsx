@@ -1,7 +1,13 @@
-import React, { useState } from "react";
-import { X, AlertCircle, Users, Plus, ShieldCheck, Loader2, Sparkles } from "lucide-react";
+import React, { useState, useEffect, useCallback } from "react";
+import { X, AlertCircle, Users, Plus, ShieldCheck, Loader2, RefreshCw } from "lucide-react";
 import { AccessibleDialog } from "./AccessibleDialog";
-import { apiCreateTeam, ApiClientError, type HackathonRecord, type TeamRecord } from "../lib/api";
+import {
+  apiCreateTeam,
+  apiGetHackathons,
+  ApiClientError,
+  type HackathonRecord,
+  type TeamRecord,
+} from "../lib/api";
 
 interface CreateTeamModalProps {
   hackathons: HackathonRecord[];
@@ -31,9 +37,17 @@ export const CreateTeamModal: React.FC<CreateTeamModalProps> = ({
   onClose,
   onTeamCreated,
 }) => {
-  const [selectedHackathonId, setSelectedHackathonId] = useState(
-    defaultHackathonId || (hackathons[0]?.id ?? "")
+  const [internalHackathons, setInternalHackathons] = useState<HackathonRecord[]>(hackathons || []);
+  const [loadingHackathons, setLoadingHackathons] = useState<boolean>(false);
+  const [hackathonFetchError, setHackathonFetchError] = useState<string | null>(null);
+
+  const [selectedHackathonId, setSelectedHackathonId] = useState<string>(
+    defaultHackathonId ||
+      hackathons.find((h) => h.status === "ACTIVE")?.id ||
+      hackathons[0]?.id ||
+      ""
   );
+
   const [name, setName] = useState("");
   const [tagline, setTagline] = useState("");
   const [description, setDescription] = useState("");
@@ -43,9 +57,55 @@ export const CreateTeamModal: React.FC<CreateTeamModalProps> = ({
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
+  // Sync internal list if hackathons prop updates
+  useEffect(() => {
+    if (hackathons && hackathons.length > 0) {
+      setInternalHackathons(hackathons);
+    }
+  }, [hackathons]);
+
+  // Proactively fetch hackathons if prop was empty
+  const fetchHackathons = useCallback(async () => {
+    setLoadingHackathons(true);
+    setHackathonFetchError(null);
+    try {
+      const data = await apiGetHackathons();
+      if (data && data.length > 0) {
+        setInternalHackathons(data);
+      }
+    } catch {
+      setHackathonFetchError("Failed to load hackathon list.");
+    } finally {
+      setLoadingHackathons(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (isOpen && internalHackathons.length === 0 && (!hackathons || hackathons.length === 0)) {
+      fetchHackathons();
+    }
+  }, [isOpen, hackathons, internalHackathons.length, fetchHackathons]);
+
+  // Keep selectedHackathonId in sync with props or loaded hackathons
+  useEffect(() => {
+    if (defaultHackathonId) {
+      setSelectedHackathonId(defaultHackathonId);
+    } else if (internalHackathons.length > 0) {
+      setSelectedHackathonId((prev) => {
+        if (prev && internalHackathons.some((h) => h.id === prev)) return prev;
+        const active =
+          internalHackathons.find((h) => h.status === "ACTIVE") || internalHackathons[0];
+        return active.id;
+      });
+    }
+  }, [defaultHackathonId, internalHackathons]);
+
   if (!isOpen) return null;
 
-  const currentHackathon = hackathons.find((h) => h.id === selectedHackathonId) || hackathons[0];
+  const currentHackathon =
+    internalHackathons.find((h) => h.id === selectedHackathonId) ||
+    internalHackathons.find((h) => h.status === "ACTIVE") ||
+    internalHackathons[0];
   const maxAllowed = currentHackathon?.maxTeamSize || 5;
   const minAllowed = currentHackathon?.minTeamSize || 1;
 
@@ -76,14 +136,19 @@ export const CreateTeamModal: React.FC<CreateTeamModalProps> = ({
       return;
     }
 
-    if (!selectedHackathonId) {
+    const hackathonToUse =
+      selectedHackathonId ||
+      internalHackathons.find((h) => h.status === "ACTIVE")?.id ||
+      internalHackathons[0]?.id;
+
+    if (!hackathonToUse) {
       setError("Please select a hackathon for team formation.");
       return;
     }
 
     setLoading(true);
     try {
-      const res = await apiCreateTeam(selectedHackathonId, {
+      const res = await apiCreateTeam(hackathonToUse, {
         name: name.trim(),
         tagline: tagline.trim() || undefined,
         description: description.trim() || undefined,
@@ -162,41 +227,65 @@ export const CreateTeamModal: React.FC<CreateTeamModalProps> = ({
             </div>
           )}
 
-          {/* Hackathon Context */}
-          {hackathons.length > 1 ? (
-            <div className="space-y-1.5">
+          {/* Hackathon Competition Field - Always accessible and visible */}
+          <div className="space-y-1.5">
+            <div className="flex items-baseline justify-between">
               <label
                 htmlFor="team-hackathon-select"
                 className="form-label !mb-0 text-xs font-semibold"
               >
-                Hackathon Competition
+                Hackathon Competition{" "}
+                <span className="text-danger" aria-hidden="true">
+                  *
+                </span>
               </label>
+              {loadingHackathons && (
+                <span className="text-[11px] text-ink-muted flex items-center gap-1 font-mono">
+                  <Loader2 className="w-3 h-3 animate-spin" />
+                  <span>Loading competitions...</span>
+                </span>
+              )}
+            </div>
+
+            <div className="relative">
               <select
                 id="team-hackathon-select"
                 value={selectedHackathonId}
-                onChange={(e) => setSelectedHackathonId(e.target.value)}
-                className="form-input text-sm cursor-pointer"
+                onChange={(e) => {
+                  setSelectedHackathonId(e.target.value);
+                  if (error) setError(null);
+                }}
+                disabled={loading || loadingHackathons || internalHackathons.length === 0}
+                className="form-input text-sm cursor-pointer pr-10"
               >
-                {hackathons.map((h) => (
-                  <option key={h.id} value={h.id}>
-                    {h.title} ({h.status})
+                {internalHackathons.length === 0 ? (
+                  <option value="">
+                    {loadingHackathons ? "Loading hackathons..." : "No hackathons available"}
                   </option>
-                ))}
+                ) : (
+                  internalHackathons.map((h) => (
+                    <option key={h.id} value={h.id}>
+                      {h.title} {h.status === "ACTIVE" ? "(Active Competition)" : `(${h.status})`}
+                    </option>
+                  ))
+                )}
               </select>
             </div>
-          ) : currentHackathon ? (
-            <div className="flex items-center justify-between px-3.5 py-2.5 rounded-lg bg-surface-tonal border border-border-subtle">
-              <div className="flex items-center gap-2">
-                <Sparkles className="w-4 h-4 text-accent" />
-                <span className="text-xs font-semibold text-ink-primary">
-                  {currentHackathon.title}
-                </span>
+
+            {hackathonFetchError && internalHackathons.length === 0 && (
+              <div className="flex items-center gap-2 pt-1 text-xs text-danger">
+                <span>{hackathonFetchError}</span>
+                <button
+                  type="button"
+                  onClick={fetchHackathons}
+                  className="inline-flex items-center gap-1 text-accent hover:underline font-semibold cursor-pointer"
+                >
+                  <RefreshCw className="w-3 h-3" />
+                  <span>Retry</span>
+                </button>
               </div>
-              <span className="text-[11px] font-mono px-2 py-0.5 rounded bg-accent-tint text-accent font-semibold border border-accent/20">
-                Active Competition
-              </span>
-            </div>
-          ) : null}
+            )}
+          </div>
 
           {/* Team Name */}
           <div className="space-y-1.5">
