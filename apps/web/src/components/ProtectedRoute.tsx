@@ -22,7 +22,8 @@ export const ProtectedRoute: React.FC<{ children: React.ReactNode }> = ({ childr
   }
 
   if (!user) {
-    return <Navigate to="/login" state={{ from: location.pathname }} replace />;
+    const destination = location.pathname + (location.search || "");
+    return <Navigate to="/login" state={{ from: destination }} replace />;
   }
 
   return <>{children}</>;

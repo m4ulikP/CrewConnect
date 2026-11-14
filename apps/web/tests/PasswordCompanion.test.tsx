@@ -191,41 +191,114 @@ describe("Phase 3 — Redesigned Sign-In Experience & Interactive Character Comp
       const largeComp = screen.getByTestId("large-password-companion");
       const secret = "TopSecretPassword99!";
 
-      // 1. Focus -> focused-hidden
+      // Requirement 1 & 2: Focusing empty password input leaves avatar in normal (neutral) state
       fireEvent.focus(passwordInput);
-      expect(compactComp).toHaveAttribute("data-companion-state", "focused-hidden");
-      expect(largeComp).toHaveAttribute("data-companion-state", "focused-hidden");
+      expect(compactComp).toHaveAttribute("data-companion-state", "neutral");
+      expect(largeComp).toHaveAttribute("data-companion-state", "neutral");
 
-      // 2. Type -> typing-hidden
+      // Requirement 3: Once user enters at least one character, activate watching state (typing-hidden)
       fireEvent.change(passwordInput, { target: { value: secret } });
       expect(compactComp).toHaveAttribute("data-companion-state", "typing-hidden");
       expect(largeComp).toHaveAttribute("data-companion-state", "typing-hidden");
       expect(compactComp.innerHTML).not.toContain(secret);
       expect(largeComp.innerHTML).not.toContain(secret);
 
-      // 3. Inactivity -> focused-hidden
+      // Requirement 4: Stopping typing must NOT deactivate the watching state
       act(() => {
-        vi.advanceTimersByTime(700);
+        vi.advanceTimersByTime(1000);
       });
-      expect(compactComp).toHaveAttribute("data-companion-state", "focused-hidden");
-      expect(largeComp).toHaveAttribute("data-companion-state", "focused-hidden");
+      expect(compactComp).toHaveAttribute("data-companion-state", "typing-hidden");
+      expect(largeComp).toHaveAttribute("data-companion-state", "typing-hidden");
 
-      // 4. Toggle visibility ON -> focused-visible
+      // Toggle visibility ON -> stays in watching state under visible mode (typing-visible)
       fireEvent.click(toggleButton);
       expect(passwordInput.type).toBe("text");
-      expect(compactComp).toHaveAttribute("data-companion-state", "focused-visible");
-      expect(largeComp).toHaveAttribute("data-companion-state", "focused-visible");
+      expect(compactComp).toHaveAttribute("data-companion-state", "typing-visible");
+      expect(largeComp).toHaveAttribute("data-companion-state", "typing-visible");
 
-      // 5. Type while visible -> typing-visible
+      // Typing more while visible
       fireEvent.change(passwordInput, { target: { value: secret + "!" } });
       expect(compactComp).toHaveAttribute("data-companion-state", "typing-visible");
       expect(largeComp).toHaveAttribute("data-companion-state", "typing-visible");
       expect(largeComp.innerHTML).not.toContain(secret);
 
-      // 6. Blur while typing -> neutral immediately
+      // Requirement 5: Deleting all characters must NOT deactivate it while field remains focused
+      fireEvent.change(passwordInput, { target: { value: "" } });
+      expect(compactComp).toHaveAttribute("data-companion-state", "typing-visible");
+      expect(largeComp).toHaveAttribute("data-companion-state", "typing-visible");
+
+      // Requirement 6: On blur, reset avatar to its normal state (neutral)
       fireEvent.blur(passwordInput);
       expect(compactComp).toHaveAttribute("data-companion-state", "neutral");
       expect(largeComp).toHaveAttribute("data-companion-state", "neutral");
+
+      // Requirement 7: Refocusing an empty password field should leave it in normal state until typing begins again
+      fireEvent.focus(passwordInput);
+      expect(compactComp).toHaveAttribute("data-companion-state", "neutral");
+      expect(largeComp).toHaveAttribute("data-companion-state", "neutral");
+
+      // Typing starts again -> enters watching state
+      fireEvent.change(passwordInput, { target: { value: "NewPass123" } });
+      expect(compactComp).toHaveAttribute("data-companion-state", "typing-visible");
+      expect(largeComp).toHaveAttribute("data-companion-state", "typing-visible");
+    });
+
+    it("rigorously satisfies all 7 password avatar watching state UX requirements", () => {
+      vi.useFakeTimers();
+      vi.spyOn(apiModule, "apiGetMe").mockRejectedValue(new Error("Unauthorized"));
+
+      render(
+        <MemoryRouter initialEntries={["/login"]}>
+          <AuthProvider>
+            <Login />
+          </AuthProvider>
+        </MemoryRouter>
+      );
+
+      const passwordInput = screen.getByLabelText("Password") as HTMLInputElement;
+      const compactComp = screen.getByTestId("password-companion");
+      const largeComp = screen.getByTestId("large-password-companion");
+
+      // Requirement 1: Initially, the avatar is in its normal state.
+      expect(compactComp).toHaveAttribute("data-companion-state", "neutral");
+      expect(largeComp).toHaveAttribute("data-companion-state", "neutral");
+
+      // Requirement 2: Focusing an empty password field does not activate the watching state.
+      fireEvent.focus(passwordInput);
+      expect(compactComp).toHaveAttribute("data-companion-state", "neutral");
+      expect(largeComp).toHaveAttribute("data-companion-state", "neutral");
+
+      // Requirement 3: Once the user enters at least one character, activate the watching state.
+      fireEvent.change(passwordInput, { target: { value: "a" } });
+      expect(compactComp).toHaveAttribute("data-companion-state", "typing-hidden");
+      expect(largeComp).toHaveAttribute("data-companion-state", "typing-hidden");
+
+      // Requirement 4: Stopping typing must NOT deactivate the watching state.
+      act(() => {
+        vi.advanceTimersByTime(2000);
+      });
+      expect(compactComp).toHaveAttribute("data-companion-state", "typing-hidden");
+      expect(largeComp).toHaveAttribute("data-companion-state", "typing-hidden");
+
+      // Requirement 5: Deleting all characters must NOT deactivate it while the field remains focused.
+      fireEvent.change(passwordInput, { target: { value: "" } });
+      expect(compactComp).toHaveAttribute("data-companion-state", "typing-hidden");
+      expect(largeComp).toHaveAttribute("data-companion-state", "typing-hidden");
+
+      // Requirement 6: On blur, reset the avatar to its normal state.
+      fireEvent.blur(passwordInput);
+      expect(compactComp).toHaveAttribute("data-companion-state", "neutral");
+      expect(largeComp).toHaveAttribute("data-companion-state", "neutral");
+
+      // Requirement 7: Refocusing an empty password field should leave it in its normal state until typing begins again.
+      fireEvent.focus(passwordInput);
+      expect(compactComp).toHaveAttribute("data-companion-state", "neutral");
+      expect(largeComp).toHaveAttribute("data-companion-state", "neutral");
+
+      // Typing resumes -> enters watching state again
+      fireEvent.change(passwordInput, { target: { value: "x" } });
+      expect(compactComp).toHaveAttribute("data-companion-state", "typing-hidden");
+      expect(largeComp).toHaveAttribute("data-companion-state", "typing-hidden");
     });
 
     it("preserves form validation, API error handling, and login submission", async () => {

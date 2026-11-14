@@ -1,61 +1,55 @@
-import { useCallback, useEffect, useRef, useState } from "react";
-
-const TYPING_INACTIVITY_MS = 650;
+import { useCallback, useRef, useState } from "react";
 
 export function usePasswordCompanion() {
-  const [isPasswordFocused, setIsPasswordFocused] = useState(false);
+  const [isGroupFocused, setIsGroupFocused] = useState(false);
+  const [isWatching, setIsWatching] = useState(false);
   const [isPasswordVisible, setIsPasswordVisible] = useState(false);
-  const [isTyping, setIsTyping] = useState(false);
 
-  const typingTimeoutRef = useRef<number | null>(null);
+  const isGroupFocusedRef = useRef(false);
 
-  const clearTypingTimer = useCallback(() => {
-    if (typingTimeoutRef.current !== null) {
-      window.clearTimeout(typingTimeoutRef.current);
-      typingTimeoutRef.current = null;
+  const notifyTyping = useCallback(() => {
+    // Only activate watching state if the password group currently has focus (ignores background autofill)
+    if (!isGroupFocusedRef.current) return;
+    setIsWatching(true);
+  }, []);
+
+  const handleGroupFocus = useCallback((e?: React.FocusEvent<HTMLElement>) => {
+    isGroupFocusedRef.current = true;
+    setIsGroupFocused(true);
+
+    // If focusing an input that already has entered characters, activate watching state
+    const input = e?.currentTarget?.querySelector?.(
+      'input[type="password"], input[type="text"]'
+    ) as HTMLInputElement | null;
+    const targetInput =
+      e?.target && "value" in (e.target as object) ? (e.target as HTMLInputElement) : null;
+    const val = input?.value ?? targetInput?.value;
+
+    if (val && val.length > 0) {
+      setIsWatching(true);
+    }
+    // Focusing an empty password field leaves isWatching = false (normal state)
+  }, []);
+
+  const handleGroupBlur = useCallback((e: React.FocusEvent<HTMLElement>) => {
+    // Reset avatar to normal state only when focus truly leaves the password control group
+    if (!e.currentTarget.contains(e.relatedTarget as Node)) {
+      isGroupFocusedRef.current = false;
+      setIsGroupFocused(false);
+      setIsWatching(false);
     }
   }, []);
 
-  useEffect(() => {
-    return () => {
-      clearTypingTimer();
-    };
-  }, [clearTypingTimer]);
-
-  const notifyTyping = useCallback(() => {
-    if (!isPasswordFocused) return;
-    clearTypingTimer();
-    setIsTyping(true);
-    typingTimeoutRef.current = window.setTimeout(() => {
-      setIsTyping(false);
-      typingTimeoutRef.current = null;
-    }, TYPING_INACTIVITY_MS);
-  }, [isPasswordFocused, clearTypingTimer]);
-
-  const handleGroupFocus = useCallback(() => {
-    setIsPasswordFocused(true);
-  }, []);
-
-  const handleGroupBlur = useCallback(
-    (e: React.FocusEvent<HTMLElement>) => {
-      if (!e.currentTarget.contains(e.relatedTarget as Node)) {
-        clearTypingTimer();
-        setIsTyping(false);
-        setIsPasswordFocused(false);
-      }
-    },
-    [clearTypingTimer]
-  );
-
   const toggleVisibility = useCallback(() => {
-    setIsPasswordFocused(true);
     setIsPasswordVisible((prev) => !prev);
   }, []);
 
   return {
-    isPasswordFocused,
+    isPasswordFocused: isWatching,
     isPasswordVisible,
-    isTyping,
+    isTyping: isWatching,
+    isWatching,
+    isGroupFocused,
     notifyTyping,
     handleGroupFocus,
     handleGroupBlur,

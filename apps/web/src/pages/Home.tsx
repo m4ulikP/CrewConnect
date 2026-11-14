@@ -2,8 +2,6 @@ import React, { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { ArrowRight } from "lucide-react";
 import { fetchHealth } from "../lib/api";
-import { useAuth } from "../context/AuthContext";
-import { AuthenticatedDashboard } from "../components/dashboard/AuthenticatedDashboard";
 import { SquadAssemblyIllustration } from "../components/landing/SquadAssemblyIllustration";
 import { TypingHeadline } from "../components/landing/TypingHeadline";
 import { LiveSquadShowcase } from "../components/landing/LiveSquadShowcase";
@@ -236,8 +234,6 @@ const PublicLanding: React.FC<{ apiOnline: boolean; loadingHealth: boolean }> = 
 };
 
 export const Home: React.FC = () => {
-  const { user } = useAuth();
-
   const [health, setHealth] = useState<{
     status: string;
     uptime: number;
@@ -246,12 +242,8 @@ export const Home: React.FC = () => {
   } | null>(null);
   const [loadingHealth, setLoadingHealth] = useState(true);
 
-  // Fetch health probe (for public landing telemetry when unauthenticated)
+  // Fetch health probe (for public landing telemetry)
   useEffect(() => {
-    if (user) {
-      setLoadingHealth(false);
-      return;
-    }
     fetchHealth()
       .then((data) => {
         setHealth({
@@ -265,13 +257,8 @@ export const Home: React.FC = () => {
         setHealth(null);
       })
       .finally(() => setLoadingHealth(false));
-  }, [user]);
+  }, []);
 
-  // If user is authenticated, render the dedicated personal Dashboard workspace
-  if (user) {
-    return <AuthenticatedDashboard key={user.id} />;
-  }
-
-  // If user is NOT authenticated, render the Public Landing Page
+  // Always render the Public Landing Page on root route
   return <PublicLanding apiOnline={Boolean(health)} loadingHealth={loadingHealth} />;
 };

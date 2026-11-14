@@ -58,7 +58,9 @@ export const Register: React.FC = () => {
     toggleVisibility,
   } = usePasswordCompanion();
 
-  const fromLocation = (location.state as { from?: string })?.from || "/";
+  const rawFrom = (location.state as { from?: string })?.from;
+  const fromLocation =
+    rawFrom && rawFrom !== "/" && rawFrom !== "/register" ? rawFrom : "/dashboard";
 
   const passwordChecks = useMemo(
     () => [

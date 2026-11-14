@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import { Link, useNavigate, useLocation } from "react-router-dom";
 import { AlertCircle, Eye, EyeOff } from "lucide-react";
 import { useAuth } from "../context/AuthContext";
@@ -22,7 +22,7 @@ function mapOAuthQueryError(rawError: string | null): string | null {
 export const Login: React.FC = () => {
   const navigate = useNavigate();
   const location = useLocation();
-  const { login, error, clearError } = useAuth();
+  const { user, login, error, clearError } = useAuth();
 
   const searchParams = new URLSearchParams(location.search);
   const queryOAuthError = mapOAuthQueryError(searchParams.get("error"));
@@ -46,7 +46,14 @@ export const Login: React.FC = () => {
     toggleVisibility,
   } = usePasswordCompanion();
 
-  const fromLocation = (location.state as { from?: string })?.from || "/";
+  const rawFrom = (location.state as { from?: string })?.from;
+  const fromLocation = rawFrom && rawFrom !== "/" && rawFrom !== "/login" ? rawFrom : "/dashboard";
+
+  useEffect(() => {
+    if (user) {
+      navigate(fromLocation, { replace: true });
+    }
+  }, [user, navigate, fromLocation]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();

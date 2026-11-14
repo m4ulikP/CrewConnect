@@ -15,6 +15,7 @@ function renderRegister() {
         <Routes>
           <Route path="/register" element={<Register />} />
           <Route path="/" element={<div data-testid="home-route">Home</div>} />
+          <Route path="/dashboard" element={<div data-testid="dashboard-route">Dashboard</div>} />
           <Route path="/login" element={<div data-testid="login-route">Login</div>} />
         </Routes>
       </AuthProvider>
@@ -83,7 +84,7 @@ describe("Redesigned Register Page", () => {
 
     await waitFor(() => {
       expect(registerSpy).toHaveBeenCalledTimes(1);
-      expect(screen.getByTestId("home-route")).toBeInTheDocument();
+      expect(screen.getByTestId("dashboard-route")).toBeInTheDocument();
     });
 
     const sentPayload = registerSpy.mock.calls[0][0] as Record<string, unknown>;
@@ -159,7 +160,7 @@ describe("Redesigned Register Page", () => {
 
     await waitFor(() => {
       expect(registerSpy).toHaveBeenCalledTimes(1);
-      expect(screen.getByTestId("home-route")).toBeInTheDocument();
+      expect(screen.getByTestId("dashboard-route")).toBeInTheDocument();
     });
 
     const sentPayload = registerSpy.mock.calls[0][0] as Record<string, unknown>;
@@ -221,37 +222,48 @@ describe("Redesigned Register Page", () => {
     expect(smallCompanion.getAttribute("data-companion-state")).toBe("neutral");
     expect(largeCompanion.getAttribute("data-companion-state")).toBe("neutral");
 
-    // Focus password input
+    // 1 & 2. Focus empty password input -> stays neutral
     fireEvent.focus(passwordInput);
-    expect(smallCompanion.getAttribute("data-companion-state")).toBe("focused-hidden");
-    expect(largeCompanion.getAttribute("data-companion-state")).toBe("focused-hidden");
+    expect(smallCompanion.getAttribute("data-companion-state")).toBe("neutral");
+    expect(largeCompanion.getAttribute("data-companion-state")).toBe("neutral");
 
-    // Typing masked password
+    // 3. Typing masked password -> enters watching state (typing-hidden)
     const secret = "SuperSecret99!";
     fireEvent.change(passwordInput, { target: { value: secret } });
     expect(smallCompanion.getAttribute("data-companion-state")).toBe("typing-hidden");
     expect(largeCompanion.getAttribute("data-companion-state")).toBe("typing-hidden");
     expect(largeCompanion.innerHTML).not.toContain(secret);
 
+    // 4. Inactivity -> stays in watching state (typing-hidden)
     act(() => {
       vi.advanceTimersByTime(700);
     });
-    expect(largeCompanion.getAttribute("data-companion-state")).toBe("focused-hidden");
+    expect(largeCompanion.getAttribute("data-companion-state")).toBe("typing-hidden");
 
-    // Toggle password visibility
+    // Toggle password visibility -> remains watching in visible mode (typing-visible)
     fireEvent.click(toggleBtn);
     expect(passwordInput.type).toBe("text");
     expect(toggleBtn.getAttribute("aria-pressed")).toBe("true");
     expect(toggleBtn.getAttribute("aria-label")).toBe("Hide characters");
-    expect(smallCompanion.getAttribute("data-companion-state")).toBe("focused-visible");
-    expect(largeCompanion.getAttribute("data-companion-state")).toBe("focused-visible");
+    expect(smallCompanion.getAttribute("data-companion-state")).toBe("typing-visible");
+    expect(largeCompanion.getAttribute("data-companion-state")).toBe("typing-visible");
 
     fireEvent.change(passwordInput, { target: { value: `${secret}X` } });
     expect(largeCompanion.getAttribute("data-companion-state")).toBe("typing-visible");
     expect(largeCompanion.innerHTML).not.toContain(secret);
 
-    // Blur returns companion to neutral
+    // 5. Deleting all characters while focused -> stays in watching state
+    fireEvent.change(passwordInput, { target: { value: "" } });
+    expect(smallCompanion.getAttribute("data-companion-state")).toBe("typing-visible");
+    expect(largeCompanion.getAttribute("data-companion-state")).toBe("typing-visible");
+
+    // 6. Blur returns companion to neutral
     fireEvent.blur(passwordInput);
+    expect(smallCompanion.getAttribute("data-companion-state")).toBe("neutral");
+    expect(largeCompanion.getAttribute("data-companion-state")).toBe("neutral");
+
+    // 7. Refocus empty password field -> stays neutral
+    fireEvent.focus(passwordInput);
     expect(smallCompanion.getAttribute("data-companion-state")).toBe("neutral");
     expect(largeCompanion.getAttribute("data-companion-state")).toBe("neutral");
   });

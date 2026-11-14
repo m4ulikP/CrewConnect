@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 import {
   Mail,
@@ -78,6 +79,7 @@ function isValidUrl(val: string): boolean {
 }
 
 export const Profile: React.FC = () => {
+  const navigate = useNavigate();
   const { user, logout, updateUser, refreshUser } = useAuth();
 
   const [isEditing, setIsEditing] = useState<boolean>(false);
@@ -317,7 +319,10 @@ export const Profile: React.FC = () => {
 
             <button
               type="button"
-              onClick={() => logout()}
+              onClick={async () => {
+                navigate("/", { replace: true });
+                await logout();
+              }}
               className="btn btn-secondary text-xs h-9 px-4 cursor-pointer text-danger hover:border-danger hover:text-danger"
             >
               <LogOut className="w-3.5 h-3.5" />

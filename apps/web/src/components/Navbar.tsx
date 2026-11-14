@@ -1,5 +1,5 @@
 import React from "react";
-import { Link, useLocation } from "react-router-dom";
+import { Link, useLocation, useNavigate } from "react-router-dom";
 import { ArrowRight, LogOut, Radio } from "lucide-react";
 import { useAuth } from "../context/AuthContext";
 import { useSocket } from "../context/SocketContext";
@@ -7,13 +7,21 @@ import { Avatar } from "./Avatar";
 
 export const Navbar: React.FC = () => {
   const location = useLocation();
+  const navigate = useNavigate();
   const { user, logout, isLoading } = useAuth();
   const { connectionState } = useSocket();
 
-  const isActive = (path: string) =>
-    location.pathname === path ||
-    (path === "/" && Boolean(user) && location.pathname === "/dashboard") ||
-    (path === "/teams-preview" && location.pathname.startsWith("/teams"));
+  const isActive = (path: string) => {
+    if (path === "/teams-preview") {
+      return location.pathname.startsWith("/teams");
+    }
+    return location.pathname === path;
+  };
+
+  const handleLogout = async () => {
+    navigate("/", { replace: true });
+    await logout();
+  };
 
   return (
     <header className="sticky top-0 z-50 bg-ground border-b-2 border-ink-primary">
@@ -47,14 +55,14 @@ export const Navbar: React.FC = () => {
           className="flex items-center gap-2 sm:gap-5 flex-shrink-0"
         >
           <Link
-            to={user ? "/dashboard" : "/"}
+            to="/"
             className={`hidden sm:inline-flex items-center py-1 text-sm font-semibold whitespace-nowrap transition-colors focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-accent rounded-sm ${
               isActive("/")
                 ? "text-ink-primary font-bold underline decoration-2 decoration-accent underline-offset-[6px]"
                 : "text-ink-secondary hover:text-ink-primary"
             }`}
           >
-            <span>{user ? "Dashboard" : "Platform"}</span>
+            <span>Platform</span>
           </Link>
           <Link
             to="/teams-preview"
@@ -106,9 +114,9 @@ export const Navbar: React.FC = () => {
                 </span>
               </div>
 
-              {/* Profile Shortcut */}
+              {/* User Identity / Dashboard Navigation */}
               <Link
-                to="/profile"
+                to="/dashboard"
                 className="flex items-center gap-2 p-1 pr-2.5 rounded bg-surface border border-ink-primary/25 hover:border-ink-primary transition-colors"
               >
                 <Avatar name={user.displayName} size="sm" />
@@ -119,7 +127,7 @@ export const Navbar: React.FC = () => {
 
               {/* Sign out */}
               <button
-                onClick={() => logout()}
+                onClick={handleLogout}
                 title="Sign out"
                 aria-label="Sign out"
                 className="p-2 rounded text-ink-secondary hover:text-ink-primary hover:bg-surface-tonal transition-colors cursor-pointer"
