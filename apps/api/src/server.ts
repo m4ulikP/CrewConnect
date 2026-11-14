@@ -10,6 +10,7 @@ import {
 } from "./db/connection.js";
 import { syncAllIndexes } from "./models/index.js";
 import { initSocketServer, closeSocketServer } from "./realtime/index.js";
+import { ensureDefaultHackathonAndDemoData } from "./services/demo-seed.service.js";
 
 const server = http.createServer(app);
 const io = initSocketServer(server);
@@ -92,6 +93,13 @@ export async function initializeDatabaseAndIndexes(
 export async function startServer(options: ServerStartupOptions = {}): Promise<http.Server> {
   try {
     await initializeDatabaseAndIndexes(options);
+
+    // Auto-seed default hackathon and demo squads if missing
+    try {
+      await ensureDefaultHackathonAndDemoData();
+    } catch (seedErr) {
+      console.warn("[Startup] Notice: Demo hackathon seeding encountered an issue:", seedErr);
+    }
 
     const shouldListen = options.listen ?? true;
     if (shouldListen) {

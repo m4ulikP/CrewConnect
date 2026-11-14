@@ -30,6 +30,9 @@ const COMMON_SKILL_SUGGESTIONS = [
   "AI / ML",
 ];
 
+const getHackathonId = (h: HackathonRecord | undefined): string =>
+  h?.id || (h as unknown as { _id?: string })?._id || "";
+
 export const CreateTeamModal: React.FC<CreateTeamModalProps> = ({
   hackathons,
   defaultHackathonId,
@@ -43,8 +46,8 @@ export const CreateTeamModal: React.FC<CreateTeamModalProps> = ({
 
   const [selectedHackathonId, setSelectedHackathonId] = useState<string>(
     defaultHackathonId ||
-      hackathons.find((h) => h.status === "ACTIVE")?.id ||
-      hackathons[0]?.id ||
+      getHackathonId(hackathons.find((h) => h.status === "ACTIVE")) ||
+      getHackathonId(hackathons[0]) ||
       ""
   );
 
@@ -92,10 +95,10 @@ export const CreateTeamModal: React.FC<CreateTeamModalProps> = ({
       setSelectedHackathonId(defaultHackathonId);
     } else if (internalHackathons.length > 0) {
       setSelectedHackathonId((prev) => {
-        if (prev && internalHackathons.some((h) => h.id === prev)) return prev;
+        if (prev && internalHackathons.some((h) => getHackathonId(h) === prev)) return prev;
         const active =
           internalHackathons.find((h) => h.status === "ACTIVE") || internalHackathons[0];
-        return active.id;
+        return getHackathonId(active);
       });
     }
   }, [defaultHackathonId, internalHackathons]);
@@ -103,7 +106,7 @@ export const CreateTeamModal: React.FC<CreateTeamModalProps> = ({
   if (!isOpen) return null;
 
   const currentHackathon =
-    internalHackathons.find((h) => h.id === selectedHackathonId) ||
+    internalHackathons.find((h) => getHackathonId(h) === selectedHackathonId) ||
     internalHackathons.find((h) => h.status === "ACTIVE") ||
     internalHackathons[0];
   const maxAllowed = currentHackathon?.maxTeamSize || 5;
@@ -138,8 +141,8 @@ export const CreateTeamModal: React.FC<CreateTeamModalProps> = ({
 
     const hackathonToUse =
       selectedHackathonId ||
-      internalHackathons.find((h) => h.status === "ACTIVE")?.id ||
-      internalHackathons[0]?.id;
+      getHackathonId(internalHackathons.find((h) => h.status === "ACTIVE")) ||
+      getHackathonId(internalHackathons[0]);
 
     if (!hackathonToUse) {
       setError("Please select a hackathon for team formation.");
@@ -263,11 +266,14 @@ export const CreateTeamModal: React.FC<CreateTeamModalProps> = ({
                     {loadingHackathons ? "Loading hackathons..." : "No hackathons available"}
                   </option>
                 ) : (
-                  internalHackathons.map((h) => (
-                    <option key={h.id} value={h.id}>
-                      {h.title} {h.status === "ACTIVE" ? "(Active Competition)" : `(${h.status})`}
-                    </option>
-                  ))
+                  internalHackathons.map((h) => {
+                    const hId = getHackathonId(h);
+                    return (
+                      <option key={hId} value={hId}>
+                        {h.title} {h.status === "ACTIVE" ? "(Active Competition)" : `(${h.status})`}
+                      </option>
+                    );
+                  })
                 )}
               </select>
             </div>

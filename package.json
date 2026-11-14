@@ -16,6 +16,7 @@
     "typecheck": "npm run build:shared && npm run typecheck --workspaces --if-present",
     "lint": "eslint . --ext .ts,.tsx",
     "test": "vitest run --fileParallelism=false",
+    "seed:demo": "npm run seed:demo --workspace=@crewconnect/api",
     "format": "prettier --check \"**/*.{ts,tsx,js,json,md}\"",
     "format:fix": "prettier --write \"**/*.{ts,tsx,js,json,md}\""
   },

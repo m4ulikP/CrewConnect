@@ -11,6 +11,7 @@ import {
   type ListTeamsQueryInput,
 } from "@crewconnect/shared";
 import { AppError } from "../errors/AppError.js";
+import { ensureDefaultHackathonAndDemoData } from "../services/demo-seed.service.js";
 
 export const hackathonsRouter = Router();
 
@@ -26,6 +27,26 @@ hackathonsRouter.get(
       res.status(200).json({
         success: true,
         data: hackathons,
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
+/**
+ * POST /api/v1/hackathons/seed-demo
+ * Seed or verify the default demo hackathon (Hack4Hack 2026) and initial demo squads.
+ */
+hackathonsRouter.post(
+  "/seed-demo",
+  async (_req: Request, res: Response, next: NextFunction): Promise<void> => {
+    try {
+      const result = await ensureDefaultHackathonAndDemoData();
+      res.status(200).json({
+        success: true,
+        message: "Demo hackathon and sample squads ensured successfully",
+        data: result,
       });
     } catch (error) {
       next(error);
