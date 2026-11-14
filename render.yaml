@@ -5,7 +5,7 @@ services:
     runtime: node
     plan: free
     region: oregon
-    buildCommand: npm ci && npm run build:shared && npm run build --workspace=@crewconnect/api
+    buildCommand: npm ci --include=dev && npm run build:shared && npm run build --workspace=@crewconnect/api
     startCommand: node apps/api/dist/server.js
     healthCheckPath: /health/ready
     envVars:
@@ -40,7 +40,7 @@ services:
   - type: web
     name: crewconnect-web
     runtime: static
-    buildCommand: npm ci && npm run build:shared && npm run build --workspace=@crewconnect/web
+    buildCommand: npm ci --include=dev && npm run build:shared && npm run build --workspace=@crewconnect/web
     staticPublishPath: apps/web/dist
     routes:
       - type: rewrite
