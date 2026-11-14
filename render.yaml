@@ -3,7 +3,7 @@ services:
   - type: web
     name: crewconnect-api
     runtime: node
-    plan: starter
+    plan: free
     region: oregon
     buildCommand: npm ci && npm run build:shared && npm run build --workspace=@crewconnect/api
     startCommand: node apps/api/dist/server.js
@@ -26,7 +26,7 @@ services:
       - key: COOKIE_SECURE
         value: "true"
       - key: COOKIE_SAME_SITE
-        value: lax
+        value: "none"
       - key: RATE_LIMIT_WINDOW_MS
         value: 900000
       - key: RATE_LIMIT_MAX_REQUESTS
@@ -40,7 +40,7 @@ services:
   - type: web
     name: crewconnect-web
     runtime: static
-    plan: starter
+    plan: free
     region: oregon
     buildCommand: npm ci && npm run build:shared && npm run build --workspace=@crewconnect/web
     staticPublishPath: apps/web/dist
