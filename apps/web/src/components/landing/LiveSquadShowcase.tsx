@@ -115,7 +115,7 @@ export const LiveSquadShowcase: React.FC = () => {
       className="w-full max-w-[660px] lg:ml-auto"
     >
       {/* Open Architectural Drafting Canvas */}
-      <div className="relative rounded-2xl bg-[#EEEDE9] px-4 pt-4 pb-3 sm:px-7 sm:pt-6 sm:pb-5 overflow-hidden">
+      <div className="relative rounded-2xl bg-surface-tonal border border-border-subtle px-4 pt-4 pb-3 sm:px-7 sm:pt-6 sm:pb-5 overflow-hidden transition-colors duration-200">
         {/* Unobtrusive Capacity Readout */}
         <div
           aria-hidden="true"
@@ -137,7 +137,7 @@ export const LiveSquadShowcase: React.FC = () => {
               className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-[3px] text-[11px] sm:text-[12px] font-bold tracking-[0.06em] uppercase tabular transition-colors duration-300 ${
                 isComplete
                   ? "bg-accent-tint text-accent border border-accent/40"
-                  : "bg-[#FFE45C] text-ink-primary border border-ink-primary/80"
+                  : "bg-[#FFE45C] text-zinc-950 border border-ink-primary/40"
               }`}
             >
               {isComplete ? (
@@ -159,7 +159,13 @@ export const LiveSquadShowcase: React.FC = () => {
           className="w-full h-auto overflow-visible select-none"
         >
           {/* Quiet Architectural Corner Registration Marks */}
-          <g stroke="#8B8982" strokeWidth="1.5" strokeLinecap="round" opacity="0.65">
+          <g
+            stroke="currentColor"
+            className="text-stone-400 dark:text-zinc-600"
+            strokeWidth="1.5"
+            strokeLinecap="round"
+            opacity="0.65"
+          >
             <path d="M 10 22 V 10 H 22" fill="none" />
             <path d="M 578 10 H 590 V 22" fill="none" />
             <path d="M 10 328 V 340 H 22" fill="none" />
@@ -171,8 +177,8 @@ export const LiveSquadShowcase: React.FC = () => {
             cx="300"
             cy="175"
             r="102"
-            fill="#F6F6F4"
-            stroke="#D5D1C8"
+            fill="var(--ground)"
+            stroke="var(--border-subtle)"
             strokeWidth="1.5"
             style={{
               opacity: membersVisible ? 1 : 0,
@@ -186,7 +192,7 @@ export const LiveSquadShowcase: React.FC = () => {
             d="M 134 86 H 196 Q 210 86 210 100 V 138 Q 210 152 224 152 H 246"
             pathLength={100}
             fill="none"
-            stroke="#18181B"
+            stroke="var(--ink-primary)"
             strokeWidth="2.5"
             strokeLinecap="round"
             strokeLinejoin="round"
@@ -200,7 +206,7 @@ export const LiveSquadShowcase: React.FC = () => {
             cx="246"
             cy="152"
             r="3.5"
-            fill="#18181B"
+            fill="var(--ink-primary)"
             style={{
               opacity: starterTracesVisible ? 1 : 0,
               transition: "opacity 200ms ease-out 260ms",
@@ -212,7 +218,7 @@ export const LiveSquadShowcase: React.FC = () => {
             d="M 134 264 H 196 Q 210 264 210 250 V 212 Q 210 198 224 198 H 246"
             pathLength={100}
             fill="none"
-            stroke="#18181B"
+            stroke="var(--ink-primary)"
             strokeWidth="2.5"
             strokeLinecap="round"
             strokeLinejoin="round"
@@ -226,7 +232,7 @@ export const LiveSquadShowcase: React.FC = () => {
             cx="246"
             cy="198"
             r="3.5"
-            fill="#18181B"
+            fill="var(--ink-primary)"
             style={{
               opacity: starterTracesVisible ? 1 : 0,
               transition: "opacity 200ms ease-out 320ms",
@@ -238,7 +244,7 @@ export const LiveSquadShowcase: React.FC = () => {
             d="M 466 86 H 404 Q 390 86 390 100 V 138 Q 390 152 376 152 H 354"
             pathLength={100}
             fill="none"
-            stroke="#18181B"
+            stroke="var(--ink-primary)"
             strokeWidth="2.5"
             strokeLinecap="round"
             strokeLinejoin="round"
@@ -252,7 +258,7 @@ export const LiveSquadShowcase: React.FC = () => {
             cx="354"
             cy="152"
             r="3.5"
-            fill="#18181B"
+            fill="var(--ink-primary)"
             style={{
               opacity: starterTracesVisible ? 1 : 0,
               transition: "opacity 200ms ease-out 380ms",
@@ -263,7 +269,7 @@ export const LiveSquadShowcase: React.FC = () => {
           <path
             d="M 466 264 H 404 Q 390 264 390 250 V 212 Q 390 198 376 198 H 354"
             fill="none"
-            stroke={isSpotlit ? "#18181B" : "#8B8982"}
+            stroke={isSpotlit ? "var(--ink-primary)" : "var(--border-strong)"}
             strokeWidth="2"
             strokeDasharray="6 5"
             strokeLinecap="round"
@@ -321,8 +327,8 @@ export const LiveSquadShowcase: React.FC = () => {
                 width="108"
                 height="108"
                 rx="16"
-                fill="#FFFFFF"
-                stroke="#18181B"
+                fill="var(--surface)"
+                stroke="var(--ink-primary)"
                 strokeWidth="2.5"
               />
 
@@ -334,7 +340,7 @@ export const LiveSquadShowcase: React.FC = () => {
                 height="41"
                 rx="7"
                 fill="#115E59"
-                stroke="#18181B"
+                stroke="var(--ink-primary)"
                 strokeWidth="2"
               />
               <path
@@ -352,13 +358,13 @@ export const LiveSquadShowcase: React.FC = () => {
                 width="41"
                 height="41"
                 rx="7"
-                fill="#18181B"
-                stroke="#18181B"
+                fill="var(--chrome)"
+                stroke="var(--ink-primary)"
                 strokeWidth="2"
               />
               <path
                 d="M -33 24 H -15 M -24 15 V 33"
-                stroke="#F6F6F4"
+                stroke="var(--ink-primary)"
                 strokeWidth="2.5"
                 strokeLinecap="round"
               />
@@ -371,10 +377,17 @@ export const LiveSquadShowcase: React.FC = () => {
                 height="41"
                 rx="7"
                 fill="#FF5A1F"
-                stroke="#18181B"
+                stroke="var(--ink-primary)"
                 strokeWidth="2"
               />
-              <circle cx="23.5" cy="-23.5" r="7" fill="#FFFFFF" stroke="#18181B" strokeWidth="2" />
+              <circle
+                cx="23.5"
+                cy="-23.5"
+                r="7"
+                fill="var(--surface)"
+                stroke="var(--ink-primary)"
+                strokeWidth="2"
+              />
 
               {/* Core Q4: Bottom-Right Vacant Recess */}
               <rect
@@ -383,9 +396,9 @@ export const LiveSquadShowcase: React.FC = () => {
                 width="41"
                 height="41"
                 rx="7"
-                fill={isSpotlit ? "#FFE45C" : "#F6F6F4"}
+                fill={isSpotlit ? "#FFE45C" : "var(--ground)"}
                 fillOpacity={isSpotlit ? 0.55 : 1}
-                stroke="#18181B"
+                stroke="var(--ink-primary)"
                 strokeWidth="1.75"
                 strokeDasharray="4 3"
                 style={{ transition: "fill 320ms ease-out, fill-opacity 320ms ease-out" }}
@@ -411,21 +424,28 @@ export const LiveSquadShowcase: React.FC = () => {
                     height="41"
                     rx="7"
                     fill="#FFE45C"
-                    stroke="#18181B"
+                    stroke="var(--ink-primary)"
                     strokeWidth="2"
                   />
                   <polygon
                     points="23.5,14 33,23.5 23.5,33 14,23.5"
                     fill="#115E59"
-                    stroke="#18181B"
+                    stroke="var(--ink-primary)"
                     strokeWidth="1.75"
                   />
                 </g>
               )}
 
               {/* Central Hub Registration Pin */}
-              <circle cx="0" cy="0" r="11" fill="#FFFFFF" stroke="#18181B" strokeWidth="2.25" />
-              <circle cx="0" cy="0" r="3.5" fill="#18181B" />
+              <circle
+                cx="0"
+                cy="0"
+                r="11"
+                fill="var(--surface)"
+                stroke="var(--ink-primary)"
+                strokeWidth="2.25"
+              />
+              <circle cx="0" cy="0" r="3.5" fill="var(--ink-primary)" />
 
               {/* Completion Confirmation Seal (appears cleanly in final state) */}
               {!reducedMotion && (
@@ -440,7 +460,14 @@ export const LiveSquadShowcase: React.FC = () => {
                         : "transform 360ms cubic-bezier(0.23, 1, 0.32, 1), opacity 240ms ease-out",
                   }}
                 >
-                  <circle cx="0" cy="0" r="15" fill="#115E59" stroke="#18181B" strokeWidth="2.5" />
+                  <circle
+                    cx="0"
+                    cy="0"
+                    r="15"
+                    fill="#115E59"
+                    stroke="var(--ink-primary)"
+                    strokeWidth="2.5"
+                  />
                   <path
                     d="M -5.5 0.5 L -1.5 4.5 L 6 -4"
                     fill="none"
@@ -470,13 +497,20 @@ export const LiveSquadShowcase: React.FC = () => {
               <path
                 d="M 4 68 V 32 C 4 14.327 18.327 0 36 0 C 53.673 0 68 14.327 68 32 V 68 H 4 Z"
                 fill="#115E59"
-                stroke="#18181B"
+                stroke="var(--ink-primary)"
                 strokeWidth="2.5"
                 strokeLinejoin="round"
               />
-              <circle cx="27" cy="34" r="3.5" fill="#FFFFFF" />
-              <circle cx="45" cy="34" r="3.5" fill="#FFFFFF" />
-              <circle cx="56" cy="14" r="5" fill="#FFE45C" stroke="#18181B" strokeWidth="2" />
+              <circle cx="27" cy="34" r="3.5" fill="var(--surface)" />
+              <circle cx="45" cy="34" r="3.5" fill="var(--surface)" />
+              <circle
+                cx="56"
+                cy="14"
+                r="5"
+                fill="#FFE45C"
+                stroke="var(--ink-primary)"
+                strokeWidth="2"
+              />
             </g>
           </svg>
 
@@ -499,14 +533,19 @@ export const LiveSquadShowcase: React.FC = () => {
                 width="64"
                 height="64"
                 rx="14"
-                fill="#FFFFFF"
-                stroke="#18181B"
+                fill="var(--surface)"
+                stroke="var(--ink-primary)"
                 strokeWidth="2.5"
               />
-              <rect x="4" y="16" width="64" height="16" fill="#18181B" />
+              <rect x="4" y="16" width="64" height="16" fill="var(--chrome)" />
               <circle cx="27" cy="24" r="3.2" fill="#FFE45C" />
               <circle cx="45" cy="24" r="3.2" fill="#FFE45C" />
-              <path d="M 22 48 H 50" stroke="#18181B" strokeWidth="2.5" strokeLinecap="round" />
+              <path
+                d="M 22 48 H 50"
+                stroke="var(--ink-primary)"
+                strokeWidth="2.5"
+                strokeLinecap="round"
+              />
             </g>
           </svg>
 
@@ -530,12 +569,26 @@ export const LiveSquadShowcase: React.FC = () => {
                 height="64"
                 rx="22"
                 fill="#FF5A1F"
-                stroke="#18181B"
+                stroke="var(--ink-primary)"
                 strokeWidth="2.5"
               />
-              <rect x="18" y="18" width="22" height="7" rx="3.5" fill="#18181B" />
-              <circle cx="28" cy="40" r="3.8" fill="#FFFFFF" stroke="#18181B" strokeWidth="1.5" />
-              <circle cx="46" cy="40" r="3.8" fill="#FFFFFF" stroke="#18181B" strokeWidth="1.5" />
+              <rect x="18" y="18" width="22" height="7" rx="3.5" fill="var(--chrome)" />
+              <circle
+                cx="28"
+                cy="40"
+                r="3.8"
+                fill="var(--surface)"
+                stroke="var(--ink-primary)"
+                strokeWidth="1.5"
+              />
+              <circle
+                cx="46"
+                cy="40"
+                r="3.8"
+                fill="var(--surface)"
+                stroke="var(--ink-primary)"
+                strokeWidth="1.5"
+              />
             </g>
           </svg>
 
@@ -553,16 +606,16 @@ export const LiveSquadShowcase: React.FC = () => {
                 width="64"
                 height="64"
                 rx="16"
-                fill={isSpotlit ? "#FFE45C" : "#F6F6F4"}
-                fillOpacity={isSpotlit ? 0.72 : 1}
-                stroke="#18181B"
+                fill={isSpotlit ? "#FFE45C" : "var(--ground)"}
+                fillOpacity={isSpotlit ? 0.6 : 1}
+                stroke="var(--ink-primary)"
                 strokeWidth="2"
                 strokeDasharray="6 5"
                 style={{ transition: "fill 320ms ease-out, fill-opacity 320ms ease-out" }}
               />
               <path
                 d="M 36 25 V 43 M 27 34 H 45"
-                stroke="#18181B"
+                stroke="var(--ink-primary)"
                 strokeWidth="2.5"
                 strokeLinecap="round"
               />
@@ -594,19 +647,19 @@ export const LiveSquadShowcase: React.FC = () => {
                   height="64"
                   rx="16"
                   fill="#FFE45C"
-                  stroke="#18181B"
+                  stroke="var(--ink-primary)"
                   strokeWidth="2.5"
                 />
                 {/* Architectural Pine Base Accent */}
                 <path
                   d="M 4 46 H 68 V 50 C 68 58.837 60.837 66 52 66 H 20 C 11.163 66 4 58.837 4 50 V 46 Z"
                   fill="#115E59"
-                  stroke="#18181B"
+                  stroke="var(--ink-primary)"
                   strokeWidth="2.5"
                   strokeLinejoin="round"
                 />
-                <circle cx="27" cy="28" r="3.5" fill="#18181B" />
-                <circle cx="45" cy="28" r="3.5" fill="#18181B" />
+                <circle cx="27" cy="28" r="3.5" fill="var(--ink-primary)" />
+                <circle cx="45" cy="28" r="3.5" fill="var(--ink-primary)" />
               </g>
             </svg>
           )}

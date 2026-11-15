@@ -132,7 +132,7 @@ export const DiscoveryToolbar: React.FC<DiscoveryToolbarProps> = ({
             aria-pressed={hasVacancies}
             className={`btn text-[13px] h-10 px-3.5 whitespace-nowrap ${
               hasVacancies
-                ? "bg-ink-primary text-surface border-ink-primary hover:bg-[#27272A]"
+                ? "bg-ink-primary text-surface border-ink-primary hover:opacity-90"
                 : "btn-secondary"
             }`}
           >

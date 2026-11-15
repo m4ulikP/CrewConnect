@@ -23,6 +23,7 @@ import {
   type RecommendationQueryInput,
 } from "@crewconnect/shared";
 import { AppError } from "../errors/AppError.js";
+import { FALLBACK_DEMO_TEAMS, isDevFallbackActive } from "../services/demo-fixtures.js";
 
 export const teamsRouter = Router();
 
@@ -32,12 +33,26 @@ export const teamsRouter = Router();
  */
 teamsRouter.get("/:id", async (req: Request, res: Response, next: NextFunction): Promise<void> => {
   try {
+    if (isDevFallbackActive()) {
+      const team =
+        FALLBACK_DEMO_TEAMS.find((t) => t.id === req.params.id) || FALLBACK_DEMO_TEAMS[0];
+      res.status(200).json({
+        success: true,
+        data: team,
+      });
+      return;
+    }
     const team = await TeamService.getTeamById(req.params.id);
     res.status(200).json({
       success: true,
       data: team,
     });
   } catch (error) {
+    if (isDevFallbackActive()) {
+      const team = FALLBACK_DEMO_TEAMS[0];
+      res.status(200).json({ success: true, data: team });
+      return;
+    }
     next(error);
   }
 });
@@ -50,12 +65,38 @@ teamsRouter.get(
   "/:id/members",
   async (req: Request, res: Response, next: NextFunction): Promise<void> => {
     try {
+      if (isDevFallbackActive()) {
+        res.status(200).json({
+          success: true,
+          data: [
+            {
+              id: "member-1",
+              userId: "user-1",
+              teamId: req.params.id,
+              role: "LEADER",
+              joinedAt: new Date().toISOString(),
+              user: {
+                id: "user-1",
+                displayName: "Lead Builder",
+                email: "builder@crewconnect.demo",
+                skills: ["TypeScript", "Distributed Systems", "Rust"],
+                bio: "Squad Lead & Systems Architect",
+              },
+            },
+          ],
+        });
+        return;
+      }
       const roster = await TeamService.getTeamRoster(req.params.id);
       res.status(200).json({
         success: true,
         data: roster,
       });
     } catch (error) {
+      if (isDevFallbackActive()) {
+        res.status(200).json({ success: true, data: [] });
+        return;
+      }
       next(error);
     }
   }

@@ -4,6 +4,7 @@ import { ArrowRight, LogOut, Radio } from "lucide-react";
 import { useAuth } from "../context/AuthContext";
 import { useSocket } from "../context/SocketContext";
 import { Avatar } from "./Avatar";
+import { ThemeToggle } from "./ThemeToggle";
 
 export const Navbar: React.FC = () => {
   const location = useLocation();
@@ -39,10 +40,17 @@ export const Navbar: React.FC = () => {
             <path
               d="M3 22 V13 C3 7.477 7.477 3 13 3 H15 V22 H3 Z"
               fill="#115E59"
-              stroke="#18181B"
+              stroke="var(--ink-primary)"
               strokeWidth="2"
             />
-            <circle cx="20" cy="17" r="6" fill="#FDE047" stroke="#18181B" strokeWidth="2" />
+            <circle
+              cx="20"
+              cy="17"
+              r="6"
+              fill="#FDE047"
+              stroke="var(--ink-primary)"
+              strokeWidth="2"
+            />
           </svg>
           <span className="font-display text-lg sm:text-xl font-bold tracking-tight text-ink-primary whitespace-nowrap">
             CrewConnect
@@ -79,6 +87,7 @@ export const Navbar: React.FC = () => {
 
         {/* Right Auth & Action Controls */}
         <div className="flex items-center gap-2 sm:gap-3 flex-shrink-0">
+          <ThemeToggle />
           {isLoading ? (
             <div className="w-5 h-5 border-2 border-accent border-t-transparent rounded-full animate-spin" />
           ) : user ? (

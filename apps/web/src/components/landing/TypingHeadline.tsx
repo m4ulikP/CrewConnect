@@ -85,12 +85,12 @@ export const TypingHeadline: React.FC = () => {
                 aria-hidden="true"
                 viewBox="0 0 200 44"
                 preserveAspectRatio="none"
-                className="hero-marker-swipe pointer-events-none absolute -inset-x-[0.07em] bottom-[0.02em] h-[0.76em] w-[calc(100%+0.14em)]"
+                className="hero-marker-swipe pointer-events-none absolute -inset-x-[0.07em] bottom-[0.02em] h-[0.76em] w-[calc(100%+0.14em)] text-[#FFE45C] dark:text-accent/30"
               >
                 <path
                   d="M5,9 C48,4 146,5 195,8 C199,16 198,30 193,38 C140,41 44,40 3,36 C0,28 1,17 5,9 Z"
-                  fill="#FFE45C"
-                  fillOpacity="0.86"
+                  fill="currentColor"
+                  fillOpacity="0.88"
                 />
               </svg>
               <span className="relative">{displayedLead}</span>

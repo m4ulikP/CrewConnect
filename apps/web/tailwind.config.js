@@ -1,54 +1,64 @@
 /** @type {import('tailwindcss').Config} */
+function withOpacity(variableName) {
+  return ({ opacityValue }) => {
+    if (opacityValue !== undefined) {
+      return `color-mix(in srgb, var(${variableName}) calc(${opacityValue} * 100%), transparent)`;
+    }
+    return `var(${variableName})`;
+  };
+}
+
 export default {
+  darkMode: "class",
   content: ["./index.html", "./src/**/*.{js,ts,jsx,tsx}"],
   theme: {
     extend: {
       colors: {
-        ground: "#F6F6F4",
-        chrome: "#EEEDE9",
+        ground: withOpacity("--ground"),
+        chrome: withOpacity("--chrome"),
         surface: {
-          DEFAULT: "#FFFFFF",
-          tonal: "#F1F0EC",
-          hover: "#FAF9F7",
+          DEFAULT: withOpacity("--surface"),
+          tonal: withOpacity("--surface-tonal"),
+          hover: withOpacity("--surface-hover"),
         },
         border: {
-          subtle: "#E4E2DC",
-          strong: "#CFCBC2",
-          control: "#8B8982",
-          focus: "#115E59",
+          subtle: withOpacity("--border-subtle"),
+          strong: withOpacity("--border-strong"),
+          control: withOpacity("--border-control"),
+          focus: withOpacity("--border-focus"),
         },
         ink: {
-          primary: "#18181B",
-          secondary: "#52525B",
-          muted: "#64635E",
-          onAccent: "#FFFFFF",
+          primary: withOpacity("--ink-primary"),
+          secondary: withOpacity("--ink-secondary"),
+          muted: withOpacity("--ink-muted"),
+          onAccent: withOpacity("--ink-on-accent"),
         },
         accent: {
-          DEFAULT: "#115E59",
-          hover: "#0F4C48",
-          tint: "#E6F2F0",
+          DEFAULT: withOpacity("--accent"),
+          hover: withOpacity("--accent-hover"),
+          tint: withOpacity("--accent-tint"),
         },
         highlight: {
-          DEFAULT: "#FDE047",
-          hover: "#FACC15",
-          soft: "#FEF9C3",
+          DEFAULT: withOpacity("--highlight"),
+          hover: withOpacity("--highlight-hover"),
+          soft: withOpacity("--highlight-soft"),
         },
         tangelo: {
-          DEFAULT: "#FF5A1F",
-          soft: "#FFEDD5",
+          DEFAULT: withOpacity("--tangelo"),
+          soft: withOpacity("--tangelo-soft"),
         },
         positive: {
-          DEFAULT: "#166534",
-          bg: "#DCFCE7",
+          DEFAULT: withOpacity("--positive"),
+          bg: withOpacity("--positive-bg"),
         },
         warning: {
-          DEFAULT: "#92400E",
-          bg: "#FEF3C7",
+          DEFAULT: withOpacity("--warning"),
+          bg: withOpacity("--warning-bg"),
         },
         danger: {
-          DEFAULT: "#991B1B",
-          solid: "#B91C1C",
-          bg: "#FEE2E2",
+          DEFAULT: withOpacity("--danger"),
+          solid: withOpacity("--danger-solid"),
+          bg: withOpacity("--danger-bg"),
         },
       },
       fontFamily: {

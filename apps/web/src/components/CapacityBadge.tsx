@@ -38,7 +38,7 @@ export const CapacityBadge: React.FC<CapacityBadgeProps> = ({
     <span
       className={`text-[11px] font-medium px-2.5 py-1 rounded-sm border tabular ${
         !isFull && isOpen
-          ? "bg-accent-tint text-accent border-[#C5E0DC]"
+          ? "bg-accent-tint text-accent border-accent/30"
           : "bg-surface-tonal text-ink-secondary border-border-subtle"
       }`}
     >

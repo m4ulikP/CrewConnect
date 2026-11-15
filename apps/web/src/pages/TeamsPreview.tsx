@@ -35,6 +35,19 @@ import { DirectoryPagination } from "../components/discovery/DirectoryPagination
 const DIRECTORY_PAGE_SIZE = 10;
 const SEARCH_DEBOUNCE_MS = 300;
 
+const FALLBACK_HACKATHON: HackathonRecord = {
+  id: "hack4hack-2026",
+  slug: "hack4hack-2026",
+  title: "Hack4Hack 2026 — Crew Hiring Challenge",
+  description:
+    "The premier race-proof hackathon team formation platform. Form squads of 2–5 members, recruit teammates, and allocate seats without race conditions.",
+  minTeamSize: 2,
+  maxTeamSize: 5,
+  status: "ACTIVE",
+  startDate: "2026-01-01T00:00:00.000Z",
+  endDate: "2026-12-31T23:59:59.999Z",
+};
+
 function parsePositiveInt(raw: string | null, fallback = 1): number {
   if (!raw) return fallback;
   const parsed = Number.parseInt(raw, 10);
@@ -141,25 +154,35 @@ export const TeamsPreview: React.FC = () => {
     setHackathonsError(null);
     try {
       const data = await apiGetHackathons();
-      setHackathons(data);
-      if (data.length > 0) {
+      if (Array.isArray(data) && data.length > 0) {
+        setHackathons(data);
         const preferred = data.find((h) => h.status === "ACTIVE") || data[0];
         setSelectedHackathonId((prev) => {
           if (prev && data.some((h) => h.id === prev)) return prev;
           return preferred.id;
         });
       } else {
-        setLoading(false);
+        if (import.meta.env.DEV) {
+          // Fallback to official demo hackathon if empty in development
+          setHackathons([FALLBACK_HACKATHON]);
+          setSelectedHackathonId(FALLBACK_HACKATHON.id);
+        } else {
+          setHackathons([]);
+        }
       }
     } catch (err) {
-      const msg =
-        err instanceof ApiClientError
-          ? err.message
-          : "Unable to load hackathon directory. Verify your connection and retry.";
-      setHackathonsError(msg);
-      setLoading(false);
+      if (import.meta.env.DEV) {
+        // Gracefully activate official demo hackathon in development mode
+        setHackathons([FALLBACK_HACKATHON]);
+        setSelectedHackathonId(FALLBACK_HACKATHON.id);
+      } else {
+        const message =
+          err instanceof ApiClientError ? err.message : "Unable to load hackathons. Please retry.";
+        setHackathonsError(message);
+      }
     } finally {
       setLoadingHackathons(false);
+      setLoading(false);
     }
   }, []);
 
@@ -190,11 +213,13 @@ export const TeamsPreview: React.FC = () => {
       setPaginationMeta(meta);
       setMyTeam(myTeamData);
     } catch (err) {
-      const msg =
-        err instanceof ApiClientError
-          ? err.message
-          : "Unable to load squads for this hackathon. Please retry.";
-      setDirectoryError(msg);
+      if (err instanceof ApiClientError) {
+        setDirectoryError(err.message);
+      } else if (err instanceof Error) {
+        setDirectoryError(err.message);
+      } else {
+        setDirectoryError("Unable to load teams directory. Please try again.");
+      }
     } finally {
       setLoading(false);
     }

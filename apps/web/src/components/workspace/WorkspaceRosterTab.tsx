@@ -80,7 +80,7 @@ export const WorkspaceRosterTab: React.FC<WorkspaceRosterTabProps> = ({
                         {mName}
                       </span>
                       {isMemberLeader && (
-                        <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-accent bg-accent-tint border border-[#C5E0DC] px-2 py-0.5 rounded">
+                        <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-accent bg-accent-tint border border-accent/30 px-2 py-0.5 rounded">
                           <Shield className="w-3 h-3" />
                           <span>Squad Leader</span>
                         </span>

@@ -54,7 +54,7 @@ export const WorkspaceRequestsTab: React.FC<WorkspaceRequestsTabProps> = ({
         </div>
 
         {!hasAvailableSeats && (
-          <div className="flex items-center gap-1.5 text-xs text-warning bg-warning-bg px-2.5 py-1 rounded border border-[#FDE68A]">
+          <div className="flex items-center gap-1.5 text-xs text-warning bg-warning-bg px-2.5 py-1 rounded border border-warning/30">
             <AlertCircle className="w-3.5 h-3.5 shrink-0" />
             <span>Roster full — approval disabled</span>
           </div>

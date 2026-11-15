@@ -12,6 +12,11 @@ import {
 } from "@crewconnect/shared";
 import { AppError } from "../errors/AppError.js";
 import { ensureDefaultHackathonAndDemoData } from "../services/demo-seed.service.js";
+import {
+  FALLBACK_DEMO_HACKATHON,
+  FALLBACK_DEMO_TEAMS,
+  isDevFallbackActive,
+} from "../services/demo-fixtures.js";
 
 export const hackathonsRouter = Router();
 
@@ -23,12 +28,26 @@ hackathonsRouter.get(
   "/",
   async (_req: Request, res: Response, next: NextFunction): Promise<void> => {
     try {
+      if (isDevFallbackActive()) {
+        res.status(200).json({
+          success: true,
+          data: [FALLBACK_DEMO_HACKATHON],
+        });
+        return;
+      }
       const hackathons = await Hackathon.find().sort({ startDate: -1 });
       res.status(200).json({
         success: true,
         data: hackathons,
       });
     } catch (error) {
+      if (isDevFallbackActive()) {
+        res.status(200).json({
+          success: true,
+          data: [FALLBACK_DEMO_HACKATHON],
+        });
+        return;
+      }
       next(error);
     }
   }
@@ -90,8 +109,39 @@ hackathonsRouter.get(
   async (req: Request, res: Response, next: NextFunction): Promise<void> => {
     try {
       const { hackathonId } = req.params;
-      const { page, limit, search, hasVacancies, skills } =
-        req.query as unknown as ListTeamsQueryInput;
+      const {
+        page = 1,
+        limit = 10,
+        search,
+        hasVacancies,
+        skills,
+      } = req.query as unknown as ListTeamsQueryInput;
+
+      if (isDevFallbackActive()) {
+        let filtered = [...FALLBACK_DEMO_TEAMS];
+        if (search) {
+          const lower = search.toLowerCase();
+          filtered = filtered.filter(
+            (t) => t.name.toLowerCase().includes(lower) || t.tagline.toLowerCase().includes(lower)
+          );
+        }
+        if (hasVacancies) {
+          filtered = filtered.filter((t) => t.isOpen && t.memberCount < t.maxCapacity);
+        }
+        if (skills && skills.length > 0) {
+          filtered = filtered.filter((t) => skills.some((s) => t.skillsNeeded.includes(s)));
+        }
+        res.status(200).json({
+          success: true,
+          data: filtered,
+          meta: {
+            page: Number(page),
+            limit: Number(limit),
+            total: filtered.length,
+          },
+        });
+        return;
+      }
 
       const result = await TeamService.listTeams(hackathonId, {
         page,
@@ -111,6 +161,14 @@ hackathonsRouter.get(
         },
       });
     } catch (error) {
+      if (isDevFallbackActive()) {
+        res.status(200).json({
+          success: true,
+          data: FALLBACK_DEMO_TEAMS,
+          meta: { page: 1, limit: 10, total: FALLBACK_DEMO_TEAMS.length },
+        });
+        return;
+      }
       next(error);
     }
   }

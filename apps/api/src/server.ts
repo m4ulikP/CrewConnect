@@ -100,26 +100,32 @@ export async function startServer(options: ServerStartupOptions = {}): Promise<h
     } catch (seedErr) {
       console.warn("[Startup] Notice: Demo hackathon seeding encountered an issue:", seedErr);
     }
-
-    const shouldListen = options.listen ?? true;
-    if (shouldListen) {
-      return new Promise<http.Server>((resolve) => {
-        server.listen(env.PORT, () => {
-          console.log(`CrewConnect API server running on port ${env.PORT} in ${env.NODE_ENV} mode`);
-          console.log(`Health check: http://localhost:${env.PORT}/health`);
-          console.log(`API root: http://localhost:${env.PORT}/api/v1`);
-          resolve(server);
-        });
-      });
-    }
-    return server;
   } catch (error) {
-    console.error("Fatal error during API startup:", sanitizeMongoErrorForLog(error));
-    if (process.env.NODE_ENV !== "test") {
-      process.exit(1);
+    if (env.NODE_ENV === "development") {
+      console.warn(
+        `[Startup] Notice: MongoDB replica set is offline locally. Running API server in Local Dev / Demo Fallback mode on port ${env.PORT}.`
+      );
+    } else {
+      console.error("Fatal error during API startup:", sanitizeMongoErrorForLog(error));
+      if (process.env.NODE_ENV !== "test") {
+        process.exit(1);
+      }
+      throw error;
     }
-    throw error;
   }
+
+  const shouldListen = options.listen ?? true;
+  if (shouldListen) {
+    return new Promise<http.Server>((resolve) => {
+      server.listen(env.PORT, () => {
+        console.log(`CrewConnect API server running on port ${env.PORT} in ${env.NODE_ENV} mode`);
+        console.log(`Health check: http://localhost:${env.PORT}/health`);
+        console.log(`API root: http://localhost:${env.PORT}/api/v1`);
+        resolve(server);
+      });
+    });
+  }
+  return server;
 }
 
 // Graceful shutdown handling

@@ -66,10 +66,17 @@ export const GoogleAuth: React.FC = () => {
               <path
                 d="M3 22 V13 C3 7.477 7.477 3 13 3 H15 V22 H3 Z"
                 fill="#115E59"
-                stroke="#18181B"
+                stroke="var(--ink-primary)"
                 strokeWidth="2"
               />
-              <circle cx="20" cy="17" r="6" fill="#FDE047" stroke="#18181B" strokeWidth="2" />
+              <circle
+                cx="20"
+                cy="17"
+                r="6"
+                fill="#FDE047"
+                stroke="var(--ink-primary)"
+                strokeWidth="2"
+              />
             </svg>
             <span className="font-display text-base font-bold tracking-tight text-ink-primary">
               CrewConnect
@@ -95,7 +102,7 @@ export const GoogleAuth: React.FC = () => {
               aria-label="Continue with Google"
               className={`w-full h-12 px-5 flex items-center justify-center gap-3 rounded-lg border-2 font-semibold text-sm transition-all duration-150 select-none ${
                 isConfigured && !isLoadingStatus
-                  ? "bg-surface border-ink-primary text-ink-primary hover:border-accent hover:shadow-[3px_3px_0px_#18181B] active:translate-x-[1px] active:translate-y-[1px] active:shadow-none cursor-pointer focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
+                  ? "bg-surface border-ink-primary text-ink-primary hover:border-accent hover:shadow-[3px_3px_0px_var(--ink-primary)] active:translate-x-[1px] active:translate-y-[1px] active:shadow-none cursor-pointer focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
                   : "bg-surface-tonal border-border-strong text-ink-muted cursor-not-allowed opacity-75"
               }`}
             >

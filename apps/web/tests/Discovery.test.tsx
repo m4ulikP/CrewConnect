@@ -315,4 +315,24 @@ describe("Phase 3 — Team Discovery Experience", () => {
       expect(screen.getByText(/Server confirmed: 4 \/ 4/i)).toBeInTheDocument();
     });
   });
+
+  it("displays error banner and retry button on API failure in production without injecting fallback fixtures", async () => {
+    vi.stubEnv("DEV", false);
+    vi.spyOn(apiModule, "apiGetHackathons").mockRejectedValue(
+      new apiModule.ApiClientError("NETWORK_ERROR", "Failed to fetch hackathons from server.", 500)
+    );
+
+    renderDiscovery();
+
+    await waitFor(() => {
+      expect(screen.getByRole("alert")).toHaveTextContent(
+        "Failed to fetch hackathons from server."
+      );
+    });
+
+    expect(screen.getByRole("button", { name: /Retry/i })).toBeInTheDocument();
+    expect(screen.queryByText(/Hack4Hack 2026/i)).not.toBeInTheDocument();
+
+    vi.unstubAllEnvs();
+  });
 });

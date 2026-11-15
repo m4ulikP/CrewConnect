@@ -62,8 +62,8 @@ export const SquadAssemblyIllustration: React.FC = () => {
         {/* Asymmetric Soft Tonal Paper Anchor Shape Behind Ring */}
         <path
           d="M92 250 C92 150, 175 74, 286 74 L350 74 C368 74, 382 88, 382 106 L382 260 C382 300, 348 332, 308 332 L152 332 C118 332, 92 298, 92 250 Z"
-          fill="#EEEDE9"
-          stroke="#18181B"
+          fill="var(--surface-tonal)"
+          stroke="var(--border-strong)"
           strokeWidth="2"
           strokeDasharray="6 6"
           style={{
@@ -76,7 +76,7 @@ export const SquadAssemblyIllustration: React.FC = () => {
         <path
           d="M54 218 H158 V322 H102 C75.49 322 54 300.51 54 274 V218 Z"
           fill="#FDE047"
-          stroke="#18181B"
+          stroke="var(--ink-primary)"
           strokeWidth="2.5"
           strokeLinejoin="round"
           style={{
@@ -103,7 +103,7 @@ export const SquadAssemblyIllustration: React.FC = () => {
           <path
             d="M 102 96 C 148 96, 165 156, 214 176"
             fill="none"
-            stroke="#18181B"
+            stroke="var(--ink-primary)"
             strokeWidth="2.5"
             strokeLinecap="round"
           />
@@ -111,7 +111,7 @@ export const SquadAssemblyIllustration: React.FC = () => {
           <path
             d="M 134 274 C 176 266, 188 228, 224 214"
             fill="none"
-            stroke="#18181B"
+            stroke="var(--ink-primary)"
             strokeWidth="2.5"
             strokeLinecap="round"
           />
@@ -119,7 +119,7 @@ export const SquadAssemblyIllustration: React.FC = () => {
           <path
             d="M 384 102 C 344 108, 326 154, 288 176"
             fill="none"
-            stroke="#18181B"
+            stroke="var(--ink-primary)"
             strokeWidth="2.5"
             strokeLinecap="round"
           />
@@ -127,7 +127,7 @@ export const SquadAssemblyIllustration: React.FC = () => {
           <path
             d="M 392 276 C 348 264, 324 234, 294 216"
             fill="none"
-            stroke="#115E59"
+            stroke="var(--accent)"
             strokeWidth={shift ? "3.2" : "2.5"}
             strokeDasharray="7 6"
             strokeLinecap="round"
@@ -147,13 +147,20 @@ export const SquadAssemblyIllustration: React.FC = () => {
             }}
           >
             {/* Outer Structural Ring */}
-            <circle cx="0" cy="0" r="68" fill="#FFFFFF" stroke="#18181B" strokeWidth="2.5" />
+            <circle
+              cx="0"
+              cy="0"
+              r="68"
+              fill="var(--surface)"
+              stroke="var(--ink-primary)"
+              strokeWidth="2.5"
+            />
 
             {/* 3 Locked Architectural Quadrant Arcs (Pine, Butter, Tangelo) */}
             <path
               d="M 0 -54 A 54 54 0 0 0 -54 0"
               fill="none"
-              stroke="#115E59"
+              stroke="var(--accent)"
               strokeWidth="12"
               strokeLinecap="round"
             />
@@ -176,14 +183,21 @@ export const SquadAssemblyIllustration: React.FC = () => {
             <path
               d="M 0 54 A 54 54 0 0 0 54 0"
               fill="none"
-              stroke="#115E59"
+              stroke="var(--accent)"
               strokeWidth="3.5"
               strokeDasharray="6 5"
               strokeLinecap="round"
             />
 
             {/* Inner Precision Keyhole Core */}
-            <circle cx="0" cy="0" r="28" fill="#115E59" stroke="#18181B" strokeWidth="2.5" />
+            <circle
+              cx="0"
+              cy="0"
+              r="28"
+              fill="var(--accent)"
+              stroke="var(--ink-primary)"
+              strokeWidth="2.5"
+            />
             {/* Minimal Architectural Lock Emblem inside Core */}
             <circle cx="0" cy="-3" r="6" fill="#FDE047" />
             <path d="M -5 4 H5 L7 13 H-7 Z" fill="#FDE047" />
@@ -206,14 +220,21 @@ export const SquadAssemblyIllustration: React.FC = () => {
         >
           <path
             d="M44 128 V86 C44 63.9 61.9 46 84 46 C106.1 46 124 63.9 124 86 V128 H44 Z"
-            fill="#115E59"
-            stroke="#18181B"
+            fill="var(--accent)"
+            stroke="var(--ink-primary)"
             strokeWidth="2.5"
             strokeLinejoin="round"
           />
           <circle cx="72" cy="86" r="4" fill="#FFFFFF" />
           <circle cx="96" cy="86" r="4" fill="#FFFFFF" />
-          <circle cx="102" cy="96" r="6" fill="#FDE047" stroke="#18181B" strokeWidth="2" />
+          <circle
+            cx="102"
+            cy="96"
+            r="6"
+            fill="#FDE047"
+            stroke="var(--ink-primary)"
+            strokeWidth="2"
+          />
         </g>
 
         {/* Node Connection Pivot 2 (Butter Wedge Anchor Dot) */}
@@ -221,8 +242,8 @@ export const SquadAssemblyIllustration: React.FC = () => {
           cx="134"
           cy="274"
           r="8"
-          fill="#115E59"
-          stroke="#18181B"
+          fill="var(--accent)"
+          stroke="var(--ink-primary)"
           strokeWidth="2.5"
           style={{
             opacity: visible ? 1 : 0,
@@ -251,12 +272,26 @@ export const SquadAssemblyIllustration: React.FC = () => {
             height="72"
             rx="22"
             fill="#FF5A1F"
-            stroke="#18181B"
+            stroke="var(--ink-primary)"
             strokeWidth="2.5"
           />
-          <rect x="372" y="72" width="24" height="8" rx="4" fill="#18181B" />
-          <circle cx="384" cy="100" r="4.5" fill="#FFFFFF" stroke="#18181B" strokeWidth="1.5" />
-          <circle cx="408" cy="100" r="4.5" fill="#FFFFFF" stroke="#18181B" strokeWidth="1.5" />
+          <rect x="372" y="72" width="24" height="8" rx="4" fill="var(--ink-primary)" />
+          <circle
+            cx="384"
+            cy="100"
+            r="4.5"
+            fill="#FFFFFF"
+            stroke="var(--ink-primary)"
+            strokeWidth="1.5"
+          />
+          <circle
+            cx="408"
+            cy="100"
+            r="4.5"
+            fill="#FFFFFF"
+            stroke="var(--ink-primary)"
+            strokeWidth="1.5"
+          />
         </g>
 
         {/* Dynamic Incoming Node 4 (Bottom-Right: Open Diamond Seat Key) */}
@@ -279,17 +314,24 @@ export const SquadAssemblyIllustration: React.FC = () => {
             width="72"
             height="72"
             rx="16"
-            fill="#FFFFFF"
-            stroke="#18181B"
+            fill="var(--surface)"
+            stroke="var(--ink-primary)"
             strokeWidth="2.5"
           />
           <path
             d="M394 261 V285 M382 273 H406"
-            stroke="#115E59"
+            stroke="var(--accent)"
             strokeWidth="3.5"
             strokeLinecap="round"
           />
-          <circle cx="422" cy="248" r="10" fill="#FDE047" stroke="#18181B" strokeWidth="2" />
+          <circle
+            cx="422"
+            cy="248"
+            r="10"
+            fill="#FDE047"
+            stroke="var(--ink-primary)"
+            strokeWidth="2"
+          />
         </g>
       </svg>
     </div>
