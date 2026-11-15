@@ -150,7 +150,7 @@ export const WorkspaceModals: React.FC<WorkspaceModalsProps> = ({
             <div>
               <h3
                 id="disband-dialog-title"
-                className="text-lg font-serif font-medium text-ink-primary"
+                className="text-lg font-display font-bold text-ink-primary tracking-tight"
               >
                 Confirm Disband Squad
               </h3>
@@ -203,7 +203,7 @@ export const WorkspaceModals: React.FC<WorkspaceModalsProps> = ({
             <div>
               <h3
                 id="leave-dialog-title"
-                className="text-lg font-serif font-medium text-ink-primary"
+                className="text-lg font-display font-bold text-ink-primary tracking-tight"
               >
                 Leave Squad
               </h3>
@@ -256,7 +256,7 @@ export const WorkspaceModals: React.FC<WorkspaceModalsProps> = ({
             <div>
               <h3
                 id="remove-member-dialog-title"
-                className="text-lg font-serif font-medium text-ink-primary"
+                className="text-lg font-display font-bold text-ink-primary tracking-tight"
               >
                 Remove Member from Roster
               </h3>
