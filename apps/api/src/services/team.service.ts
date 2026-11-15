@@ -284,47 +284,60 @@ export class TeamService {
       matchQuery.skillsNeeded = { $in: options.skills };
     }
 
-    const [teams, total] = await Promise.all([
-      Team.collection
-        .aggregate([
-          { $match: matchQuery },
-          { $sort: { createdAt: -1, _id: -1 } },
-          { $skip: skip },
-          { $limit: limit },
-          {
-            $lookup: {
-              from: "users",
-              localField: "leaderId",
-              foreignField: "_id",
-              pipeline: [
-                {
-                  $project: {
-                    _id: 0,
-                    id: { $toString: "$_id" },
-                    displayName: 1,
-                    skills: 1,
-                  },
+    const teams = (await Team.collection
+      .aggregate([
+        { $match: matchQuery },
+        { $sort: { createdAt: -1, _id: -1 } },
+        { $skip: skip },
+        { $limit: limit },
+        {
+          $lookup: {
+            from: "users",
+            localField: "leaderId",
+            foreignField: "_id",
+            pipeline: [
+              {
+                $project: {
+                  _id: 0,
+                  id: { $toString: "$_id" },
+                  displayName: 1,
+                  skills: 1,
                 },
-              ],
-              as: "leaderArr",
-            },
-          },
-          {
-            $addFields: {
-              id: { $toString: "$_id" },
-              hackathonId: { $toString: "$hackathonId" },
-              leaderId: {
-                $ifNull: [{ $arrayElemAt: ["$leaderArr", 0] }, { $toString: "$leaderId" }],
               },
+            ],
+            as: "leaderArr",
+          },
+        },
+        {
+          $addFields: {
+            id: { $toString: "$_id" },
+            hackathonId: { $toString: "$hackathonId" },
+            leaderId: {
+              $ifNull: [{ $arrayElemAt: ["$leaderArr", 0] }, { $toString: "$leaderId" }],
             },
           },
-          { $project: { _id: 0, __v: 0, leaderArr: 0 } },
-        ])
-        .toArray(),
-      Team.collection.countDocuments(matchQuery),
-    ]);
+        },
+        { $project: { _id: 0, __v: 0, leaderArr: 0 } },
+      ])
+      .toArray()) as Record<string, unknown>[];
 
-    return { teams: teams as Record<string, unknown>[], total, page, limit };
+    // Sequential count resolution with terminal-page short-circuiting:
+    // 1. If skip === 0 and teams.length === 0, the collection is empty -> total is 0.
+    // 2. If teams.length > 0 and teams.length < limit, this is a valid partially-filled terminal
+    //    page, so the exact total is known with 100% mathematical precision without scanning.
+    // 3. If teams.length === 0 and skip > 0 (requested page is beyond the final page),
+    //    or if teams.length === limit (a full page with potentially more pages),
+    //    an exact countDocuments query is executed sequentially.
+    let total: number;
+    if (skip === 0 && teams.length === 0) {
+      total = 0;
+    } else if (teams.length > 0 && teams.length < limit) {
+      total = skip + teams.length;
+    } else {
+      total = await Team.collection.countDocuments(matchQuery);
+    }
+
+    return { teams, total, page, limit };
   }
 
   /**

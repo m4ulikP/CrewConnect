@@ -12,11 +12,133 @@ import {
 } from "@crewconnect/shared";
 import {
   scoreCandidate,
+  precomputeTeamContext,
   type TeamScoringContext,
   type CandidateScoringInput,
 } from "./recommendation-engine.js";
 
+export interface CandidateUserRecord {
+  readonly _id: mongoose.Types.ObjectId;
+  readonly displayName: string;
+  readonly avatarUrl?: string;
+  readonly bio?: string;
+  readonly skills?: string[];
+  readonly experienceLevel?: ExperienceLevel;
+  readonly timeZone?: string;
+  readonly githubUrl?: string;
+  readonly linkedinUrl?: string;
+  readonly portfolioUrl?: string;
+}
+
+export interface HackathonCandidatePool {
+  readonly activeHackathonUserIds: ReadonlySet<string>;
+  readonly candidates: readonly CandidateUserRecord[];
+}
+
 export class RecommendationService {
+  /**
+   * In-flight promise map for deduplicating concurrent candidate-pool retrievals
+   * for the same hackathon. Keyed by hackathon ID string.
+   *
+   * Crucial invariants:
+   * - Entries exist ONLY while an asynchronous retrieval is actively pending.
+   * - Once the promise settles (either successfully resolved or rejected), it is
+   *   immediately removed in a `finally` block.
+   * - Rejections do NOT poison subsequent requests; subsequent requests initiate a fresh fetch.
+   * - Completed results are NEVER cached; no TTL or persistent memory state is retained.
+   */
+  private static inFlightCandidatePools = new Map<string, Promise<HackathonCandidatePool>>();
+
+  /**
+   * Returns current count of in-flight candidate pool promises (used for test assertions).
+   */
+  static getInFlightCount(): number {
+    return this.inFlightCandidatePools.size;
+  }
+
+  /**
+   * Clears all in-flight candidate pool promises (used for test teardown).
+   */
+  static clearInFlightPools(): void {
+    this.inFlightCandidatePools.clear();
+  }
+
+  /**
+   * Retrieves the candidate pool for a given hackathon, coalescing concurrent in-flight
+   * requests for the same hackathon ID onto a single shared database retrieval.
+   */
+  static async getHackathonCandidatePool(
+    hackathonId: mongoose.Types.ObjectId
+  ): Promise<HackathonCandidatePool> {
+    const key = hackathonId.toString();
+    const existing = this.inFlightCandidatePools.get(key);
+    if (existing) {
+      return existing;
+    }
+
+    const promise = (async () => {
+      try {
+        return await this.fetchHackathonCandidatePool(hackathonId);
+      } finally {
+        this.inFlightCandidatePools.delete(key);
+      }
+    })();
+
+    this.inFlightCandidatePools.set(key, promise);
+    return promise;
+  }
+
+  /**
+   * Performs the actual database queries to retrieve active hackathon memberships
+   * and eligible candidate user records.
+   */
+  static async fetchHackathonCandidatePool(
+    hackathonId: mongoose.Types.ObjectId
+  ): Promise<HackathonCandidatePool> {
+    // 1. Covered query: fetch all user IDs with ACTIVE membership in this hackathon.
+    // Explicitly suppressing _id allows MongoDB to satisfy this query entirely from the
+    // partial unique index { hackathonId: 1, userId: 1 }, examining 0 documents.
+    const activeHackathonMemberships = await Membership.find(
+      {
+        hackathonId,
+        status: "ACTIVE",
+      },
+      { userId: 1, _id: 0 }
+    ).lean();
+
+    const activeHackathonUserIds = new Set<string>();
+    for (const m of activeHackathonMemberships) {
+      if (m.userId) {
+        activeHackathonUserIds.add(m.userId.toString());
+      }
+    }
+
+    // 2. Query all candidate users in the pool who are ACTIVE and not in activeHackathonUserIds.
+    // Project only necessary public attributes, strictly omitting passwordHash, tokenVersion, email, etc.
+    const candidateDocs = await User.find(
+      {
+        _id: { $nin: Array.from(activeHackathonUserIds) },
+        status: "ACTIVE",
+      },
+      {
+        displayName: 1,
+        avatarUrl: 1,
+        bio: 1,
+        skills: 1,
+        experienceLevel: 1,
+        timeZone: 1,
+        githubUrl: 1,
+        linkedinUrl: 1,
+        portfolioUrl: 1,
+      }
+    ).lean();
+
+    return {
+      activeHackathonUserIds,
+      candidates: candidateDocs as unknown as CandidateUserRecord[],
+    };
+  }
+
   /**
    * Retrieves deterministic, explainable teammate recommendations for an active team.
    *
@@ -102,6 +224,7 @@ export class RecommendationService {
     }).populate<{
       userId: {
         _id: mongoose.Types.ObjectId;
+        displayName: string;
         skills?: string[];
         experienceLevel?: ExperienceLevel;
         timeZone?: string;
@@ -123,49 +246,29 @@ export class RecommendationService {
       members: teamMembers,
     };
 
-    // 2. Determine all ineligible user IDs:
-    // - All users who have an ACTIVE membership in this hackathon (includes this team + other teams)
-    const activeHackathonMemberships = await Membership.find(
-      {
-        hackathonId: team.hackathonId,
-        status: "ACTIVE",
-      },
-      { userId: 1 }
-    );
+    // 2. Retrieve candidate pool for this hackathon (coalescing concurrent in-flight requests)
+    const pool = await this.getHackathonCandidatePool(team.hackathonId);
 
-    const excludedUserIds = new Set<string>();
-    for (const m of activeHackathonMemberships) {
-      if (m.userId) {
-        excludedUserIds.add(m.userId.toString());
-      }
-    }
-    // Explicitly guarantee caller & existing team members are excluded
+    // 3. Build request-specific exclusion set:
+    // Clone hackathon-wide excluded user IDs into a fresh request-local Set,
+    // then add caller and team members. This ensures mutations are strictly isolated to this request.
+    const excludedUserIds = new Set<string>(pool.activeHackathonUserIds);
     excludedUserIds.add(requestingUserId);
     for (const m of teamMembers) {
       excludedUserIds.add(m.id);
     }
 
-    // 3. Query all candidate users in the pool who are ACTIVE and not in excludedUserIds
-    // Project only necessary public attributes, strictly omitting passwordHash, tokenVersion, email, etc.
-    const candidateDocs = await User.find(
-      {
-        _id: { $nin: Array.from(excludedUserIds) },
-        status: "ACTIVE",
-      },
-      {
-        displayName: 1,
-        avatarUrl: 1,
-        bio: 1,
-        skills: 1,
-        experienceLevel: 1,
-        timeZone: 1,
-        githubUrl: 1,
-        linkedinUrl: 1,
-        portfolioUrl: 1,
-      }
-    ).lean();
+    // Filter candidate documents for this request:
+    // Exclude any candidate in request-specific excludedUserIds (e.g., caller or squad members).
+    // Creates a new request-local array so no shared arrays are mutated.
+    const candidateDocs = pool.candidates.filter((doc) => !excludedUserIds.has(String(doc._id)));
 
-    // 4. Score all eligible candidates using the deterministic engine
+    // 4. Precompute reusable squad context and request-scoped timezone offset cache
+    const refDate = new Date();
+    const offsetCache = new Map<string, number | null>();
+    const precomputed = precomputeTeamContext(teamCtx, refDate, offsetCache);
+
+    // Score all eligible candidates using the deterministic engine
     const scoredRecommendations: TeammateRecommendationDTO[] = candidateDocs.map((doc) => {
       const candidateInput: CandidateScoringInput = {
         id: String(doc._id),
@@ -180,7 +283,7 @@ export class RecommendationService {
         portfolioUrl: doc.portfolioUrl,
       };
 
-      return scoreCandidate(candidateInput, teamCtx);
+      return scoreCandidate(candidateInput, teamCtx, refDate, precomputed, offsetCache);
     });
 
     // 5. Deterministic multi-tier sort:

@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeAll, afterAll, beforeEach } from "vitest";
+import { describe, it, expect, beforeAll, afterAll, beforeEach, vi } from "vitest";
 import request from "supertest";
 import mongoose, { Types } from "mongoose";
 import { app } from "../src/app.js";
@@ -1313,6 +1313,171 @@ describe("Team Lifecycle & Management Integration Tests", () => {
       expect(validRes.status).toBe(200);
       expect(validRes.body.meta.page).toBe(1);
       expect(validRes.body.meta.limit).toBe(50);
+    });
+
+    it("enforces strict pagination correctness, terminal-page shortcutting, and beyond-the-end count accuracy", async () => {
+      const countSpy = vi.spyOn(Team.collection, "countDocuments");
+
+      try {
+        // 1. Empty first page on a hackathon with zero teams: total is strictly 0 without invoking countDocuments
+        countSpy.mockClear();
+        const emptyHackathon = await Hackathon.create({
+          slug: `empty-hackathon-${Date.now()}`,
+          title: "Empty Test Hackathon",
+          description: "Hackathon with no teams",
+          minTeamSize: 1,
+          maxTeamSize: 5,
+          status: "ACTIVE",
+          startDate: new Date(),
+          endDate: new Date(Date.now() + 86400000),
+        });
+        const emptyHackId = emptyHackathon._id.toString();
+
+        const emptyRes = await request(app).get(
+          `/api/v1/hackathons/${emptyHackId}/teams?page=1&limit=2`
+        );
+        expect(emptyRes.status).toBe(200);
+        expect(emptyRes.body.data).toHaveLength(0);
+        expect(emptyRes.body.meta).toEqual({ page: 1, limit: 2, total: 0 });
+        expect(countSpy).not.toHaveBeenCalled();
+
+        // Clean up empty hackathon
+        await Hackathon.findByIdAndDelete(emptyHackId);
+
+        // Seed an isolated hackathon with 3 vacant teams and 2 full teams
+        const targetHackathon = await Hackathon.create({
+          slug: `paged-hackathon-${Date.now()}`,
+          title: "Paged Test Hackathon",
+          description: "Hackathon with paged teams",
+          minTeamSize: 1,
+          maxTeamSize: 5,
+          status: "ACTIVE",
+          startDate: new Date(),
+          endDate: new Date(Date.now() + 86400000),
+        });
+        const targetHackId = targetHackathon._id.toString();
+
+        const baseTime = Date.now();
+        await Team.insertMany([
+          {
+            hackathonId: targetHackathon._id,
+            leaderId: new Types.ObjectId(outsiderUser.id),
+            name: "Paged Vacant 1",
+            maxCapacity: 4,
+            memberCount: 1,
+            isOpen: true,
+            status: "ACTIVE",
+            createdAt: new Date(baseTime - 5000),
+          },
+          {
+            hackathonId: targetHackathon._id,
+            leaderId: new Types.ObjectId(outsiderUser.id),
+            name: "Paged Vacant 2",
+            maxCapacity: 4,
+            memberCount: 1,
+            isOpen: true,
+            status: "ACTIVE",
+            createdAt: new Date(baseTime - 4000),
+          },
+          {
+            hackathonId: targetHackathon._id,
+            leaderId: new Types.ObjectId(outsiderUser.id),
+            name: "Paged Vacant 3",
+            maxCapacity: 4,
+            memberCount: 1,
+            isOpen: true,
+            status: "ACTIVE",
+            createdAt: new Date(baseTime - 3000),
+          },
+          {
+            hackathonId: targetHackathon._id,
+            leaderId: new Types.ObjectId(outsiderUser.id),
+            name: "Paged Full 1",
+            maxCapacity: 3,
+            memberCount: 3,
+            isOpen: true,
+            status: "ACTIVE",
+            createdAt: new Date(baseTime - 2000),
+          },
+          {
+            hackathonId: targetHackathon._id,
+            leaderId: new Types.ObjectId(outsiderUser.id),
+            name: "Paged Full 2",
+            maxCapacity: 3,
+            memberCount: 3,
+            isOpen: true,
+            status: "ACTIVE",
+            createdAt: new Date(baseTime - 1000),
+          },
+        ]);
+
+        // 2. Full page with hasVacancies=true: limit=2, page=1
+        // Exactly 3 vacant teams exist. Page 1 returns 2 teams (full page).
+        // The full-page branch must invoke countDocuments() and return exact total: 3.
+        countSpy.mockClear();
+        const fullPage = await request(app).get(
+          `/api/v1/hackathons/${targetHackId}/teams?hasVacancies=true&page=1&limit=2`
+        );
+        expect(fullPage.status).toBe(200);
+        expect(fullPage.body.data).toHaveLength(2);
+        expect(fullPage.body.meta).toEqual({ page: 1, limit: 2, total: 3 });
+        expect(countSpy).toHaveBeenCalledTimes(1);
+
+        // 3. Final partially filled page: page=2, limit=2
+        // Page 2 returns 1 team (< limit 2). The terminal-page shortcut must avoid the count query
+        // and return the exact total: 2 * 1 + 1 = 3.
+        countSpy.mockClear();
+        const finalPage = await request(app).get(
+          `/api/v1/hackathons/${targetHackId}/teams?hasVacancies=true&page=2&limit=2`
+        );
+        expect(finalPage.status).toBe(200);
+        expect(finalPage.body.data).toHaveLength(1);
+        expect(finalPage.body.meta).toEqual({ page: 2, limit: 2, total: 3 });
+        expect(finalPage.body.data[0].name).toBe("Paged Vacant 1");
+        expect(countSpy).not.toHaveBeenCalled();
+
+        // Verify no duplicate records between adjacent pages (Page 1 and Page 2)
+        const page1Names = fullPage.body.data.map((t: { name: string }) => t.name);
+        const page2Names = finalPage.body.data.map((t: { name: string }) => t.name);
+        const overlap = page1Names.filter((name: string) => page2Names.includes(name));
+        expect(overlap).toHaveLength(0);
+
+        // 4. Page beyond the end of a nonempty collection (skip=4 > total=3, teams.length === 0):
+        // Must invoke exact countDocuments() and return total: 3, NOT the skip value 4!
+        countSpy.mockClear();
+        const beyondRes = await request(app).get(
+          `/api/v1/hackathons/${targetHackId}/teams?hasVacancies=true&page=3&limit=2`
+        );
+        expect(beyondRes.status).toBe(200);
+        expect(beyondRes.body.data).toHaveLength(0);
+        expect(beyondRes.body.meta).toEqual({ page: 3, limit: 2, total: 3 });
+        expect(countSpy).toHaveBeenCalledTimes(1);
+
+        // 5. Vacancy filtering: returned records and total use the exact same filter
+        // Query without vacancy filter: 5 total teams
+        countSpy.mockClear();
+        const allPage1 = await request(app).get(
+          `/api/v1/hackathons/${targetHackId}/teams?page=1&limit=2`
+        );
+        expect(allPage1.status).toBe(200);
+        expect(allPage1.body.meta.total).toBe(5);
+        expect(countSpy).toHaveBeenCalledTimes(1);
+
+        countSpy.mockClear();
+        const allBeyond = await request(app).get(
+          `/api/v1/hackathons/${targetHackId}/teams?page=10&limit=2`
+        );
+        expect(allBeyond.status).toBe(200);
+        expect(allBeyond.body.data).toHaveLength(0);
+        expect(allBeyond.body.meta).toEqual({ page: 10, limit: 2, total: 5 });
+        expect(countSpy).toHaveBeenCalledTimes(1);
+
+        // Clean up target hackathon and its teams
+        await Team.deleteMany({ hackathonId: targetHackathon._id });
+        await Hackathon.findByIdAndDelete(targetHackId);
+      } finally {
+        countSpy.mockRestore();
+      }
     });
   });
 });

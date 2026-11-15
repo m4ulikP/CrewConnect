@@ -29,21 +29,16 @@ export interface CandidateScoringInput {
   portfolioUrl?: string;
 }
 
-/**
- * Calculates UTC offset in minutes for a given IANA timezone name.
- * Uses native Intl.DateTimeFormat with DST consideration.
- */
-export function getTimezoneOffsetMinutes(
-  timeZone: string,
-  refDate: Date = new Date()
-): number | null {
-  if (!timeZone || typeof timeZone !== "string") return null;
-  try {
-    const trimmed = timeZone.trim();
-    // Test validity with Intl
-    new Intl.DateTimeFormat(undefined, { timeZone: trimmed });
+// Module-level Intl.DateTimeFormat instance cache by trimmed IANA timezone name.
+// Formatter instances are stateless and immutable, making them safe to reuse across calls and requests.
+const dtfCache = new Map<string, Intl.DateTimeFormat | null>();
 
-    const parts = new Intl.DateTimeFormat("en-US", {
+function getDateTimeFormatInstance(timeZone: string): Intl.DateTimeFormat | null {
+  const trimmed = timeZone.trim();
+  const cached = dtfCache.get(trimmed);
+  if (cached !== undefined) return cached;
+  try {
+    const dtf = new Intl.DateTimeFormat("en-US", {
       timeZone: trimmed,
       year: "numeric",
       month: "numeric",
@@ -52,8 +47,40 @@ export function getTimezoneOffsetMinutes(
       minute: "numeric",
       second: "numeric",
       hour12: false,
-    }).formatToParts(refDate);
+    });
+    dtfCache.set(trimmed, dtf);
+    return dtf;
+  } catch {
+    dtfCache.set(trimmed, null);
+    return null;
+  }
+}
 
+/**
+ * Calculates UTC offset in minutes for a given IANA timezone name.
+ * Uses native Intl.DateTimeFormat with DST consideration.
+ * An optional request-scoped offsetCache may be supplied to avoid redundant formatting
+ * of duplicate candidate timezones within the same request at refDate.
+ */
+export function getTimezoneOffsetMinutes(
+  timeZone: string,
+  refDate: Date = new Date(),
+  offsetCache?: Map<string, number | null>
+): number | null {
+  if (!timeZone || typeof timeZone !== "string") return null;
+  const trimmed = timeZone.trim();
+  if (offsetCache && offsetCache.has(trimmed)) {
+    return offsetCache.get(trimmed)!;
+  }
+
+  const dtf = getDateTimeFormatInstance(trimmed);
+  if (!dtf) {
+    if (offsetCache) offsetCache.set(trimmed, null);
+    return null;
+  }
+
+  try {
+    const parts = dtf.formatToParts(refDate);
     const values: Record<string, string> = {};
     for (const part of parts) {
       values[part.type] = part.value;
@@ -68,10 +95,54 @@ export function getTimezoneOffsetMinutes(
       parseInt(values.second, 10)
     );
 
-    return Math.round((targetUtc - refDate.getTime()) / (60 * 1000));
+    const offset = Math.round((targetUtc - refDate.getTime()) / (60 * 1000));
+    if (offsetCache) offsetCache.set(trimmed, offset);
+    return offset;
   } catch {
+    if (offsetCache) offsetCache.set(trimmed, null);
     return null;
   }
+}
+
+/**
+ * Precomputed, reusable team-level scoring context.
+ * Hoists all squad-level transformations outside the O(N) candidate loop.
+ */
+export interface PrecomputedTeamContext {
+  teamId: string;
+  skillsNeeded: string[];
+  coveredSkillsSet: Set<string>;
+  teamMembersExp: Array<ExperienceLevel | undefined>;
+  validTeamOffsets: number[];
+}
+
+/**
+ * Precomputes team-level attributes once per squad context.
+ */
+export function precomputeTeamContext(
+  teamCtx: TeamScoringContext,
+  refDate: Date = new Date(),
+  offsetCache?: Map<string, number | null>
+): PrecomputedTeamContext {
+  const coveredSkillsSet = new Set<string>();
+  for (const m of teamCtx.members) {
+    for (const s of m.skills || []) {
+      coveredSkillsSet.add(s.trim().toLowerCase());
+    }
+  }
+
+  const teamMembersExp = teamCtx.members.map((m) => m.experienceLevel);
+  const validTeamOffsets = teamCtx.members
+    .map((m) => (m.timeZone ? getTimezoneOffsetMinutes(m.timeZone, refDate, offsetCache) : null))
+    .filter((o): o is number => o !== null);
+
+  return {
+    teamId: teamCtx.teamId,
+    skillsNeeded: teamCtx.skillsNeeded,
+    coveredSkillsSet,
+    teamMembersExp,
+    validTeamOffsets,
+  };
 }
 
 /**
@@ -81,17 +152,23 @@ export function getTimezoneOffsetMinutes(
 export function calculateTimezoneOverlap(
   candidateTz?: string,
   teamTzs: string[] = [],
-  refDate: Date = new Date()
+  refDate: Date = new Date(),
+  precomputedTeamOffsets?: number[],
+  offsetCache?: Map<string, number | null>
 ): {
   label: TimezoneCompatibilityLabel;
   score: number;
   overlapHours: number | null;
   description: string;
 } {
-  const candidateOffset = candidateTz ? getTimezoneOffsetMinutes(candidateTz, refDate) : null;
-  const validTeamOffsets = teamTzs
-    .map((tz) => getTimezoneOffsetMinutes(tz, refDate))
-    .filter((o): o is number => o !== null);
+  const candidateOffset = candidateTz
+    ? getTimezoneOffsetMinutes(candidateTz, refDate, offsetCache)
+    : null;
+  const validTeamOffsets =
+    precomputedTeamOffsets ??
+    teamTzs
+      .map((tz) => getTimezoneOffsetMinutes(tz, refDate, offsetCache))
+      .filter((o): o is number => o !== null);
 
   if (candidateOffset === null || validTeamOffsets.length === 0) {
     return {
@@ -345,15 +422,14 @@ export function calculateExperienceCompatibility(
 export function scoreCandidate(
   candidate: CandidateScoringInput,
   teamCtx: TeamScoringContext,
-  refDate: Date = new Date()
+  refDate: Date = new Date(),
+  precomputedCtx?: PrecomputedTeamContext,
+  offsetCache?: Map<string, number | null>
 ): TeammateRecommendationDTO {
-  // Collect team covered skills lowercased
-  const coveredSkillsSet = new Set<string>();
-  for (const m of teamCtx.members) {
-    for (const s of m.skills) {
-      coveredSkillsSet.add(s.trim().toLowerCase());
-    }
-  }
+  // Collect team covered skills lowercased (or use precomputed context)
+  const coveredSkillsSet =
+    precomputedCtx?.coveredSkillsSet ??
+    new Set(teamCtx.members.flatMap((m) => (m.skills || []).map((s) => s.trim().toLowerCase())));
 
   // 1. Skill Complementarity
   const skillResult = calculateSkillComplementarity(
@@ -365,14 +441,16 @@ export function scoreCandidate(
   // 2. Experience Compatibility
   const expResult = calculateExperienceCompatibility(
     candidate.experienceLevel,
-    teamCtx.members.map((m) => m.experienceLevel)
+    precomputedCtx?.teamMembersExp ?? teamCtx.members.map((m) => m.experienceLevel)
   );
 
   // 3. Timezone Overlap
   const tzResult = calculateTimezoneOverlap(
     candidate.timeZone,
     teamCtx.members.map((m) => m.timeZone).filter((tz): tz is string => Boolean(tz)),
-    refDate
+    refDate,
+    precomputedCtx?.validTeamOffsets,
+    offsetCache
   );
 
   // Composite Normalized Score: 50% Skill, 25% Experience, 25% Timezone
