@@ -217,6 +217,7 @@ npm run dev
 - **Frontend Web Application**: [http://localhost:5173](http://localhost:5173)
 - **Backend REST API**: [http://localhost:5000/api/v1](http://localhost:5000/api/v1)
 - **API Health Check**: [http://localhost:5000/health](http://localhost:5000/health)
+- **Prometheus Metrics**: [http://localhost:5000/metrics](http://localhost:5000/metrics)
 
 ---
 

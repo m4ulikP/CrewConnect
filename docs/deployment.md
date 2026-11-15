@@ -238,6 +238,25 @@ curl https://api.yourdomain.com/health
 
 Returns 200 with full replica set metadata and system version.
 
+### 5.4 Prometheus Metrics Scraping (`/metrics`)
+
+CrewConnect exposes a standard Prometheus telemetry scrape target at `/metrics` (and `/api/v1/metrics`) adhering to the Prometheus exposition format:
+
+```bash
+curl https://api.yourdomain.com/metrics
+```
+
+#### Telemetry Covered:
+
+- **Node.js Process Metrics**: CPU usage (`process_cpu_seconds_total`), memory allocations (`process_resident_memory_bytes`, `nodejs_heap_size_used_bytes`), event loop latency (`nodejs_eventloop_lag_seconds`), and uptime (`process_uptime_seconds`).
+- **HTTP Latency Histogram**: `http_request_duration_seconds` segmented by `method`, parameterized `route` (e.g. `/api/v1/teams/:id/join`), and `status_code`, bucketed across standard latencies including the 200ms boundary. High-cardinality IDs and self-scrapes are strictly excluded.
+- **Active WebSocket Connections**: `socket_io_active_connections` gauge tracking concurrent client connections, guarded against negative values.
+
+#### Scraping Configuration:
+
+- `METRICS_ENABLED`: Set to `false` to disable telemetry collection (default: `true`).
+- `METRICS_BEARER_TOKEN`: Optional shared secret bearer token for restricted production scraping (`Authorization: Bearer <token>`). By default, open scraping is enabled for standard monitoring collectors.
+
 ---
 
 ## 6. Database Initialization, Startup Sequence & Index Synchronization

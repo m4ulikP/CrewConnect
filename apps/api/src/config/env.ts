@@ -63,6 +63,10 @@ const BaseEnvSchema = z.object({
   GOOGLE_CLIENT_ID: z.string().optional(),
   GOOGLE_CLIENT_SECRET: z.string().optional(),
   GOOGLE_CALLBACK_URL: z.string().url().optional(),
+  METRICS_ENABLED: z
+    .preprocess((val) => (val === "false" || val === false ? false : true), z.boolean())
+    .default(true),
+  METRICS_BEARER_TOKEN: z.string().optional(),
 });
 
 export const EnvSchema = BaseEnvSchema.superRefine((data, ctx) => {

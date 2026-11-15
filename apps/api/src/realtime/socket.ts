@@ -4,6 +4,11 @@ import { Types } from "mongoose";
 import { env } from "../config/env.js";
 import { AuthService } from "../services/auth.service.js";
 import { User, Membership, Hackathon } from "../models/index.js";
+import {
+  incrementActiveConnections,
+  decrementActiveConnections,
+  resetActiveConnections,
+} from "../metrics/index.js";
 
 let io: SocketIOServer | null = null;
 
@@ -123,6 +128,16 @@ export function initSocketServer(
 
   // Connection Handler
   io.on("connection", (socket: AuthenticatedSocket) => {
+    incrementActiveConnections();
+
+    let hasDisconnected = false;
+    socket.on("disconnect", () => {
+      if (!hasDisconnected) {
+        hasDisconnected = true;
+        decrementActiveConnections();
+      }
+    });
+
     const userId = socket.data.userId;
 
     // Automatically join the user's private notification room
@@ -261,5 +276,6 @@ export async function closeSocketServer(): Promise<void> {
   if (io) {
     await io.close();
     io = null;
+    resetActiveConnections();
   }
 }

@@ -1,5 +1,6 @@
 import { Router } from "express";
 import { healthRouter } from "./health.js";
+import { metricsRouter } from "../metrics/index.js";
 import { authRouter } from "./auth.js";
 import { usersRouter } from "./users.js";
 import { hackathonsRouter } from "./hackathons.js";
@@ -11,6 +12,9 @@ export const v1Router = Router();
 
 // Health check endpoint under /api/v1/health (unthrottled for monitoring probes)
 v1Router.use("/health", healthRouter);
+
+// Prometheus metrics endpoint under /api/v1/metrics (unthrottled for monitoring probes)
+v1Router.use("/metrics", metricsRouter);
 
 // Authentication module under /api/v1/auth (protected by dedicated, specialized rate limiters)
 v1Router.use("/auth", authRouter);

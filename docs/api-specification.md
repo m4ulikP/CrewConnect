@@ -545,3 +545,42 @@ Calculates deterministic, transparent, and explainable teammate recommendations 
   - `403 Forbidden`: Caller is not an active member or leader of the team.
   - `404 Not Found`: Team does not exist.
   - `422 Unprocessable Entity`: Malformed team ID format or invalid pagination query.
+
+---
+
+## 7. Observability & Telemetry Endpoints
+
+### 1. `GET /metrics` and `GET /api/v1/metrics`
+
+- **Auth**: Public by default (or secured with `Authorization: Bearer <METRICS_BEARER_TOKEN>` if configured).
+- **Description**: Returns Prometheus-compatible plaintext metrics exposition for scraping.
+- **Headers**:
+  - `Content-Type: text/plain; version=0.0.4; charset=utf-8`
+- **Key Metrics Included**:
+  - **Node.js Process Metrics**:
+    - `process_cpu_user_seconds_total`, `process_cpu_system_seconds_total` (CPU usage)
+    - `process_resident_memory_bytes`, `nodejs_heap_size_used_bytes` (Memory usage)
+    - `nodejs_eventloop_lag_seconds`, `nodejs_active_handles_total` (Event loop runtime)
+    - `process_uptime_seconds` (Process uptime in seconds)
+  - **HTTP Request Duration Histogram**:
+    - `http_request_duration_seconds_bucket`, `http_request_duration_seconds_sum`, `http_request_duration_seconds_count`
+    - Labels: `method`, `route` (normalized parameterized route e.g. `/api/v1/teams/:id/join`), `status_code`
+    - Latency Buckets: `[0.005, 0.01, 0.025, 0.05, 0.1, 0.15, 0.2, 0.25, 0.3, 0.5, 1.0, 2.5, 5.0, 10.0]` (Includes 200ms boundary matching discovery p95 requirement)
+    - High-cardinality protection: URL queries, tokens, and raw user IDs are strictly excluded from labels. Scrape requests (`/metrics`) are not measured recursively.
+  - **Active WebSocket Gauge**:
+    - `socket_io_active_connections`: Current number of active Socket.IO client connections. Increments on socket connect, decrements on disconnect, guarded against negative values.
+
+### 2. `GET /health` and `GET /api/v1/health`
+
+- **Auth**: Public
+- **Description**: Returns comprehensive JSON system health status, process uptime, and MongoDB replica set topology state.
+
+### 3. `GET /health/ready`
+
+- **Auth**: Public
+- **Description**: Kubernetes / container readiness probe. Returns `200 OK` if MongoDB is connected as a replica set with an elected writable primary (`rs0`), or `503 Service Unavailable` if disconnected.
+
+### 4. `GET /health/live`
+
+- **Auth**: Public
+- **Description**: Container liveness probe. Returns `200 OK` as long as the Node process is alive and responsive.

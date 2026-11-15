@@ -7,6 +7,7 @@ import { requestLogger } from "./middleware/requestLogger.js";
 import { notFoundHandler } from "./middleware/notFoundHandler.js";
 import { errorHandler } from "./middleware/errorHandler.js";
 import { validateCsrf } from "./middleware/csrf.js";
+import { metricsMiddleware, metricsRouter } from "./metrics/index.js";
 import { healthRouter } from "./routes/health.js";
 import { v1Router } from "./routes/index.js";
 
@@ -58,7 +59,11 @@ export function createApp(): express.Application {
   app.use(express.urlencoded({ extended: true, limit: "1mb" }));
   app.use(cookieParser());
   app.use(requestLogger);
+  app.use(metricsMiddleware);
   app.use(validateCsrf);
+
+  // Prometheus telemetry endpoint (GET /metrics)
+  app.use("/metrics", metricsRouter);
 
   // Root health endpoint (GET /health)
   app.use("/health", healthRouter);
