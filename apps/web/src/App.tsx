@@ -39,10 +39,16 @@ export const App: React.FC = () => {
             <AuthProvider>
               <SocketProvider>
                 <div className="min-h-screen flex flex-col bg-ground text-ink-primary selection:bg-accent-tint selection:text-accent">
+                  <a
+                    href="#main-content"
+                    className="sr-only focus:not-sr-only focus:fixed focus:top-3 focus:left-3 focus:z-[100] focus:px-4 focus:py-2.5 focus:rounded-md focus:bg-accent focus:text-white focus:font-semibold focus:text-sm focus:shadow-xl focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-accent transition-transform"
+                  >
+                    Skip to main content
+                  </a>
                   <Navbar />
                   <ScrollProgressBar />
                   <CustomCursor />
-                  <main className="flex-1">
+                  <main id="main-content" tabIndex={-1} className="flex-1 focus:outline-none">
                     <PageTransition>
                       <Routes>
                         <Route path="/" element={<Home />} />

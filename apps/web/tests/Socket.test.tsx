@@ -189,10 +189,15 @@ describe("Frontend Real-Time Socket Integration", () => {
 
     await waitFor(() => {
       expect(screen.getByText(/5 \/ 5/i)).toBeInTheDocument();
+      const announcer = screen.getByTestId("teams-live-announcer");
+      expect(announcer).toHaveAttribute("role", "status");
+      expect(announcer).toHaveAttribute("aria-live", "polite");
+      expect(announcer).toHaveAttribute("aria-atomic", "true");
+      expect(announcer).toHaveTextContent("Kernel Panic is now full (5 of 5 members).");
     });
   });
 
-  it("removes disbanded team from TeamsPreview when TEAM_DISBANDED arrives", async () => {
+  it("removes disbanded team from TeamsPreview and announces via live region when TEAM_DISBANDED arrives", async () => {
     vi.spyOn(apiModule, "apiGetHackathons").mockResolvedValue(mockHackathons);
     vi.spyOn(apiModule, "apiGetHackathonTeams").mockResolvedValue([mockTeam]);
     vi.spyOn(apiModule, "apiGetMyTeam").mockResolvedValue(null);
@@ -244,6 +249,84 @@ describe("Frontend Real-Time Socket Integration", () => {
 
     await waitFor(() => {
       expect(screen.queryByText("Kernel Panic")).toBeNull();
+      const announcer = screen.getByTestId("teams-live-announcer");
+      expect(announcer).toHaveTextContent("Kernel Panic was disbanded.");
     });
+  });
+
+  it("announces capacity changes when team is not full and ignores redundant updates", async () => {
+    vi.spyOn(apiModule, "apiGetHackathons").mockResolvedValue(mockHackathons);
+    vi.spyOn(apiModule, "apiGetHackathonTeams").mockResolvedValue([mockTeam]);
+    vi.spyOn(apiModule, "apiGetMyTeam").mockResolvedValue(null);
+
+    const fakeSocket = createFakeSocket();
+
+    render(
+      <BrowserRouter>
+        <AuthContext.Provider
+          value={{
+            user: mockUser,
+            isLoading: false,
+            error: null,
+            login: vi.fn(),
+            register: vi.fn(),
+            logout: vi.fn(),
+            refreshUser: vi.fn(),
+            clearError: vi.fn(),
+          }}
+        >
+          <SocketContext.Provider
+            value={{
+              socket: fakeSocket as unknown as Socket,
+              connectionState: "connected",
+              joinHackathonRoom: vi.fn(),
+              leaveHackathonRoom: vi.fn(),
+              joinTeamRoom: vi.fn(),
+              leaveTeamRoom: vi.fn(),
+            }}
+          >
+            <TeamsPreview />
+          </SocketContext.Provider>
+        </AuthContext.Provider>
+      </BrowserRouter>
+    );
+
+    await waitFor(() => {
+      expect(screen.getByText("Kernel Panic")).toBeInTheDocument();
+    });
+
+    const announcer = screen.getByTestId("teams-live-announcer");
+    expect(announcer).toHaveTextContent("");
+
+    // Emit capacity update: 3 of 5
+    act(() => {
+      fakeSocket.trigger(REALTIME_EVENTS.TEAM_CAPACITY_UPDATED, {
+        teamId: "team-1",
+        hackathonId: "hack-1",
+        memberCount: 3,
+        maxCapacity: 5,
+        isOpen: true,
+        timestamp: new Date().toISOString(),
+      });
+    });
+
+    await waitFor(() => {
+      expect(screen.getByText(/3 \/ 5/i)).toBeInTheDocument();
+      expect(announcer).toHaveTextContent("Kernel Panic capacity updated to 3 of 5 members.");
+    });
+
+    // Re-triggering same capacity does not re-announce or duplicate
+    act(() => {
+      fakeSocket.trigger(REALTIME_EVENTS.TEAM_CAPACITY_UPDATED, {
+        teamId: "team-1",
+        hackathonId: "hack-1",
+        memberCount: 3,
+        maxCapacity: 5,
+        isOpen: true,
+        timestamp: new Date().toISOString(),
+      });
+    });
+
+    expect(announcer).toHaveTextContent("Kernel Panic capacity updated to 3 of 5 members.");
   });
 });

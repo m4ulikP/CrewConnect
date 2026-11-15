@@ -4,6 +4,8 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { render, screen, fireEvent, act } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
+import fs from "fs";
+import path from "path";
 import { ThemeProvider, useTheme } from "../src/context/ThemeContext";
 import { ThemeToggle } from "../src/components/ThemeToggle";
 import { Navbar } from "../src/components/Navbar";
@@ -356,5 +358,79 @@ describe("Theme System & Dark Mode Integration", () => {
     expect(clearTimeoutSpy).toHaveBeenCalled();
 
     vi.useRealTimers();
+  });
+
+  describe("WCAG 2.2 AA Contrast Compliance", () => {
+    function getLuminance(hex: string): number {
+      const cleanHex = hex.replace("#", "");
+      const r = parseInt(cleanHex.substring(0, 2), 16) / 255;
+      const g = parseInt(cleanHex.substring(2, 4), 16) / 255;
+      const b = parseInt(cleanHex.substring(4, 6), 16) / 255;
+
+      const toLinear = (c: number) =>
+        c <= 0.04045 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4);
+      return 0.2126 * toLinear(r) + 0.7152 * toLinear(g) + 0.0722 * toLinear(b);
+    }
+
+    function getContrastRatio(hex1: string, hex2: string): number {
+      const l1 = getLuminance(hex1);
+      const l2 = getLuminance(hex2);
+      const brighter = Math.max(l1, l2);
+      const darker = Math.min(l1, l2);
+      return (brighter + 0.05) / (darker + 0.05);
+    }
+
+    const cssContent = fs.readFileSync(path.resolve(__dirname, "../src/index.css"), "utf-8");
+
+    it("verifies dark mode --ink-muted achieves >= 4.5:1 contrast against all dark surfaces", () => {
+      const darkBlockMatch = cssContent.match(/:root\.dark[^{]*\{([^}]+)\}/);
+      expect(darkBlockMatch).toBeTruthy();
+      const darkBlock = darkBlockMatch![1];
+
+      const getCssVar = (varName: string) => {
+        const match = darkBlock.match(new RegExp(`${varName}:\\s*([^;]+);`));
+        return match ? match[1].trim() : "";
+      };
+
+      const inkMuted = getCssVar("--ink-muted");
+      const inkSecondary = getCssVar("--ink-secondary");
+      const inkPrimary = getCssVar("--ink-primary");
+
+      expect(inkMuted).toBe("#8b9bb4");
+
+      const darkSurfaces = [
+        { name: "--ground", hex: getCssVar("--ground") },
+        { name: "--chrome", hex: getCssVar("--chrome") },
+        { name: "--surface", hex: getCssVar("--surface") },
+        { name: "--surface-tonal", hex: getCssVar("--surface-tonal") },
+        { name: "--surface-hover", hex: getCssVar("--surface-hover") },
+      ];
+
+      for (const surface of darkSurfaces) {
+        expect(surface.hex).toBeTruthy();
+        const ratio = getContrastRatio(inkMuted, surface.hex);
+        expect(
+          ratio,
+          `Expected ${inkMuted} against ${surface.name} (${surface.hex}) to be >= 4.5:1, got ${ratio.toFixed(2)}:1`
+        ).toBeGreaterThanOrEqual(4.5);
+      }
+
+      // Verify visual hierarchy: inkPrimary > inkSecondary > inkMuted
+      const lumPrimary = getLuminance(inkPrimary);
+      const lumSecondary = getLuminance(inkSecondary);
+      const lumMuted = getLuminance(inkMuted);
+
+      expect(lumPrimary).toBeGreaterThan(lumSecondary);
+      expect(lumSecondary).toBeGreaterThan(lumMuted);
+    });
+
+    it("ensures light mode --ink-muted remains unchanged at #64635e", () => {
+      const rootBlockMatch = cssContent.match(/:root\s*\{([^}]+)\}/);
+      expect(rootBlockMatch).toBeTruthy();
+      const rootBlock = rootBlockMatch![1];
+      const match = rootBlock.match(/--ink-muted:\s*([^;]+);/);
+      expect(match).toBeTruthy();
+      expect(match![1].trim()).toBe("#64635e");
+    });
   });
 });

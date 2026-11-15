@@ -32,6 +32,19 @@ describe("Frontend Shell Rendering", () => {
     });
   });
 
+  it("renders keyboard-accessible skip link connected to main-content landmark", async () => {
+    render(<App />);
+    await waitFor(() => {
+      const skipLink = screen.getByRole("link", { name: /Skip to main content/i });
+      expect(skipLink).toBeInTheDocument();
+      expect(skipLink).toHaveAttribute("href", "#main-content");
+      const main = document.querySelector("#main-content");
+      expect(main).toBeInTheDocument();
+      expect(main).toHaveAttribute("tabindex", "-1");
+      expect(main?.tagName.toLowerCase()).toBe("main");
+    });
+  });
+
   it("renders the hero heading and primary action", async () => {
     render(<App />);
     await waitFor(() => {

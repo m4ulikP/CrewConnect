@@ -78,6 +78,7 @@ export const TeamsPreview: React.FC = () => {
   const [hackathons, setHackathons] = useState<HackathonRecord[]>([]);
   const [hackathonsError, setHackathonsError] = useState<string | null>(null);
   const [loadingHackathons, setLoadingHackathons] = useState(true);
+  const [liveAnnouncement, setLiveAnnouncement] = useState<string>("");
   const [selectedHackathonId, setSelectedHackathonId] = useState<string>(initialHackathonParam);
 
   const [teams, setTeams] = useState<TeamRecord[]>([]);
@@ -307,6 +308,18 @@ export const TeamsPreview: React.FC = () => {
     const handleCapacityUpdated = (payload: TeamCapacityUpdatedPayload) => {
       if (payload.hackathonId !== selectedHackathonId) return;
       setTeams((prev) => {
+        const target = prev.find((t) => t.id === payload.teamId);
+        if (
+          target &&
+          (target.memberCount !== payload.memberCount || target.isOpen !== payload.isOpen)
+        ) {
+          const isFull = payload.memberCount >= payload.maxCapacity || !payload.isOpen;
+          const msg = isFull
+            ? `${target.name} is now full (${payload.memberCount} of ${payload.maxCapacity} members).`
+            : `${target.name} capacity updated to ${payload.memberCount} of ${payload.maxCapacity} members.`;
+          setLiveAnnouncement(msg);
+        }
+
         const exists = prev.some((t) => t.id === payload.teamId);
         if (!exists) {
           loadTeams();
@@ -353,7 +366,13 @@ export const TeamsPreview: React.FC = () => {
 
     const handleTeamDisbanded = (payload: TeamDisbandedPayload) => {
       if (payload.hackathonId !== selectedHackathonId) return;
-      setTeams((prev) => prev.filter((t) => t.id !== payload.teamId));
+      setTeams((prev) => {
+        const target = prev.find((t) => t.id === payload.teamId);
+        if (target) {
+          setLiveAnnouncement(`${target.name} was disbanded.`);
+        }
+        return prev.filter((t) => t.id !== payload.teamId);
+      });
       if (selectedTeamId === payload.teamId) {
         setSelectedTeamId(null);
         setShowMobileDetail(false);
@@ -481,6 +500,17 @@ export const TeamsPreview: React.FC = () => {
 
   return (
     <div className="max-w-6xl mx-auto py-7 px-4 sm:px-6 lg:px-8 space-y-5">
+      {/* Visually hidden live region for screen-reader announcements */}
+      <div
+        role="status"
+        aria-live="polite"
+        aria-atomic="true"
+        className="sr-only"
+        data-testid="teams-live-announcer"
+      >
+        {liveAnnouncement}
+      </div>
+
       {/* Compact Header Row */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-border-subtle">
         <div className="space-y-1">
