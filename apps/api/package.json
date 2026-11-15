@@ -10,8 +10,10 @@
     "start": "node dist/server.js",
     "typecheck": "tsc --noEmit",
     "lint": "eslint src --ext .ts",
-    "test": "vitest run",
-    "seed:demo": "tsx src/scripts/seed-demo.ts"
+    "test": "vitest run --fileParallelism=false",
+    "seed:demo": "tsx src/scripts/seed-demo.ts",
+    "db:verify:indexes": "tsx ../../scripts/verify-database-indexes.ts",
+    "db:migrate:team-indexes": "tsx ../../scripts/migrate-team-indexes.ts"
   },
   "dependencies": {
     "@crewconnect/shared": "*",

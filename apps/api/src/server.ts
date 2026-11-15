@@ -8,7 +8,7 @@ import {
   sanitizeMongoUriForLog,
   sanitizeMongoErrorForLog,
 } from "./db/connection.js";
-import { syncAllIndexes } from "./models/index.js";
+import { ensureAllIndexes, verifyDatabaseIndexes } from "./models/index.js";
 import { initSocketServer, closeSocketServer } from "./realtime/index.js";
 import { ensureDefaultHackathonAndDemoData } from "./services/demo-seed.service.js";
 
@@ -21,6 +21,7 @@ export interface ServerStartupOptions {
   initialRetryDelayMs?: number;
   maxRetryDelayMs?: number;
   listen?: boolean;
+  verifyOnly?: boolean;
 }
 
 /**
@@ -61,9 +62,28 @@ export async function initializeDatabaseAndIndexes(
         `[Startup] Confirmed MongoDB replica set '${health.replicaSetName}' with writable primary: ${health.primary}`
       );
 
-      // Synchronize required database indexes
-      await syncAllIndexes();
-      console.log("[Startup] Database indexes verified and synchronized.");
+      // Index verification and management:
+      // Production uses strictly read-only index verification.
+      // Development and test use additive Model.createIndexes() without dropping unmanaged indexes.
+      const isProduction = env.NODE_ENV === "production";
+      const isVerifyOnly = options.verifyOnly ?? isProduction;
+
+      if (isVerifyOnly) {
+        console.log("[Startup] Running read-only database index verification (production-safe)...");
+        const verification = await verifyDatabaseIndexes();
+        if (verification.warnings.length > 0) {
+          for (const warning of verification.warnings) {
+            console.warn(`[Startup Warning] ${warning}`);
+          }
+        }
+        console.log(
+          `[Startup] Read-only index verification passed (${verification.criticalChecked} critical integrity invariants verified).`
+        );
+      } else {
+        console.log("[Startup] Non-production mode: Ensuring schema indexes additively...");
+        await ensureAllIndexes();
+        console.log("[Startup] Database schema indexes verified and created (additive).");
+      }
       return;
     } catch (err) {
       lastError = err as Error;

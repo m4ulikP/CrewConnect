@@ -17,6 +17,8 @@
     "lint": "eslint . --ext .ts,.tsx",
     "test": "vitest run --fileParallelism=false",
     "seed:demo": "npm run seed:demo --workspace=@crewconnect/api",
+    "db:verify:indexes": "npx tsx scripts/verify-database-indexes.ts",
+    "db:migrate:team-indexes": "npx tsx scripts/migrate-team-indexes.ts",
     "format": "prettier --check \"**/*.{ts,tsx,js,json,md}\"",
     "format:fix": "prettier --write \"**/*.{ts,tsx,js,json,md}\""
   },
