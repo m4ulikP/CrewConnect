@@ -8,7 +8,7 @@
 [![React](https://img.shields.io/badge/React-18.x-61dafb.svg)](https://react.dev/)
 [![MongoDB](<https://img.shields.io/badge/MongoDB-7.0%2B%20(rs0)-47A248.svg>)](https://www.mongodb.com/)
 [![Socket.IO](https://img.shields.io/badge/Socket.IO-4.7%2B-black.svg)](https://socket.io/)
-[![Tests](<https://img.shields.io/badge/Tests-387%20Passed%20(39%20Suites)-brightgreen.svg>)](./README.md#-testing--verification-matrix)
+[![Tests](<https://img.shields.io/badge/Tests-475%20Passed%20(44%20Files)-brightgreen.svg>)](./README.md#-testing--verification-matrix)
 [![Render](https://img.shields.io/badge/Deploy-Render%20Live-46E3B7.svg)](https://crewconnect-api-29qw.onrender.com/health)
 
 ---
@@ -160,12 +160,12 @@ CrewConnect Monorepo
 
 CrewConnect maintains a comprehensive, zero-regression test suite covering domain invariants, race conditions, and UI interactions:
 
-| Verification Suite       | Target                            |  Status  |       Passing Tests        |
-| :----------------------- | :-------------------------------- | :------: | :------------------------: |
-| **Backend API Suites**   | `apps/api/tests/*.test.ts`        | **PASS** |  **259 tests (22 files)**  |
-| **Frontend Web Suites**  | `apps/web/tests/*.test.tsx`       | **PASS** |  **123 tests (16 files)**  |
-| **Shared Package Tests** | `packages/shared/tests/*.test.ts` | **PASS** |    **5 tests (1 file)**    |
-| **Total Monorepo Tests** | **All Workspaces**                | **PASS** | **387 passed (39 suites)** |
+| Verification Suite       | Target                            |  Status  |         Passing Tests          |
+| :----------------------- | :-------------------------------- | :------: | :----------------------------: |
+| **Backend API Suites**   | `apps/api/tests/*.test.ts`        | **PASS** |    **347 tests (27 files)**    |
+| **Frontend Web Suites**  | `apps/web/tests/*.test.tsx`       | **PASS** |    **123 tests (16 files)**    |
+| **Shared Package Tests** | `packages/shared/tests/*.test.ts` | **PASS** |      **5 tests (1 file)**      |
+| **Total Monorepo Tests** | **All Workspaces**                | **PASS** | **475 passed (44 test files)** |
 
 ### Verified Challenge-Scale Load & Concurrency Benchmarks
 
@@ -240,19 +240,21 @@ npm run dev
 
 ## 📚 Architectural & Engineering Documentation
 
-All engineering specifications, design trade-offs, and architecture decisions are documented in depth within [`docs/`](./docs/):
+All engineering specifications, design trade-offs, and architecture decisions are documented in depth within the repository and [`docs/`](./docs/):
 
-1. **[Requirements Specification](./docs/requirements.md)**: Full breakdown of core functional requirements, critical non-functional invariants, and the Requirements Traceability Matrix.
-2. **[System Architecture](./docs/architecture.md)**: Modular monolith architecture, module boundaries, request lifecycle, data flow, and Mermaid diagrams.
-3. **[Database Design](./docs/database-design.md)**: Complete collection schemas, field specifications, compound indexes, trade-off analysis, leadership lifecycle rules, auditable event log scope, and ER diagrams.
-4. **[Concurrency Architecture](./docs/concurrency-design.md)**: Deep dive into the 50-simultaneous-users scenario, two-phase lease idempotency protocol, MongoDB transaction retry semantics, and mathematical proofs.
-5. **[REST API Specification](./docs/api-specification.md)**: End-to-end endpoint contracts, request/response structures, authorization tiers, and HTTP status codes.
-6. **[Security Architecture](./docs/security-design.md)**: Argon2id password hashing parameters, JWT session strategy, rate limiting, invite-code hashing, CORS, and auditable event log boundaries.
-7. **[Testing Strategy](./docs/testing-strategy.md)**: Vitest unit & integration suites, k6 concurrency benchmarks, 10k-user seeding, and latency targets.
-8. **[Implementation Roadmap](./docs/implementation-roadmap.md)**: 8-phase execution plan from architecture foundation to production delivery.
-9. **[Evaluator 5-Minute Demo Guide](./docs/demo-guide.md)**: Step-by-step live walkthrough verifying concurrency, idempotency, rollback safety, and real-time updates.
-10. **[Deployment Architecture](./docs/deployment.md)**: Multi-provider production deployment guide covering Render, Railway, AWS ECS, and Docker.
-11. **[Architecture Decision Records (ADRs)](./docs/adr/)**: Formal ADRs 0001 through 0010 capturing context, alternatives, and trade-offs for core design decisions.
+1. **[Design Document (1-Page Architecture Summary)](./DESIGN_DOCUMENT.md)**: Authoritative executive architecture specification, domain invariants, concurrency model, and core guarantees for Hack4Hack PS1 evaluators.
+2. **[Load-Test & Concurrency Benchmark Report](./LOAD_TEST_REPORT.md)**: Empirical 10,000-user / 2,000-team load tests, sub-200ms p95 discovery latency, and 50-way last-seat race results.
+3. **[Requirements Specification](./docs/requirements.md)**: Full breakdown of core functional requirements, critical non-functional invariants, and the Requirements Traceability Matrix.
+4. **[System Architecture](./docs/architecture.md)**: Modular monolith architecture, module boundaries, request lifecycle, data flow, and Mermaid diagrams.
+5. **[Database Design](./docs/database-design.md)**: Complete collection schemas, field specifications, compound indexes, trade-off analysis, leadership lifecycle rules, auditable event log scope, and ER diagrams.
+6. **[Concurrency Architecture](./docs/concurrency-design.md)**: Deep dive into the 50-simultaneous-users scenario, two-phase lease idempotency protocol, MongoDB transaction retry semantics, and mathematical proofs.
+7. **[REST API Specification](./docs/api-specification.md)**: End-to-end endpoint contracts, request/response structures, authorization tiers, and HTTP status codes.
+8. **[Security Architecture](./docs/security-design.md)**: Argon2id password hashing parameters, JWT session strategy, rate limiting, invite-code hashing, CORS, and auditable event log boundaries.
+9. **[Testing Strategy](./docs/testing-strategy.md)**: Vitest unit & integration suites, k6 concurrency benchmarks, 10k-user seeding, and latency targets.
+10. **[Implementation Roadmap](./docs/implementation-roadmap.md)**: 8-phase execution plan from architecture foundation to production delivery.
+11. **[Evaluator 5-Minute Demo Guide](./docs/demo-guide.md)**: Step-by-step live walkthrough verifying concurrency, idempotency, rollback safety, and real-time updates.
+12. **[Deployment Architecture](./docs/deployment.md)**: Multi-provider production deployment guide covering Render, Railway, AWS ECS, and Docker.
+13. **[Architecture Decision Records (ADRs)](./docs/adr/)**: Formal ADRs 0001 through 0010 capturing context, alternatives, and trade-offs for core design decisions.
 
 ---
 

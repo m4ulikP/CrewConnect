@@ -1,7 +1,7 @@
 # CrewConnect — Visual Previews & Interaction Matrix
 ## Phase 1.1 Wireframe Matrix & Phase 1.2.1 Rendered HTML/CSS References
 
-> **Live Rendered Previews (Phase 1.2.1 Canonical):** The authoritative rendered visual designs in the **Editorial Alabaster & Deep Architectural Pine** direction are located in [docs/design/rendered-previews/index.html](file:///c:/Users/mauli/OneDrive/Documents/CrewConnect/docs/design/rendered-previews/index.html) alongside browser-captured viewport screenshots (`1440px`, `768px`, `390px`) in `docs/design/rendered-previews/screenshots/`. The structural ASCII wireframes below preserve the complete 12-state interaction coverage matrix.
+> **Live Rendered Previews (Phase 1.2.1 Canonical):** The authoritative rendered visual designs in the **Editorial Alabaster & Deep Architectural Pine** direction are located in [docs/design/rendered-previews/index.html](./rendered-previews/index.html) alongside browser-captured viewport screenshots (`1440px`, `768px`, `390px`) in `docs/design/rendered-previews/screenshots/`. The structural ASCII wireframes below preserve the complete 12-state interaction coverage matrix.
 
 This document provides exhaustive, high-fidelity ASCII wireframes and layout specifications for all candidate visual directions and core interaction states in CrewConnect.
 

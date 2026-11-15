@@ -109,16 +109,16 @@ Why **Mineral Alabaster Paper & Deep Architectural Pine (`#115E59`)**?
 
 ## 3. Rendered Visual Previews & Browser Inspection Evidence
 
-All six core screens are deployed as live HTML/CSS previews in `docs/design/rendered-previews/` and unified in [index.html](file:///c:/Users/mauli/OneDrive/Documents/CrewConnect/docs/design/rendered-previews/index.html). Rendered screenshots across all 3 viewports are archived in `docs/design/rendered-previews/screenshots/`.
+All six core screens are deployed as live HTML/CSS previews in `docs/design/rendered-previews/` and unified in [index.html](./rendered-previews/index.html). Rendered screenshots across all 3 viewports are archived in `docs/design/rendered-previews/screenshots/`.
 
 | # | Screen | HTML Preview | Captured Desktop (1440px) & Mobile (390px) Screenshots | Inspection Verdict |
 | :--- | :--- | :--- | :--- | :---: |
-| **1** | **Public Landing** | [landing.html](file:///c:/Users/mauli/OneDrive/Documents/CrewConnect/docs/design/rendered-previews/landing.html) | `landing-desktop-fold.jpg`, `landing-tablet-fold.jpg`, `landing-mobile-fold.jpg` | **0 FAIL** |
-| **2** | **Team Discovery** | [discovery.html](file:///c:/Users/mauli/OneDrive/Documents/CrewConnect/docs/design/rendered-previews/discovery.html) | `discovery-desktop-fold.jpg`, `discovery-tablet-fold.jpg`, `discovery-mobile-fold.jpg` | **0 FAIL** |
-| **3** | **Dashboard** | [dashboard.html](file:///c:/Users/mauli/OneDrive/Documents/CrewConnect/docs/design/rendered-previews/dashboard.html) | `dashboard-desktop-fold.jpg`, `dashboard-tablet-fold.jpg`, `dashboard-mobile-fold.jpg` | **0 FAIL** |
-| **4** | **Team Workspace** | [workspace.html](file:///c:/Users/mauli/OneDrive/Documents/CrewConnect/docs/design/rendered-previews/workspace.html) | `workspace-desktop-fold.jpg`, `workspace-tablet-fold.jpg`, `workspace-mobile-fold.jpg` | **0 FAIL** |
-| **5** | **Sign-In** | [login.html](file:///c:/Users/mauli/OneDrive/Documents/CrewConnect/docs/design/rendered-previews/login.html) | `login-desktop-fold.jpg`, `login-tablet-fold.jpg`, `login-mobile-fold.jpg` | **0 FAIL** |
-| **6** | **Registration** | [register.html](file:///c:/Users/mauli/OneDrive/Documents/CrewConnect/docs/design/rendered-previews/register.html) | `register-desktop-fold.jpg`, `register-tablet-fold.jpg`, `register-mobile-fold.jpg` | **0 FAIL** |
+| **1** | **Public Landing** | [landing.html](./rendered-previews/landing.html) | `landing-desktop-fold.jpg`, `landing-tablet-fold.jpg`, `landing-mobile-fold.jpg` | **0 FAIL** |
+| **2** | **Team Discovery** | [discovery.html](./rendered-previews/discovery.html) | `discovery-desktop-fold.jpg`, `discovery-tablet-fold.jpg`, `discovery-mobile-fold.jpg` | **0 FAIL** |
+| **3** | **Dashboard** | [dashboard.html](./rendered-previews/dashboard.html) | `dashboard-desktop-fold.jpg`, `dashboard-tablet-fold.jpg`, `dashboard-mobile-fold.jpg` | **0 FAIL** |
+| **4** | **Team Workspace** | [workspace.html](./rendered-previews/workspace.html) | `workspace-desktop-fold.jpg`, `workspace-tablet-fold.jpg`, `workspace-mobile-fold.jpg` | **0 FAIL** |
+| **5** | **Sign-In** | [login.html](./rendered-previews/login.html) | `login-desktop-fold.jpg`, `login-tablet-fold.jpg`, `login-mobile-fold.jpg` | **0 FAIL** |
+| **6** | **Registration** | [register.html](./rendered-previews/register.html) | `register-desktop-fold.jpg`, `register-tablet-fold.jpg`, `register-mobile-fold.jpg` | **0 FAIL** |
 
 ### Desktop (1440px), Tablet (768px) & Mobile (390px) Composition Comparison
 - **Public Landing Page:**

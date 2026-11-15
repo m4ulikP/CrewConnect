@@ -145,12 +145,12 @@ $$\text{Score} = \text{round}\left(0.50 \times S_{\text{skills}} + 0.25 \times S
 
 ## 7. Verification Evidence & Quality Gates
 
-| Verification Gate             | Test File Citation                                                                             |                   Observed Result                   |
-| ----------------------------- | ---------------------------------------------------------------------------------------------- | :-------------------------------------------------: |
-| **50-Way Final-Seat Race**    | [`apps/api/tests/membership-race.test.ts`](apps/api/tests/membership-race.test.ts#L96)         | **1 winner (201), 49 rejects (409), 0 overbooking** |
-| **Double-Team Race**          | [`apps/api/tests/membership-race.test.ts`](apps/api/tests/membership-race.test.ts)             |         **Single-team invariant preserved**         |
-| **Real-Time Rollback Safety** | [`apps/api/tests/realtime.test.ts`](apps/api/tests/realtime.test.ts)                           |     **0 events emitted on aborted transaction**     |
-| **Idempotent Replay**         | [`apps/api/tests/idempotency.test.ts`](apps/api/tests/idempotency.test.ts)                     | **100% cached response matching (`X-Cache: HIT`)**  |
-| **Recommendation Engine**     | [`apps/api/tests/recommendation-engine.test.ts`](apps/api/tests/recommendation-engine.test.ts) | **37 unit tests covering all matrix permutations**  |
-| **Monorepo Test Suite**       | 36 test files across API, Web, and Shared                                                      |         **370 / 370 tests passing (100%)**          |
-| **Production Scale Load**     | [`scripts/run-load-test.ts`](scripts/run-load-test.ts)                                         |      **247 req/s across 10k users / 2k teams**      |
+| Verification Gate             | Test File Citation                                                                                    |                   Observed Result                    |
+| ----------------------------- | ----------------------------------------------------------------------------------------------------- | :--------------------------------------------------: |
+| **50-Way Final-Seat Race**    | [`apps/api/tests/membership-race.test.ts`](apps/api/tests/membership-race.test.ts#L96)                | **1 winner (201), 49 rejects (409), 0 overbooking**  |
+| **Double-Team Race**          | [`apps/api/tests/membership-race.test.ts`](apps/api/tests/membership-race.test.ts)                    |         **Single-team invariant preserved**          |
+| **Real-Time Rollback Safety** | [`apps/api/tests/realtime.test.ts`](apps/api/tests/realtime.test.ts)                                  |     **0 events emitted on aborted transaction**      |
+| **Idempotent Replay**         | [`apps/api/tests/idempotency.test.ts`](apps/api/tests/idempotency.test.ts)                            |  **100% cached response matching (`X-Cache: HIT`)**  |
+| **Recommendation Engine**     | [`apps/api/tests/recommendation-engine.test.ts`](apps/api/tests/recommendation-engine.test.ts)        |  **37 unit tests covering all matrix permutations**  |
+| **Monorepo Test Suite**       | 44 test files across API, Web, and Shared                                                             |          **475 / 475 tests passing (100%)**          |
+| **Production Scale Load**     | [`LOAD_TEST_REPORT.md`](LOAD_TEST_REPORT.md) ([`scripts/run-load-test.ts`](scripts/run-load-test.ts)) | **701.7 req/s, 186.4 ms p95 (10k users / 2k teams)** |

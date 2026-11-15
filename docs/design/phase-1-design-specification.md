@@ -1,12 +1,12 @@
 # CrewConnect — UI/UX Redesign Specification
 ## Phase 1 & 1.1 Archive (Superseded in Visual Direction by Phase 1.2.1)
 
-> **IMPORTANT UPDATE (Phase 1.2.1):** The dark "Mission Control" cyan/telemetry visual direction from Phase 1.1 was explicitly rejected in favor of the **Editorial Alabaster & Deep Architectural Pine** visual direction. For the authoritative, frozen visual system, rendered previews, design tokens, and interaction contracts, refer to [phase-1.2-visual-approval.md](file:///c:/Users/mauli/OneDrive/Documents/CrewConnect/docs/design/phase-1.2-visual-approval.md).
+> **IMPORTANT UPDATE (Phase 1.2.1):** The dark "Mission Control" cyan/telemetry visual direction from Phase 1.1 was explicitly rejected in favor of the **Editorial Alabaster & Deep Architectural Pine** visual direction. For the authoritative, frozen visual system, rendered previews, design tokens, and interaction contracts, refer to [phase-1.2-visual-approval.md](./phase-1.2-visual-approval.md).
 
 - **Project:** CrewConnect — Race-Proof Hackathon Team Formation Platform
 - **Challenge:** Hack4Hack Crew Hiring Challenge 2026 — Problem Statement 1 (PS1)
 - **Document Version:** 1.2.1 (Historical Design Archive + Unified Ground Truth)
-- **Status:** Superseded in Visual Palette by [phase-1.2-visual-approval.md](file:///c:/Users/mauli/OneDrive/Documents/CrewConnect/docs/design/phase-1.2-visual-approval.md)
+- **Status:** Superseded in Visual Palette by [phase-1.2-visual-approval.md](./phase-1.2-visual-approval.md)
 - **Baseline Commit:** `a7f81cf365a1e53381d6f5fd1b5844f7a28bb8c3`
 
 ---
@@ -18,7 +18,7 @@ CrewConnect is a high-concurrency team formation platform built for competitive 
 Phase 1.1 addresses the visual validation and technical accuracy audit of the Phase 1 specification:
 1. **Accurate Technical Semantics:** All database, transaction, concurrency, and networking descriptions are reconciled with the actual production codebase. We distinguish the exact MongoDB Snapshot Isolation model and atomic conditional `memberCount` increment from general marketing claims.
 2. **Refined Provisional Direction A (Mission Control + Human-Centric Elements):** Direction A has been refined so that telemetry and reliability evidence remain authoritative without turning the entire product into a sterile infrastructure dashboard. We integrate human-centric squad curation from Direction B: member portraits/initials, skills matrices, team visions, and timezone alignment.
-3. **High-Fidelity Visual Previews:** Comprehensive ASCII layouts covering all three directions, 12 complete application and interaction states, and mobile responsive drawers are detailed in [visual-previews.md](file:///c:/Users/mauli/OneDrive/Documents/CrewConnect/docs/design/visual-previews.md).
+3. **High-Fidelity Visual Previews:** Comprehensive ASCII layouts covering all three directions, 12 complete application and interaction states, and mobile responsive drawers are detailed in [visual-previews.md](./visual-previews.md).
 4. **Verified Token, Contrast & Accessibility Architecture:** Explicit mathematical contrast calculations, token tables, interactive state matrices, and motion physics budgets.
 5. **Rigorous Backend Boundary Mapping:** Direct distinction between verified live endpoints, frontend-only features, required backend enhancements, and deferred features.
 
@@ -178,7 +178,7 @@ The "Instant Direct Join" action is strictly governed by the backend invariant c
 
 ## 3. High-Fidelity Visual Previews & Interaction Matrix
 
-All high-fidelity wireframes are cataloged in [docs/design/visual-previews.md](file:///c:/Users/mauli/OneDrive/Documents/CrewConnect/docs/design/visual-previews.md).
+All high-fidelity wireframes are cataloged in [visual-previews.md](./visual-previews.md).
 
 ### Summary of Covered Screens & States
 
@@ -487,7 +487,7 @@ This matrix establishes what is verified in the backend versus frontend-only han
 
 ## 7. Final Recommendation & Approval Request
 
-**Final Recommendation:** Proceed with **Direction A (Mission Control with Human-Centric Details)** as specified in this document and in [visual-previews.md](file:///c:/Users/mauli/OneDrive/Documents/CrewConnect/docs/design/visual-previews.md).
+**Final Recommendation:** Proceed with **Direction A (Mission Control with Human-Centric Details)** as specified in this document and in [visual-previews.md](./visual-previews.md).
 
 It directly addresses Hack4Hack Problem Statement 1 by celebrating the technical achievement of race-proof team formation under extreme concurrency, while providing a collaborative, warm, and highly functional workspace for competitive hackathon teams.
 
