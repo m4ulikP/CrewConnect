@@ -13,6 +13,14 @@ import { v1Router } from "./routes/index.js";
 export function createApp(): express.Application {
   const app = express();
 
+  // Reverse proxy trust configuration (Render, NGINX, AWS ALB)
+  // Trust the first upstream hop in production so req.ip correctly resolves to the real client IP
+  if (env.TRUST_PROXY !== undefined) {
+    app.set("trust proxy", env.TRUST_PROXY);
+  } else if (env.NODE_ENV === "production") {
+    app.set("trust proxy", 1);
+  }
+
   // Basic security middleware
   app.use(
     helmet({

@@ -32,8 +32,26 @@ const BaseEnvSchema = z.object({
     )
     .optional(),
   COOKIE_SAME_SITE: z.enum(["lax", "strict", "none"]).default("lax"),
+  TRUST_PROXY: z
+    .preprocess(
+      (val) => {
+        if (val === "true" || val === true) return 1;
+        if (val === "false" || val === false) return false;
+        if (typeof val === "string" && !isNaN(Number(val))) return Number(val);
+        return val;
+      },
+      z.union([z.boolean(), z.number(), z.string()])
+    )
+    .optional(),
   RATE_LIMIT_WINDOW_MS: z.coerce.number().default(900_000), // 15 mins
-  RATE_LIMIT_MAX_REQUESTS: z.coerce.number().default(100),
+  RATE_LIMIT_MAX_REQUESTS: z.coerce.number().default(300), // 300 requests per 15m for SPA browsing
+  AUTH_LOGIN_WINDOW_MS: z.coerce.number().default(900_000), // 15 mins
+  AUTH_LOGIN_MAX_IP_ATTEMPTS: z.coerce.number().default(30), // 30 total login attempts per IP per 15m
+  AUTH_LOGIN_MAX_FAILED_ATTEMPTS: z.coerce.number().default(5), // 5 consecutive failed logins per email+IP per 15m
+  AUTH_REGISTER_WINDOW_MS: z.coerce.number().default(3_600_000), // 1 hour
+  AUTH_REGISTER_MAX_ATTEMPTS: z.coerce.number().default(60), // 60 registrations per IP per hour (shared campus/hackathon networks)
+  AUTH_REGISTER_BURST_WINDOW_MS: z.coerce.number().default(60_000), // 1 min burst window
+  AUTH_REGISTER_BURST_MAX: z.coerce.number().default(10), // Max 10 rapid-fire registrations per minute per IP
   JOIN_RATE_LIMIT_WINDOW_MS: z.coerce.number().default(60_000), // 1 min
   JOIN_RATE_LIMIT_MAX_REQUESTS: z.coerce.number().default(10), // 10 attempts
   JOIN_REQUEST_EXPIRATION_HOURS: z.coerce

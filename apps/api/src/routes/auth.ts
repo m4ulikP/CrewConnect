@@ -5,7 +5,11 @@ import { AppError } from "../errors/AppError.js";
 import { env } from "../config/env.js";
 import { validateBody } from "../middleware/validate.js";
 import { requireAuth } from "../middleware/auth.js";
-import { authRateLimiter } from "../middleware/rateLimiter.js";
+import {
+  authLoginRateLimiter,
+  authRegisterRateLimiter,
+  authOAuthRateLimiter,
+} from "../middleware/rateLimiter.js";
 import { RegisterSchema, LoginSchema, type ApiResponse } from "@crewconnect/shared";
 
 export const authRouter = Router();
@@ -17,7 +21,7 @@ export const authRouter = Router();
  */
 authRouter.post(
   "/register",
-  authRateLimiter,
+  authRegisterRateLimiter,
   validateBody(RegisterSchema),
   async (req, res, next) => {
     try {
@@ -42,23 +46,28 @@ authRouter.post(
  * POST /api/v1/auth/login
  * Authenticate credentials and issue JWT exclusively via HTTP-only cookie
  */
-authRouter.post("/login", authRateLimiter, validateBody(LoginSchema), async (req, res, next) => {
-  try {
-    const { user, token } = await AuthService.login(req.body);
-    AuthService.setAuthCookie(res, token);
+authRouter.post(
+  "/login",
+  authLoginRateLimiter,
+  validateBody(LoginSchema),
+  async (req, res, next) => {
+    try {
+      const { user, token } = await AuthService.login(req.body);
+      AuthService.setAuthCookie(res, token);
 
-    const response: ApiResponse<{ user: unknown }> = {
-      success: true,
-      data: {
-        user: user.toJSON(),
-      },
-    };
+      const response: ApiResponse<{ user: unknown }> = {
+        success: true,
+        data: {
+          user: user.toJSON(),
+        },
+      };
 
-    res.status(200).json(response);
-  } catch (error) {
-    next(error);
+      res.status(200).json(response);
+    } catch (error) {
+      next(error);
+    }
   }
-});
+);
 
 /**
  * GET /api/v1/auth/me
@@ -134,7 +143,7 @@ authRouter.get("/google/status", (_req, res) => {
  * GET /api/v1/auth/google
  * Initiates Google OAuth 2.0 / OpenID Connect authorization code flow
  */
-authRouter.get("/google", authRateLimiter, (req, res, next) => {
+authRouter.get("/google", authOAuthRateLimiter, (req, res, next) => {
   try {
     if (!GoogleAuthService.isConfigured()) {
       return res.redirect(`${env.CLIENT_URL}/auth/google?error=not_configured`);

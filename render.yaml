@@ -27,10 +27,12 @@ services:
         value: "true"
       - key: COOKIE_SAME_SITE
         value: "none"
+      - key: TRUST_PROXY
+        value: "1"
       - key: RATE_LIMIT_WINDOW_MS
         value: 900000
       - key: RATE_LIMIT_MAX_REQUESTS
-        value: 100
+        value: 300
       - key: JOIN_RATE_LIMIT_WINDOW_MS
         value: 60000
       - key: JOIN_RATE_LIMIT_MAX_REQUESTS

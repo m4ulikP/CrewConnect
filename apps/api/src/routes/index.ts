@@ -12,11 +12,11 @@ export const v1Router = Router();
 // Health check endpoint under /api/v1/health (unthrottled for monitoring probes)
 v1Router.use("/health", healthRouter);
 
-// Apply general API rate limiter to all application routes
-v1Router.use(apiRateLimiter);
-
-// Authentication module under /api/v1/auth
+// Authentication module under /api/v1/auth (protected by dedicated, specialized rate limiters)
 v1Router.use("/auth", authRouter);
+
+// Apply general API rate limiter to all remaining application routes
+v1Router.use(apiRateLimiter);
 
 // User profile module under /api/v1/users
 v1Router.use("/users", usersRouter);
