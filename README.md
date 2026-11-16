@@ -210,13 +210,12 @@ npm run dev
 
 ## Architectural & Engineering Documentation
 
-Key specifications, benchmark reports, and evaluator guides are maintained directly in the repository:
+Key specifications, benchmark reports, and technical documentation are maintained directly in the repository:
 
 1. **[Design Document (1-Page Architecture Summary)](./DESIGN_DOCUMENT.md)**: Authoritative executive architecture specification, domain invariants, concurrency model, and core guarantees for Hack4Hack PS1 evaluators.
 2. **[Load-Test & Concurrency Benchmark Report](./LOAD_TEST_REPORT.md)**: Empirical 10,000-user / 2,000-team load tests, sub-200ms p95 discovery latency, and 50-way last-seat race results.
 3. **[REST API Specification](./docs/api-specification.md)**: End-to-end endpoint contracts, request/response structures, authorization tiers, and HTTP status codes.
-4. **[Evaluator 5-Minute Demo Guide](./docs/demo-guide.md)**: Step-by-step live walkthrough verifying concurrency, idempotency, rollback safety, and real-time updates.
-5. **[System Architecture](./docs/architecture.md)**: Modular monolith architecture, module boundaries, request lifecycle, data flow, and Mermaid diagrams.
+4. **[System Architecture](./docs/architecture.md)**: Modular monolith architecture, module boundaries, request lifecycle, data flow, and Mermaid diagrams.
 
 For all remaining architectural specifications, database schemas, formal Architecture Decision Records (ADRs 0001–0010), requirements traceability, and deployment guides, see the [`docs/`](./docs/) directory.
 
