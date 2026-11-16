@@ -30,15 +30,15 @@ The evaluation benchmarks two critical scenarios:
 
 ## 2. Test Environment & Hardware Specification
 
-| Parameter                  | Specification                                                                                |
-| -------------------------- | -------------------------------------------------------------------------------------------- |
-| **Operating System**       | Microsoft Windows 11 Home (x64)                                                              |
-| **CPU Hardware**           | 13th Gen Intel(R) Core(TM) i5-13450HX (10 physical cores, 16 logical threads)                |
-| **Physical Memory (RAM)**  | 24.0 GB                                                                                      |
-| **Runtime Environment**    | Node.js `24.18`                                                                              |
-| **Database Engine**        | MongoDB `7.0.12` in a local Docker replica set (`rs0`)                                       |
-| **Database Isolation**     | Disposable isolated database: `crewconnect_loadbench` (`mongodb://localhost:27017/crewconnect_loadbench?replicaSet=rs0`) |
-| **Storage & Transactions** | Multi-Document ACID Transactions (`readConcern: majority`, `writeConcern: majority`)         |
+| Parameter                    | Specification                                                                                                                                                |
+| ---------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| **Operating System**         | Microsoft Windows 11 Home (x64)                                                                                                                              |
+| **CPU Hardware**             | 13th Gen Intel(R) Core(TM) i5-13450HX (10 physical cores, 16 logical threads)                                                                                |
+| **Physical Memory (RAM)**    | 24.0 GB                                                                                                                                                      |
+| **Runtime Environment**      | Node.js `24.18`                                                                                                                                              |
+| **Database Engine**          | MongoDB `7.0.12` in a local Docker replica set (`rs0`)                                                                                                       |
+| **Database Isolation**       | Disposable isolated database: `crewconnect_loadbench` (`mongodb://localhost:27017/crewconnect_loadbench?replicaSet=rs0`)                                     |
+| **Storage & Transactions**   | Multi-Document ACID Transactions (`readConcern: majority`, `writeConcern: majority`)                                                                         |
 | **Evaluated Benchmark Runs** | • **Latest Verified Run:** Commit `9374faf8264a5cdd976e236a04c60470faa4bfa0`<br>• **Historical Baseline:** Commit `7664896d7cba72ee23f72360553677fa3adc3009` |
 
 ---
@@ -77,48 +77,48 @@ The evaluation benchmarks two critical scenarios:
 
 #### A. Latest Verified Run (Commit `9374faf8264a5cdd976e236a04c60470faa4bfa0`)
 
-| Metric                       |      Measured Result       | Evaluation Target  |     Status     |
-| ---------------------------- | :------------------------: | :----------------: | :------------: |
-| **Concurrent Clients**       |      **100** clients       |    100 clients     |    **PASS**    |
-| **Measured Requests**        |      **500** requests      |    500 requests    |    **PASS**    |
-| **Warmup Requests**          |       **50** requests      |    50 requests     |    **PASS**    |
-| **Failed Requests**          | **0** (`0.00%` error rate) |     0 failures     |    **PASS**    |
-| **Total Test Duration**      |         **713 ms**         |        N/A         |    **FAST**    |
-| **Throughput**               |     **701.7 req/sec**      |   Sustained load   |    **PASS**    |
-| **Median (p50) Latency**     |        **129.1 ms**        |      Baseline      |    **PASS**    |
-| **Mean Latency**             |        **136.2 ms**        |      Baseline      |    **PASS**    |
-| **95th Percentile (p95)**    |        **186.4 ms**        |  $< 200\text{ ms}$ | **TARGET MET** |
-| **99th Percentile (p99)**    |        **215.7 ms**        |        N/A         |    **PASS**    |
-| **Maximum Latency**          |        **245.3 ms**        |        N/A         |    **PASS**    |
+| Metric                    |      Measured Result       | Evaluation Target |     Status     |
+| ------------------------- | :------------------------: | :---------------: | :------------: |
+| **Concurrent Clients**    |      **100** clients       |    100 clients    |    **PASS**    |
+| **Measured Requests**     |      **500** requests      |   500 requests    |    **PASS**    |
+| **Warmup Requests**       |      **50** requests       |    50 requests    |    **PASS**    |
+| **Failed Requests**       | **0** (`0.00%` error rate) |    0 failures     |    **PASS**    |
+| **Total Test Duration**   |         **713 ms**         |        N/A        |    **FAST**    |
+| **Throughput**            |     **701.7 req/sec**      |  Sustained load   |    **PASS**    |
+| **Median (p50) Latency**  |        **129.1 ms**        |     Baseline      |    **PASS**    |
+| **Mean Latency**          |        **136.2 ms**        |     Baseline      |    **PASS**    |
+| **95th Percentile (p95)** |        **186.4 ms**        | $< 200\text{ ms}$ | **TARGET MET** |
+| **99th Percentile (p99)** |        **215.7 ms**        |        N/A        |    **PASS**    |
+| **Maximum Latency**       |        **245.3 ms**        |        N/A        |    **PASS**    |
 
 #### B. Historical Baseline Run (Commit `7664896d7cba72ee23f72360553677fa3adc3009`, 14 Nov 2026)
 
 For transparency and progression tracking, the initial unoptimized baseline run measured on the same hardware specification:
 
-| Metric                       | Historical Baseline Result | Evaluation Target  |      Status      |
-| ---------------------------- | :------------------------: | :----------------: | :--------------: |
-| **Concurrent Workers**       |        100 clients         |    100 clients     |       PASS       |
-| **Total Requests Completed** |        500 requests        |    500 requests    |       PASS       |
-| **Failed Requests**          |             0              |     0 failures     |       PASS       |
-| **Total Test Duration**      |          2,024 ms          |        N/A         |       N/A        |
-| **Throughput**               |       247.0 req/sec        |   Sustained load   |       PASS       |
-| **Minimum Latency**          |          121.8 ms          |        N/A         |       PASS       |
-| **Median (p50) Latency**     |          367.6 ms          |      Baseline      |       PASS       |
-| **Mean Latency**             |          375.0 ms          |      Baseline      |       PASS       |
-| **95th Percentile (p95)**    |        **519.9 ms**        |  $< 200\text{ ms}$ | Initial Baseline |
-| **99th Percentile (p99)**    |          570.8 ms          |        N/A         |       PASS       |
-| **Maximum Latency**          |          702.6 ms          |        N/A         |       PASS       |
+| Metric                       | Historical Baseline Result | Evaluation Target |      Status      |
+| ---------------------------- | :------------------------: | :---------------: | :--------------: |
+| **Concurrent Workers**       |        100 clients         |    100 clients    |       PASS       |
+| **Total Requests Completed** |        500 requests        |   500 requests    |       PASS       |
+| **Failed Requests**          |             0              |    0 failures     |       PASS       |
+| **Total Test Duration**      |          2,024 ms          |        N/A        |       N/A        |
+| **Throughput**               |       247.0 req/sec        |  Sustained load   |       PASS       |
+| **Minimum Latency**          |          121.8 ms          |        N/A        |       PASS       |
+| **Median (p50) Latency**     |          367.6 ms          |     Baseline      |       PASS       |
+| **Mean Latency**             |          375.0 ms          |     Baseline      |       PASS       |
+| **95th Percentile (p95)**    |        **519.9 ms**        | $< 200\text{ ms}$ | Initial Baseline |
+| **99th Percentile (p99)**    |          570.8 ms          |        N/A        |       PASS       |
+| **Maximum Latency**          |          702.6 ms          |        N/A        |       PASS       |
 
 #### C. Progression Comparison
 
-| Metric                   | Historical Baseline (`7664896`) | Latest Verified Run (`9374faf`) | Improvement |
-| :----------------------- | :-----------------------------: | :-----------------------------: | :---------: |
-| **Throughput**           |          247.0 req/sec          |        **701.7 req/sec**        |  **+184%**  |
-| **Total Test Duration**  |            2,024 ms             |           **713 ms**            |  **-64.8%** |
-| **Median (p50) Latency** |            367.6 ms             |          **129.1 ms**           |  **-64.9%** |
-| **Mean Latency**         |            375.0 ms             |          **136.2 ms**           |  **-63.7%** |
-| **95th Percentile (p95)**|            519.9 ms             |          **186.4 ms**           |  **-64.1%** |
-| **Maximum Latency**      |            702.6 ms             |          **245.3 ms**           |  **-65.1%** |
+| Metric                    | Historical Baseline (`7664896`) | Latest Verified Run (`9374faf`) | Improvement |
+| :------------------------ | :-----------------------------: | :-----------------------------: | :---------: |
+| **Throughput**            |          247.0 req/sec          |        **701.7 req/sec**        |  **+184%**  |
+| **Total Test Duration**   |            2,024 ms             |           **713 ms**            | **-64.8%**  |
+| **Median (p50) Latency**  |            367.6 ms             |          **129.1 ms**           | **-64.9%**  |
+| **Mean Latency**          |            375.0 ms             |          **136.2 ms**           | **-63.7%**  |
+| **95th Percentile (p95)** |            519.9 ms             |          **186.4 ms**           | **-64.1%**  |
+| **Maximum Latency**       |            702.6 ms             |          **245.3 ms**           | **-65.1%**  |
 
 ---
 
@@ -126,18 +126,18 @@ For transparency and progression tracking, the initial unoptimized baseline run 
 
 Verified in the latest benchmark execution:
 
-| Metric                        |       Expected Value        |    Observed Result     |   Status    |
-| ----------------------------- | :-------------------------: | :--------------------: | :---------: |
-| **Simultaneous Attempts**     |             50              |         **50**         |  **PASS**   |
-| **Seat Availability**         |   1 seat ($4/5 \to 5/5$)    | 1 seat ($4/5 \to 5/5$) |  **PASS**   |
-| **Successful Joins (201)**    |            **1**            |         **1**          | **PERFECT** |
-| **HTTP 409 Conflicts**        |           **49**            |         **49**         | **PERFECT** |
-| **Server Errors (5xx)**       |            **0**            |         **0**          | **PERFECT** |
-| **Final Team Capacity**       |          **5 / 5**          |       **5 / 5**        | **PERFECT** |
-| **Final Active Memberships**  |            **5**            |         **5**          | **PERFECT** |
-| **Duplicate Memberships**     |            **0**            |         **0**          | **PERFECT** |
-| **Member Joined Event**       |  1 (`team:member_joined`)   |      **1** event       | **PERFECT** |
-| **Capacity Updated Event**    | Delivered to 5 clients      | **5 clients** notified | **PERFECT** |
+| Metric                       |      Expected Value      |    Observed Result     |   Status    |
+| ---------------------------- | :----------------------: | :--------------------: | :---------: |
+| **Simultaneous Attempts**    |            50            |         **50**         |  **PASS**   |
+| **Seat Availability**        |  1 seat ($4/5 \to 5/5$)  | 1 seat ($4/5 \to 5/5$) |  **PASS**   |
+| **Successful Joins (201)**   |          **1**           |         **1**          | **PERFECT** |
+| **HTTP 409 Conflicts**       |          **49**          |         **49**         | **PERFECT** |
+| **Server Errors (5xx)**      |          **0**           |         **0**          | **PERFECT** |
+| **Final Team Capacity**      |        **5 / 5**         |       **5 / 5**        | **PERFECT** |
+| **Final Active Memberships** |          **5**           |         **5**          | **PERFECT** |
+| **Duplicate Memberships**    |          **0**           |         **0**          | **PERFECT** |
+| **Member Joined Event**      | 1 (`team:member_joined`) |      **1** event       | **PERFECT** |
+| **Capacity Updated Event**   |  Delivered to 5 clients  | **5 clients** notified | **PERFECT** |
 
 ---
 
@@ -187,7 +187,7 @@ npx tsx scripts/run-load-test.ts
 MONGODB_URI="mongodb://localhost:27017/crewconnect_loadbench?replicaSet=rs0" npx tsx scripts/run-load-test.ts
 ```
 
-*Note:* The script automatically seeds the 10,000-user / 2,000-team dataset, spawns an isolated API child process on an ephemeral port, runs both benchmarks, asserts all invariants, and cleans up the synthetic benchmark records.
+_Note:_ The script automatically seeds the 10,000-user / 2,000-team dataset, spawns an isolated API child process on an ephemeral port, runs both benchmarks, asserts all invariants, and cleans up the synthetic benchmark records.
 
 ---
 

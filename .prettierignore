@@ -4,5 +4,4 @@ build
 coverage
 .cache
 *.log
-.agents
-docs/design
+docs/screenshots

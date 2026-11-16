@@ -216,6 +216,7 @@ Key specifications, benchmark reports, and technical documentation are maintaine
 2. **[Load-Test & Concurrency Benchmark Report](./LOAD_TEST_REPORT.md)**: Empirical 10,000-user / 2,000-team load tests, sub-200ms p95 discovery latency, and 50-way last-seat race results.
 3. **[REST API Specification](./docs/api-specification.md)**: End-to-end endpoint contracts, request/response structures, authorization tiers, and HTTP status codes.
 4. **[System Architecture](./docs/architecture.md)**: Modular monolith architecture, module boundaries, request lifecycle, data flow, and Mermaid diagrams.
+5. **[Design System & Visual Specification](./docs/design-system.md)**: Editorial Alabaster & Deep Pine palette, typography scales, interaction physics, and WCAG 2.1 AA/AAA contrast verification.
 
 For all remaining architectural specifications, database schemas, formal Architecture Decision Records (ADRs 0001–0010), requirements traceability, and deployment guides, see the [`docs/`](./docs/) directory.
 
